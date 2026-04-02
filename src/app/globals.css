@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-space-grotesk: "Avenir Next", "Trebuchet MS", sans-serif;
+  --font-noto-sans-tc: "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(252, 163, 17, 0.18), transparent 30%),
+    linear-gradient(180deg, #fff9ef 0%, #fbf7ef 48%, #f4efe3 100%);
+  color: #14213d;
+  font-family: var(--font-noto-sans-tc), sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(42, 157, 143, 0.2);
+}
