@@ -102,6 +102,35 @@ Current product expectations:
 - Do not replace the budgeting logic with bank-account reconciliation; keep it envelope-budget focused.
 - Quick Entry should stay in-page after success and clear the amount for rapid repeated entries.
 
+## Recommended Next Work
+
+If you are continuing implementation, do these next in roughly this order:
+
+1. Add better empty/error/loading states across the dashboard and quick-entry flow.
+2. Improve transaction editing UX, especially category/date editing on mobile.
+3. Add toast and form feedback consistency so all save actions feel the same.
+4. Add automated tests for utility functions and critical budget calculations.
+5. Add optional deployment setup notes for Vercel + Supabase.
+
+## Known Gaps And TODOs
+
+- No automated test suite has been added yet.
+- Login currently supports basic email/password flow only.
+- There is no polished settings page for profile, logout preferences, or quick-entry behavior.
+- The app assumes integer TWD amounts only.
+- Dashboard data fetching is client-driven; there is no server action layer yet.
+- UI is functional and mobile-first, but not yet deeply refined for long-term production polish.
+- There is no analytics, audit trail, or undo flow for destructive actions like delete.
+
+## Guardrails For Future Changes
+
+- Keep `Asia/Taipei` as the source of truth for date-derived behavior.
+- Do not use `new Date().toISOString()` for transaction dates that represent local Taiwan dates.
+- Keep monthly budgeting isolated by `month_id`; do not introduce rollover behavior unless explicitly requested.
+- Preserve the Supabase unique constraints and RPC-based monthly initialization approach unless replacing it with something equally race-safe.
+- Do not commit `.env.local` or real credentials.
+- Keep the product focused on fast budgeting and quick expense capture, not full accounting.
+
 ## Cross-Computer Checklist
 
 - Push your latest changes before switching computers:
