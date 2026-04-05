@@ -1,12 +1,17 @@
 # DEPLOYMENT
 
-Lite YNAB 目前建議的部署平台是 `Zeabur`，資料庫與登入服務使用 `Supabase`。
+Lite YNAB 目前部署於 `Zeabur`，資料庫與登入服務使用 `Supabase`。
+
+正式網址：https://lite-ynab.zeabur.app/
+
+部署日期：2026-04-05
 
 這份文件整理的是：
 - 部署前檢查清單
 - 正式環境準備流程
-- Vercel 設定步驟
+- Zeabur 部署步驟
 - 上線後驗證項目
+- 實際部署踩坑紀錄
 
 ## 一、部署前 Checklist
 
@@ -92,6 +97,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的正式 Supabase anon key
 
 5. 觸發第一次部署
 
+> **重要**：必須在 repo 根目錄放置自訂 `Dockerfile`，不要依賴 Zeabur 自動產生的 Dockerfile（詳見第八節踩坑紀錄）。
+
 如果 Zeabur 有要求額外設定：
 - Build Command：通常使用預設值即可，或填 `npm run build`
 - Start Command：通常使用預設值即可，或填 `npm run start`
@@ -156,7 +163,72 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的正式 Supabase anon key
 
 部署完成後，建議依序做：
 
-1. 正式環境 smoke test
+1. 建立測試帳號，驗證登入後完整功能
 2. 修部署後才會出現的環境差異
-3. Google Sheets 同步
-4. 更多端對端測試
+3. 同步 `package-lock.json`（本地執行 `npm install` 後推上 GitHub，讓 Dockerfile 可改回更穩定的 `npm ci`）
+4. 設定自訪網域（選用）
+5. Google Sheets 同步
+6. 更多端對端測試
+
+## 八、實際部署踩坑紀錄（2026-04-05）
+
+以下是首次部署到 Zeabur 時遇到的問題與解法，留作日後參考。
+
+### 問題 1：Zeabur 自動產生的 Dockerfile 使用 node:22，npm update 壞掉
+
+Zeabur 自動偵測 Next.js 專案後產生的 Dockerfile 包含 `RUN npm update -g npm`，在 node:22 環境下觸發 `MODULE_NOT_FOUND: Cannot find module 'promise-retry'` 錯誤。
+
+嘗試過的方法：
+- 設定 `ZBPACK_NODE_VERSION=20` 環境變數 → 無效
+- 在 Zeabur Settings 填寫 Dockerfile override → 被忽略，仍使用 node:22
+
+**解法**：在 GitHub repo 根目錄放置自訂 `Dockerfile`，Zeabur 會優先使用它。
+
+### 問題 2：npm ci 因 lock 檔不同步而失敗
+
+`npm ci` 要求 `package.json` 和 `package-lock.json` 完全同步，但實際有缺少 `@emnapi/runtime` 等套件。
+
+**解法**：Dockerfile 中改用 `npm install` 取代 `npm ci`。
+
+### 問題 3：COPY public 目錄不存在
+
+Dockerfile 中 `COPY --from=builder /app/public ./public` 失敗，因為本專案沒有 `public` 資料夾。
+
+**解法**：移除該行。
+
+### 問題 4：NEXT_PUBLIC_ 環境變數需在建置階段注入
+
+Next.js 的 `NEXT_PUBLIC_` 開頭變數會在 `npm run build` 時被嵌入前端程式碼，因此必須在 Docker 建置階段透過 `ARG` + `ENV` 傳入，不能只在執行階段設定。
+
+Zeabur 會自動將環境變數作為 Docker build args 傳入，所䷥ Dockerfile 中需要：
+
+```dockerfile
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+### 最終可用的 Dockerfile
+
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+EXPOSE 3000
+CMD ["npm", "start"]
+```
