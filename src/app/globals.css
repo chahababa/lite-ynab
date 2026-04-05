@@ -42,6 +42,23 @@ textarea {
   font: inherit;
 }
 
+/* 手機端：避免 iOS Safari 自動放大頁面 */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* 觸控目標最小尺寸 */
+@media (max-width: 640px) {
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 ::selection {
   background: rgba(42, 157, 143, 0.2);
 }
