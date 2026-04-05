@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -366,7 +366,7 @@ export default function QuickEntryPage() {
                             tone.panel,
                           )}
                         >
-                          <p className="chrome-led-label text-[10px] uppercase">
+                          <p className="chrome-led-label text-chrome-xs uppercase">
                             {submittingCategoryId === category.id ? "saving" : "enter"}
                           </p>
                           <p className="chrome-led-value text-chrome-lg">
