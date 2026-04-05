@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-04-05 (部署更新)
+
+### Added
+
+- 新增自訂 Dockerfile，使用 `node:20-alpine` 多階段建置
+- 正式部署至 Zeabur，正式網址：https://lite-ynab.zeabur.app/
+- 設定 Supabase 環境變數（`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`）
+
+### Fixed
+
+- 修正 Zeabur 自動產生的 Dockerfile 使用 node:22 導致 `npm update -g npm` 的 `MODULE_NOT_FOUND` 錯誤
+- 修正 `npm ci` 因 `package.json` 與 `package-lock.json` 不同步而失敗，改用 `npm install`
+- 修正 Dockerfile 中 `COPY --from=builder /app/public ./public` 因專案無 public 目錄而建置失敗
+
+### Verified
+
+- 全部 6 個頁面驗證通過（`/`、`/quick-entry`、`/budget-allocation`、`/budget-usage`、`/transactions`、`/reports`）
+- 未登入狀態正確導向 `/login`
+- 登入頁 UI 完整呈現（品牌標題、登入/建立帳號切換、表單）
+
+---
+
 ## 2026-04-05
 
 ### Added
