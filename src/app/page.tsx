@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -416,11 +416,11 @@ export default function DashboardPage() {
 
               <div className="mt-5 grid grid-cols-2 gap-3 px-chrome-md pb-chrome-md">
                 <div>
-                  <p className="mb-2 text-xs uppercase tracking-[0.22em] text-chrome-700">
+                  <p className="mb-2 text-sm uppercase tracking-[0.22em] text-chrome-700">
                     左側：目前還可以再分配多少預算
                   </p>
                   <div className="chrome-led-panel p-chrome-md text-center">
-                    <p className="text-xs uppercase tracking-[0.22em] text-chrome-300">尚可分配</p>
+                    <p className="text-sm uppercase tracking-[0.22em] text-chrome-300">尚可分配</p>
                     <p
                       className={cn(
                         "mt-2 font-chrome-mono text-[2rem]",
@@ -433,11 +433,11 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <p className="mb-2 text-xs uppercase tracking-[0.22em] text-chrome-700">
+                  <p className="mb-2 text-sm uppercase tracking-[0.22em] text-chrome-700">
                     右側：這個月已經分配出去的預算總額
                   </p>
                   <div className="chrome-led-panel p-chrome-md text-center">
-                    <p className="text-xs uppercase tracking-[0.22em] text-chrome-300">已分配總額</p>
+                    <p className="text-sm uppercase tracking-[0.22em] text-chrome-300">已分配總額</p>
                     <p className="mt-2 font-chrome-mono text-[2rem] text-[var(--chrome-led-green)]">
                       {formatCurrency(allocatedTotal)}
                     </p>
@@ -448,7 +448,7 @@ export default function DashboardPage() {
 
             <section className="space-y-3">
               <div className="px-1">
-                <p className="text-xs uppercase tracking-[0.28em] text-chrome-700">本月預算</p>
+                <p className="text-sm uppercase tracking-[0.28em] text-chrome-700">本月預算</p>
                 <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
                   預算總覽
                 </h2>
@@ -462,7 +462,7 @@ export default function DashboardPage() {
 
             <section className="space-y-3">
               <div className="px-1">
-                <p className="text-xs uppercase tracking-[0.28em] text-chrome-700">最近交易</p>
+                <p className="text-sm uppercase tracking-[0.28em] text-chrome-700">最近交易</p>
                 <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
                   最近 10 筆記帳
                 </h2>
@@ -659,7 +659,7 @@ export default function DashboardPage() {
                     {visibleExpenseCategories.length === 0 ? (
                       <div className="chrome-led-panel px-chrome-md py-chrome-lg">
                         <p className="chrome-led-label text-chrome-sm uppercase">status</p>
-                        <p className="mt-2 text-sm text-chrome-300">找不到符合條件的分類。</p>
+                        <p className="mt-2 text-sm text-chrome-300">找不到符合�u件的分類。</p>
                       </div>
                     ) : (
                       visibleExpenseCategories.map((category) => (
@@ -684,7 +684,7 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div className="chrome-led-panel flex min-w-[112px] shrink-0 self-stretch flex-col items-center justify-center rounded-none border-l-2 border-y-0 border-r-0 px-chrome-sm py-[6px] text-center">
-                            <p className="chrome-led-label text-[10px] uppercase">
+                            <p className="chrome-led-label text-chrome-xs uppercase">
                               {submittingExpenseCategoryId === category.id ? "saving" : "enter"}
                             </p>
                             <p className="chrome-led-value text-chrome-lg">
@@ -704,4 +704,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-
