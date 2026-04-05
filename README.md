@@ -2,7 +2,9 @@
 
 使用 `Next.js + Supabase` 製作的輕量化記帳與預算規劃系統。
 
-目前專案已進入可實際操作的 beta 階段，主流程包含：
+正式網址：https://lite-ynab.zeabur.app/
+
+目前專案已進入可實際操作的 beta 階段，並已部署上線。主流程包含：
 - 日常記帳
 - 快速記帳
 - 月初預算分配
@@ -24,7 +26,7 @@
 - 固定預算設定
 - 基本測試與型別檢查
 
-## 技術棧
+## 技衃棧
 
 - `Next.js 15`
 - `React 19`
@@ -32,6 +34,7 @@
 - `Tailwind CSS`
 - `Supabase Auth + Postgres`
 - `Vitest + Testing Library`
+- 部署平台：`Zeabur`（Docker 容器，node:20-alpine）
 
 ## 主要頁面
 
@@ -131,7 +134,7 @@ npm run test
 ## 開發注意事項
 
 - 開著 `npm run dev` 時，不建議同時跑 `npm run build`
-  - 在 Windows 環境容易因為 `.next` 被重寫而讓樣式或頁面暫時異常
+  - 在 Windows 環境容易因為 `.next` 被重寫h��讓樣式或頁面暫時異常
 - 平常開發優先使用：
   - `npm run typecheck`
   - `npm run test`
@@ -141,6 +144,8 @@ npm run test
 
 ## 下一步建議
 
-- 繼續補強報表頁互動
-- 依照 `DEPLOYMENT.md` 整理部署到 Zeabur
-- 部署後再規劃 Google Sheets 同步
+- 建立測試帳號，驗證登入後完敵功能
+- 繽續補強報表頁互動
+- 同步 `package-lock.json` 後將 Dockerfile 改回 `npm ci`
+- 規劃 Google Sheets 同步
+- 設定自訂網域（選用）
