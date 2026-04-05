@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, CreditCard, Pencil, Tag, Trash2, Wallet, X } from "lucide-react";
@@ -153,68 +153,59 @@ export function TransactionList({
 
   return (
     <>
-      <div className="chrome-window overflow-hidden p-[4px]">
-        <div className="grid grid-cols-[76px_1fr_74px_1fr_88px_68px] gap-2 border-b border-chrome-700 bg-chrome-200 px-2 py-2 text-[10px] font-chrome-heading font-bold uppercase tracking-chrome-wide text-chrome-800">
-          <span>日期</span>
-          <span>分類</span>
-          <span>支付</span>
-          <span>備註</span>
-          <span className="text-right">金額</span>
-          <span className="text-center">操作</span>
-        </div>
-
-        <div className="divide-y divide-chrome-700/70">
+      <div className="space-y-2">
           {items.map((item) => {
             const isPending = pendingTransactionId === item.id;
 
             return (
               <div
                 key={item.id}
-                className="grid grid-cols-[76px_1fr_74px_1fr_88px_68px] items-center gap-2 px-2 py-2 text-[11px] text-chrome-900"
+                className="chrome-window p-3"
               >
-                <span className="truncate font-chrome-mono text-chrome-800">
-                  {item.date}
-                </span>
-                <div className="min-w-0 truncate">
-                  <span className="text-chrome-700">{item.categoryGroupName}</span>
-                  <span className="mx-1 text-chrome-600">/</span>
-                  <span className="font-chrome-heading font-bold">
-                    {item.categoryName}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-chrome-900">
+                        {item.categoryGroupName}
+                        <span className="mx-1 text-chrome-600">/</span>
+                        {item.categoryName}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-chrome-700">
+                      <span className="font-chrome-mono">{item.date}</span>
+                      <span>{item.paymentMethodName}</span>
+                    </div>
+                    {item.note ? (
+                      <p className="mt-1 text-sm text-chrome-600">{item.note}</p>
+                    ) : null}
+                  </div>
+                  <span className="whitespace-nowrap font-chrome-mono text-base font-bold text-[var(--chrome-led-green)]">
+                    {formatCurrency(item.amount)}
                   </span>
                 </div>
-                <span className="truncate text-chrome-800">
-                  {item.paymentMethodName}
-                </span>
-                <span className="truncate text-chrome-700">
-                  {item.note || "無備註"}
-                </span>
-                <span className="truncate text-right font-chrome-mono text-[var(--chrome-led-green)]">
-                  {formatCurrency(item.amount)}
-                </span>
-                <div className="flex justify-center gap-1">
+                <div className="mt-2 flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => openEditor(item.id)}
                     disabled={isPending}
-                    className="chrome-btn flex h-7 w-7 items-center justify-center px-0 py-0 disabled:cursor-not-allowed"
+                    className="chrome-btn flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
                     aria-label="編輯交易"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
+                    <Pencil className="h-4 w-4" />編輯
                   </button>
                   <button
                     type="button"
                     onClick={() => void onDelete(item.id)}
                     disabled={isPending}
-                    className="chrome-btn chrome-btn--danger flex h-7 w-7 items-center justify-center px-0 py-0 disabled:cursor-not-allowed"
+                    className="chrome-btn chrome-btn--danger flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
                     aria-label="刪除交易"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />刪除
                   </button>
                 </div>
               </div>
             );
           })}
-        </div>
       </div>
 
       {editingItem && editingDraft ? (
