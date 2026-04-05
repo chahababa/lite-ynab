@@ -98,7 +98,7 @@ export function PageQuickNav() {
               <div className="mb-2 w-56 chrome-window p-[6px]">
                 <div className="space-y-2">
                   <div className="chrome-statusbar px-chrome-sm py-chrome-sm">
-                    <p className="font-chrome-heading text-[10px] font-bold uppercase tracking-[0.16em] text-chrome-800">
+                    <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-[0.16em] text-chrome-800">
                       Account
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-2">
