@@ -16,27 +16,33 @@ export function MonthSwitcher({
   onNext,
 }: MonthSwitcherProps) {
   return (
-    <div className="flex items-center justify-between rounded-[28px] bg-ink px-4 py-3 text-paper shadow-float">
+    <div className="chrome-window p-[6px]">
+      <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm text-chrome-900">
       <button
         type="button"
         onClick={onPrevious}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+        className="chrome-btn flex h-11 w-11 items-center justify-center"
         aria-label="Previous month"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
       <div className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-paper/60">Month</p>
-        <p className="font-display text-2xl">{formatMonthLabel(monthId)}</p>
+        <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wider text-chrome-800">
+          Month
+        </p>
+        <p className="font-chrome-heading text-chrome-2xl font-bold tracking-chrome-wide">
+          {formatMonthLabel(monthId)}
+        </p>
       </div>
       <button
         type="button"
         onClick={onNext}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+        className="chrome-btn flex h-11 w-11 items-center justify-center"
         aria-label="Next month"
       >
         <ChevronRight className="h-5 w-5" />
       </button>
+      </div>
     </div>
   );
 }

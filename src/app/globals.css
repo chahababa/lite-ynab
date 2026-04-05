@@ -6,6 +6,21 @@
   color-scheme: light;
   --font-space-grotesk: "Avenir Next", "Trebuchet MS", sans-serif;
   --font-noto-sans-tc: "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --chrome-primary: #1a1a2e;
+  --chrome-primary-light: #2a2a4e;
+  --chrome-surface: #c0c0c0;
+  --chrome-surface-raised: #d0d0d0;
+  --chrome-surface-pressed: #a0a0a0;
+  --chrome-background: #a8a8a8;
+  --chrome-highlight: rgba(255, 255, 255, 0.4);
+  --chrome-shadow: rgba(0, 0, 0, 0.2);
+  --chrome-deep-shadow: rgba(0, 0, 0, 0.5);
+  --chrome-led-green: #00ff88;
+  --chrome-led-amber: #ffaa00;
+  --chrome-led-muted: #44cc77;
+  --chrome-text: #2a2a2a;
+  --chrome-text-subtle: #555555;
+  --chrome-text-dark: #cccccc;
 }
 
 body {
@@ -29,4 +44,146 @@ textarea {
 
 ::selection {
   background: rgba(42, 157, 143, 0.2);
+}
+
+@layer components {
+  .chrome-window {
+    border-radius: 4px;
+    border: 1px solid #666666;
+    background: linear-gradient(
+      180deg,
+      #c8c8c8 0%,
+      #a0a0a0 3%,
+      #d4d4d4 6%,
+      #b8b8b8 50%,
+      #a0a0a0 97%,
+      #888888 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .chrome-titlebar {
+    border-top: 1px solid #d0d0d0;
+    border-left: 1px solid #c8c8c8;
+    border-right: 1px solid #787878;
+    border-bottom: 1px solid #707070;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #b0b0b0 0%, #989898 50%, #a8a8a8 100%);
+  }
+
+  .chrome-titlebar--info {
+    border-top: 1px solid #8cb8dc;
+    border-left: 1px solid #78a8cf;
+    border-right: 1px solid #274f73;
+    border-bottom: 1px solid #234564;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #6ea6d1 0%, #3b74a6 50%, #4a86ba 100%);
+  }
+
+  .chrome-statusbar {
+    border-top: 1px solid #b8b8b8;
+    border-bottom: 1px solid #666666;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #a0a0a0 0%, #888888 100%);
+  }
+
+  .chrome-btn {
+    border: 1px outset #cccccc;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #d0d0d0 0%, #a8a8a8 50%, #b8b8b8 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+    color: var(--chrome-text);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: all 50ms ease-out;
+  }
+
+  .chrome-btn:hover {
+    background: linear-gradient(180deg, #e0e0e0 0%, #b8b8b8 50%, #c8c8c8 100%);
+  }
+
+  .chrome-btn:active {
+    transform: translateY(1px);
+    background: linear-gradient(180deg, #a0a0a0 0%, #909090 50%, #a0a0a0 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.3),
+      inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .chrome-btn:disabled {
+    cursor: not-allowed;
+    border-color: #aaaaaa;
+    background: linear-gradient(180deg, #c0c0c0 0%, #b0b0b0 50%, #b8b8b8 100%);
+    color: #8a8a8a;
+    text-shadow: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  }
+
+  .chrome-btn--success {
+    border-color: #55cc88;
+    background: linear-gradient(180deg, #44bb77 0%, #228855 50%, #339966 100%);
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .chrome-btn--danger {
+    border-color: #dd7755;
+    background: linear-gradient(180deg, #cc6644 0%, #aa4422 50%, #bb5533 100%);
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .chrome-btn--info {
+    border-color: #6ea6d1;
+    background: linear-gradient(180deg, #5d9bd3 0%, #336699 50%, #4488bb 100%);
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .chrome-field {
+    border: 2px inset #555555;
+    border-radius: 2px;
+    background: #efefef;
+    color: var(--chrome-text);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+    text-indent: 8px;
+  }
+
+  .chrome-field--numeric {
+    text-align: center;
+    text-indent: 0;
+  }
+
+  .chrome-led-panel {
+    border: 2px inset #555555;
+    border-radius: 2px;
+    background: var(--chrome-primary);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.04);
+  }
+
+  .chrome-led-value {
+    font-family: "Courier New", "Lucida Console", monospace;
+    color: var(--chrome-led-green);
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+    letter-spacing: 2px;
+  }
+
+  .chrome-led-label {
+    font-family: "Courier New", "Lucida Console", monospace;
+    color: var(--chrome-led-muted);
+    letter-spacing: 1.5px;
+  }
+
+  .chrome-led-accent {
+    color: var(--chrome-led-amber);
+    text-shadow: 0 0 8px rgba(255, 170, 0, 0.35);
+  }
 }

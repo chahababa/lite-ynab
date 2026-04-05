@@ -1,160 +1,146 @@
 # Lite YNAB
 
-Mobile-first budgeting app built with Next.js and Supabase.
+使用 `Next.js + Supabase` 製作的輕量化記帳與預算規劃系統。
 
-## Project Status
+目前專案已進入可實際操作的 beta 階段，主流程包含：
+- 日常記帳
+- 快速記帳
+- 月初預算分配
+- 預算使用儀表板
+- 完整交易查詢
+- 報表分析
 
-- GitHub repo: `https://github.com/chahababa/lite-ynab`
-- Main branch: `main`
-- Frontend: Next.js App Router + Tailwind CSS
-- Backend/data: Supabase Auth + Postgres + RLS
-- Current app routes: `/`, `/login`, `/quick-entry`
+## 目前功能
 
-## What Is Already Implemented
+- 登入 / 註冊
+- 主控臺 Dashboard
+- 快速記帳頁
+- 預算分配中心
+- 預算使用儀表板
+- 全部交易頁
+- 報表頁
+- 大項 / 小項分類管理
+- 支付方式管理
+- 固定預算設定
+- 基本測試與型別檢查
 
-- Email/password login page
-- Dashboard with month switching
-- Monthly income editing
-- Lazy monthly budget initialization through Supabase RPC
-- Budget list with remaining balance and overspending warning
-- Recent 10 transactions with edit/delete
-- Quick Entry page with Taipei date default and quick category buttons
-- Supabase migration and seed files
+## 技術棧
 
-## Local Setup
+- `Next.js 15`
+- `React 19`
+- `TypeScript`
+- `Tailwind CSS`
+- `Supabase Auth + Postgres`
+- `Vitest + Testing Library`
 
-1. Clone the repo:
+## 主要頁面
 
-```powershell
-git clone https://github.com/chahababa/lite-ynab.git
-cd lite-ynab
-```
+- `/login`
+  - 登入 / 註冊
+- `/`
+  - 主控臺，日常查看與記帳主頁
+- `/quick-entry`
+  - 快速記帳控制台，偏手機捷徑使用
+- `/budget-allocation`
+  - 正式版預算分配頁，採表格式分配介面
+- `/budget-usage`
+  - 預算使用儀表板，查看已支出 / 剩餘 / 超支情況
+- `/transactions`
+  - 全部交易查詢、編修、篩選
+- `/reports`
+  - 報表分析
+- `/settings`
+  - 補充設定頁
 
-2. Install dependencies:
+## 本機啟動
+
+1. 安裝套件
 
 ```powershell
 npm install
 ```
 
-3. Copy `.env.example` to `.env.local`.
-
-4. Fill in:
+2. 建立 `.env.local`
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-5. Run the SQL migration in:
+3. 依序套用 Supabase migrations
 
-`supabase/migrations/202604020001_init_lite_ynab.sql`
+```text
+202604020001_init_lite_ynab.sql
+202604030001_fix_default_category_labels.sql
+202604030002_fix_auth_function_user_id.sql
+202604030003_translate_default_categories_to_zh_hant.sql
+202604030004_add_budget_planning_groups_and_payment_methods.sql
+202604030005_stop_recreating_deleted_default_categories.sql
+```
 
-6. If you want demo data, first create one Supabase Auth user, then run:
-
-`supabase/seed.sql`
-
-7. Start the app:
+4. 啟動開發伺服器
 
 ```powershell
 npm run dev
 ```
 
-8. Optional validation:
+5. 驗證
 
 ```powershell
 npm run typecheck
-npm run build
+npm run test
 ```
 
-## Supabase Notes
+## 資料表與 RPC
 
-- Tables: `categories`, `monthly_incomes`, `budgets`, `transactions`
-- RLS is enabled and scoped to `auth.uid()`
-- The app uses `bootstrap_default_categories()` and `initialize_monthly_budget(month_id)` RPC functions
-- Default categories can be auto-created on first sign-in through the RPC
+主要資料表：
 
-## Important Files
+- `category_groups`
+- `categories`
+- `payment_methods`
+- `monthly_incomes`
+- `budgets`
+- `transactions`
 
-- `src/app/page.tsx`: main dashboard
-- `src/app/quick-entry/page.tsx`: quick entry flow
-- `src/app/login/page.tsx`: auth screen
-- `src/lib/data.ts`: Supabase reads and dashboard aggregation
-- `src/lib/utils.ts`: Taipei date and formatting helpers
-- `supabase/migrations/202604020001_init_lite_ynab.sql`: schema, RLS, RPC
-- `supabase/seed.sql`: demo seed data
+主要 RPC：
 
-## Handoff For Another Computer Or AI
+- `bootstrap_default_category_groups()`
+- `bootstrap_default_categories()`
+- `bootstrap_default_payment_methods()`
+- `initialize_monthly_budget(text)`
 
-If you are an AI assistant continuing this project on another machine, start here:
+## 報表頁目前支援
 
-1. Read this `README.md`.
-2. Confirm `.env.local` exists with valid Supabase values.
-3. Confirm the migration has been executed in the target Supabase project.
-4. Run `npm install`.
-5. Run `npm run typecheck`.
-6. Run `npm run dev` for local development or `npm run build` for compile verification.
+- 月對月比較
+- 日期區間統計
+- 細項分類圓餅圖
+- 趨勢長條圖
+- 預算 vs 實際支出
+- 大項展開看小項明細
+- 支付方式分析
+- CSV / Excel 匯出
 
-Current product expectations:
+## 文件
 
-- This is a standalone repo, no longer nested under the Telegram diary bot project.
-- The app is single-user login oriented through Supabase Auth.
-- Timezone-sensitive dates must use `Asia/Taipei`.
-- Do not replace the budgeting logic with bank-account reconciliation; keep it envelope-budget focused.
-- Quick Entry should stay in-page after success and clear the amount for rapid repeated entries.
+- 開發規則：[AGENTS.md](./AGENTS.md)
+- 設計規格：[design/DESIGN-SPEC.md](./design/DESIGN-SPEC.md)
+- 版本變更：[CHANGELOG.md](./CHANGELOG.md)
+- 專案現況：[STATUS.md](./STATUS.md)
+- 部署流程：[DEPLOYMENT.md](./DEPLOYMENT.md)
 
-## Recommended Next Work
+## 開發注意事項
 
-If you are continuing implementation, do these next in roughly this order:
+- 開著 `npm run dev` 時，不建議同時跑 `npm run build`
+  - 在 Windows 環境容易因為 `.next` 被重寫而讓樣式或頁面暫時異常
+- 平常開發優先使用：
+  - `npm run typecheck`
+  - `npm run test`
+- 純數字輸入框一律置中
+- 文字輸入框的文字不要貼齊左框
+- 大項分類標籤必須有固定且可辨識的顏色區隔
 
-1. Add better empty/error/loading states across the dashboard and quick-entry flow.
-2. Improve transaction editing UX, especially category/date editing on mobile.
-3. Add toast and form feedback consistency so all save actions feel the same.
-4. Add automated tests for utility functions and critical budget calculations.
-5. Add optional deployment setup notes for Vercel + Supabase.
+## 下一步建議
 
-## Known Gaps And TODOs
-
-- No automated test suite has been added yet.
-- Login currently supports basic email/password flow only.
-- There is no polished settings page for profile, logout preferences, or quick-entry behavior.
-- The app assumes integer TWD amounts only.
-- Dashboard data fetching is client-driven; there is no server action layer yet.
-- UI is functional and mobile-first, but not yet deeply refined for long-term production polish.
-- There is no analytics, audit trail, or undo flow for destructive actions like delete.
-
-## Guardrails For Future Changes
-
-- Keep `Asia/Taipei` as the source of truth for date-derived behavior.
-- Do not use `new Date().toISOString()` for transaction dates that represent local Taiwan dates.
-- Keep monthly budgeting isolated by `month_id`; do not introduce rollover behavior unless explicitly requested.
-- Preserve the Supabase unique constraints and RPC-based monthly initialization approach unless replacing it with something equally race-safe.
-- Do not commit `.env.local` or real credentials.
-- Keep the product focused on fast budgeting and quick expense capture, not full accounting.
-
-## Cross-Computer Checklist
-
-- Push your latest changes before switching computers:
-
-```powershell
-git status
-git add .
-git commit -m "your message"
-git push
-```
-
-- On the next computer:
-
-```powershell
-git clone https://github.com/chahababa/lite-ynab.git
-cd lite-ynab
-npm install
-```
-
-- Recreate `.env.local`
-- Run `npm run dev`
-
-## Security Reminder
-
-- Do not commit `.env.local`
-- Store Supabase keys in a password manager or secure notes
-- If any real keys were exposed elsewhere, rotate them
+- 繼續補強報表頁互動
+- 依照 `DEPLOYMENT.md` 整理部署到 Zeabur
+- 部署後再規劃 Google Sheets 同步

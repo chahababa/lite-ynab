@@ -20,9 +20,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const timer = toast
-      ? window.setTimeout(() => setToast(null), 2800)
-      : undefined;
+    const timer = toast ? window.setTimeout(() => setToast(null), 2800) : undefined;
 
     return () => {
       if (timer) {
@@ -74,15 +72,13 @@ export default function LoginPage() {
       } else {
         setToast({
           tone: "info",
-          message: "註冊成功，若啟用信箱驗證請先完成驗證。",
+          message: "註冊成功，如需驗證請到信箱完成確認。",
         });
       }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "登入失敗，請稍後再試。";
+    } catch {
       setToast({
         tone: "error",
-        message,
+        message: mode === "login" ? "登入失敗，請再試一次。" : "註冊失敗，請再試一次。",
       });
     } finally {
       setIsSubmitting(false);
@@ -96,9 +92,9 @@ export default function LoginPage() {
       <div className="overflow-hidden rounded-[36px] border border-ink/10 bg-white/80 shadow-float backdrop-blur">
         <div className="bg-ink px-6 py-8 text-paper">
           <p className="text-xs uppercase tracking-[0.32em] text-paper/60">Lite YNAB</p>
-          <h1 className="mt-3 font-display text-4xl">把每月薪水，分配到能安心的地方。</h1>
-          <p className="mt-3 text-sm text-paper/75">
-            單一帳號版本，先登入再開始編預算與快速記帳。
+          <h1 className="mt-3 font-display text-4xl">先規劃本月預算，再安心記下每天支出。</h1>
+          <p className="mt-3 text-sm leading-6 text-paper/75">
+            登入後就能設定大項與小項分類、安排每月預算，並用最快的方式完成記帳。
           </p>
         </div>
 
@@ -111,7 +107,7 @@ export default function LoginPage() {
                 mode === "login" ? "bg-white text-ink shadow-sm" : "text-ink/55"
               }`}
             >
-              已有帳號
+              登入
             </button>
             <button
               type="button"
@@ -126,19 +122,19 @@ export default function LoginPage() {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
-              <span className="mb-2 block text-sm text-ink/70">Email</span>
+              <span className="mb-2 block text-sm text-ink/70">電子郵件</span>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="w-full rounded-2xl border border-ink/10 bg-paper px-4 py-3 outline-none transition focus:border-mint"
-                placeholder="you@example.com"
+                placeholder="請輸入電子郵件"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm text-ink/70">Password</span>
+              <span className="mb-2 block text-sm text-ink/70">密碼</span>
               <input
                 type="password"
                 required
@@ -146,7 +142,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-2xl border border-ink/10 bg-paper px-4 py-3 outline-none transition focus:border-mint"
-                placeholder="至少 6 碼"
+                placeholder="至少 6 個字元"
               />
             </label>
 

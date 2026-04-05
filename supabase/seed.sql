@@ -9,22 +9,22 @@ begin
   limit 1;
 
   if target_user is null then
-    raise notice 'No auth user found. Create a user first, then rerun seed.sql.';
+    raise notice '找不到 auth 使用者，請先建立一個帳號，再重新執行 seed.sql。';
     return;
   end if;
 
   insert into public.categories (user_id, name, is_auto, auto_amount, is_quick, sort_order)
   values
-    (target_user, '個人飲食', true, 6000, true, 10),
-    (target_user, '家庭飲食', true, 4000, true, 20),
-    (target_user, '交通', true, 2000, true, 30),
-    (target_user, '日用品', false, 0, true, 40),
+    (target_user, '飲食', true, 6000, true, 10),
+    (target_user, '交通', true, 4000, true, 20),
+    (target_user, '咖啡', true, 2000, true, 30),
+    (target_user, '日常用品', false, 0, true, 40),
     (target_user, '娛樂', false, 0, true, 50),
-    (target_user, '醫療', false, 0, false, 60),
+    (target_user, '健康', false, 0, false, 60),
     (target_user, '房租', true, 12000, false, 70),
-    (target_user, '水電瓦斯', false, 0, false, 80),
-    (target_user, '人情雜支', false, 0, false, 90),
-    (target_user, '旅遊基金', false, 0, false, 100)
+    (target_user, '旅行', false, 0, false, 80),
+    (target_user, '訂閱', false, 0, false, 90),
+    (target_user, '緊急預備金', false, 0, false, 100)
   on conflict (user_id, name) do nothing;
 
   insert into public.monthly_incomes (user_id, month_id, amount)

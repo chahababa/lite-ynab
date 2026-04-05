@@ -9,15 +9,19 @@ type ToastProps = {
 
 export function Toast({ message, tone }: ToastProps) {
   return (
-    <div
-      className={cn(
-        "fixed left-1/2 top-4 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-float",
-        tone === "success" && "bg-mint",
-        tone === "error" && "bg-coral",
-        tone === "info" && "bg-ink",
-      )}
-    >
-      {message}
+    <div className="fixed left-1/2 top-4 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2">
+      <div className="chrome-window p-[6px]">
+        <div
+          className={cn(
+            "chrome-statusbar px-chrome-md py-chrome-sm font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide",
+            tone === "success" && "text-success-dark",
+            tone === "error" && "text-danger-dark",
+            tone === "info" && "text-chrome-900",
+          )}
+        >
+          {message}
+        </div>
+      </div>
     </div>
   );
 }

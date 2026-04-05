@@ -1,0 +1,153 @@
+{
+  "colors": {
+    "primary": "#1A1A2E",
+    "primaryLight": "#2A2A4E",
+    "secondary": "#B8B8B8",
+    "secondaryLight": "#D4D4D4",
+    "secondaryDark": "#888888",
+    "surface": "#C0C0C0",
+    "surfaceRaised": "#D0D0D0",
+    "surfacePressed": "#A0A0A0",
+    "background": "#A8A8A8",
+    "backgroundDark": "#1A1A2E",
+    "success": "#339966",
+    "successLight": "#44BB77",
+    "successDark": "#228855",
+    "danger": "#BB5533",
+    "dangerLight": "#CC6644",
+    "dangerDark": "#AA4422",
+    "warning": "#CC9933",
+    "warningLight": "#DDAA44",
+    "warningDark": "#AA7722",
+    "info": "#4488BB",
+    "infoLight": "#5599CC",
+    "infoDark": "#336699",
+    "chrome": {
+      "highlight": "rgba(255, 255, 255, 0.4)",
+      "midtone": "#B8B8B8",
+      "shadow": "rgba(0, 0, 0, 0.2)",
+      "deepShadow": "rgba(0, 0, 0, 0.5)"
+    },
+    "led": {
+      "green": "#00FF88",
+      "greenGlow": "rgba(0, 255, 136, 0.5)",
+      "amber": "#FFAA00",
+      "amberGlow": "rgba(255, 170, 0, 0.4)",
+      "red": "#FF4444",
+      "redGlow": "rgba(255, 68, 68, 0.4)",
+      "textMuted": "#44CC77"
+    },
+    "text": {
+      "onChrome": "#2A2A2A",
+      "onChromeSubtle": "#555555",
+      "onDark": "#CCCCCC",
+      "onButton": "#FFFFFF"
+    }
+  },
+  "spacing": {
+    "unit": "4px",
+    "xs": "2px",
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px",
+    "xl": "16px",
+    "2xl": "24px"
+  },
+  "borderRadius": {
+    "button": "3px",
+    "card": "4px",
+    "input": "2px",
+    "window": "4px",
+    "pill": "12px"
+  },
+  "borders": {
+    "outset": "1px outset #CCCCCC",
+    "inset": "2px inset #555555",
+    "raised": {
+      "top": "1px solid #D0D0D0",
+      "left": "1px solid #C8C8C8",
+      "bottom": "1px solid #707070",
+      "right": "1px solid #787878"
+    },
+    "groove": "2px groove #AAAAAA",
+    "windowFrame": "1px solid #666666"
+  },
+  "shadows": {
+    "sm": "inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.2)",
+    "md": "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.3)",
+    "lg": "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.5)",
+    "pressed": "inset 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 2px rgba(0,0,0,0.2)",
+    "ledGlow": "0 0 8px rgba(0,255,136,0.5)",
+    "ledGlowAmber": "0 0 8px rgba(255,170,0,0.4)"
+  },
+  "gradients": {
+    "chromePanel": "linear-gradient(180deg, #C8C8C8 0%, #A0A0A0 3%, #D4D4D4 6%, #B8B8B8 50%, #A0A0A0 97%, #888888 100%)",
+    "chromeButton": "linear-gradient(180deg, #D0D0D0 0%, #A8A8A8 50%, #B8B8B8 100%)",
+    "chromeButtonHover": "linear-gradient(180deg, #E0E0E0 0%, #B8B8B8 50%, #C8C8C8 100%)",
+    "chromeButtonActive": "linear-gradient(180deg, #A0A0A0 0%, #909090 50%, #A0A0A0 100%)",
+    "chromeTitleBar": "linear-gradient(180deg, #B0B0B0 0%, #989898 50%, #A8A8A8 100%)",
+    "chromeStatusBar": "linear-gradient(180deg, #A0A0A0 0%, #888888 100%)",
+    "successButton": "linear-gradient(180deg, #44BB77 0%, #228855 50%, #339966 100%)",
+    "dangerButton": "linear-gradient(180deg, #CC6644 0%, #AA4422 50%, #BB5533 100%)",
+    "progressBar": "linear-gradient(90deg, #00CC66, #00FF88)"
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": "'Tahoma', 'Verdana', sans-serif",
+      "body": "'Tahoma', 'Verdana', sans-serif",
+      "mono": "'Courier New', 'Lucida Console', monospace",
+      "led": "'Courier New', 'Lucida Console', monospace"
+    },
+    "scale": {
+      "xs": "0.5625rem",
+      "sm": "0.625rem",
+      "base": "0.6875rem",
+      "lg": "0.75rem",
+      "xl": "1rem",
+      "2xl": "1.125rem",
+      "3xl": "1.75rem"
+    },
+    "fontWeight": {
+      "normal": 400,
+      "bold": 700
+    },
+    "lineHeight": {
+      "tight": 1.2,
+      "normal": 1.4,
+      "relaxed": 1.6
+    },
+    "letterSpacing": {
+      "normal": "0",
+      "wide": "1px",
+      "wider": "1.5px",
+      "widest": "2px"
+    },
+    "textShadow": {
+      "embossed": "0 1px 0 rgba(255,255,255,0.3)",
+      "engraved": "0 -1px 0 rgba(0,0,0,0.3)",
+      "glow": "0 0 8px rgba(0,255,136,0.5)",
+      "buttonLabel": "0 1px 2px rgba(0,0,0,0.3)"
+    }
+  },
+  "animation": {
+    "duration": {
+      "instant": "50ms",
+      "fast": "100ms",
+      "normal": "200ms",
+      "slow": "400ms"
+    },
+    "easing": {
+      "default": "ease-out",
+      "mechanical": "linear",
+      "click": "cubic-bezier(0.25, 0, 0.5, 1)",
+      "bounce": "cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+    }
+  },
+  "transition": {
+    "button": "all 50ms ease-out",
+    "buttonColor": "background 100ms linear",
+    "card": "box-shadow 200ms ease-out",
+    "fade": "opacity 200ms ease-in-out",
+    "led": "color 100ms linear, text-shadow 100ms linear"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "style": "Neumorphism",
+    "description": "柔光浮雕介面風格 — 元件從背景凸起或凹陷，以同色系雙陰影營造立體感"
+  },
+  "colors": {
+    "background": "#E0E5EC",
+    "surface": "#E0E5EC",
+    "primary": "#6C63FF",
+    "primaryMuted": "#8B85FF",
+    "secondary": "#FF6B6B",
+    "text": {
+      "primary": "#2D3436",
+      "secondary": "#636E72",
+      "disabled": "#B2BEC3"
+    },
+    "success": "#00B894",
+    "danger": "#E17055",
+    "warning": "#FDCB6E",
+    "shadow": {
+      "light": "#FFFFFF",
+      "dark": "#A3B1C6"
+    }
+  },
+  "neumorphic": {
+    "raised": {
+      "boxShadow": "6px 6px 12px #A3B1C6, -6px -6px 12px #FFFFFF"
+    },
+    "pressed": {
+      "boxShadow": "inset 4px 4px 8px #A3B1C6, inset -4px -4px 8px #FFFFFF"
+    },
+    "flat": {
+      "boxShadow": "3px 3px 6px #A3B1C6, -3px -3px 6px #FFFFFF"
+    },
+    "concave": {
+      "boxShadow": "inset 2px 2px 5px #A3B1C6, inset -2px -2px 5px #FFFFFF"
+    }
+  },
+  "spacing": {
+    "unit": "4px",
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "2xl": "48px"
+  },
+  "borderRadius": {
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "24px",
+    "full": "9999px"
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": "'Noto Sans TC', 'SF Pro Display', sans-serif",
+      "body": "'Inter', 'Noto Sans TC', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
+    },
+    "scale": {
+      "xs": "0.75rem",
+      "sm": "0.875rem",
+      "base": "1rem",
+      "lg": "1.125rem",
+      "xl": "1.25rem",
+      "2xl": "1.5rem",
+      "3xl": "1.875rem",
+      "4xl": "2.25rem"
+    },
+    "fontWeight": {
+      "normal": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    }
+  },
+  "animation": {
+    "duration": {
+      "fast": "150ms",
+      "normal": "250ms",
+      "slow": "400ms"
+    },
+    "easing": {
+      "default": "cubic-bezier(0.25, 0.1, 0.25, 1)",
+      "in": "cubic-bezier(0.4, 0, 1, 1)",
+      "out": "cubic-bezier(0, 0, 0.2, 1)",
+      "smooth": "cubic-bezier(0.45, 0, 0.55, 1)"
+    }
+  },
+  "transition": {
+    "button": "box-shadow 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 150ms ease",
+    "card": "box-shadow 300ms cubic-bezier(0, 0, 0.2, 1), transform 300ms ease",
+    "input": "box-shadow 200ms ease-in-out",
+    "toggle": "box-shadow 250ms cubic-bezier(0.25, 0.1, 0.25, 1), background-color 250ms ease"
+  }
+}

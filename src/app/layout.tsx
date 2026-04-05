@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 
 import "@/app/globals.css";
+import { PageQuickNav } from "@/components/PageQuickNav";
 
 export const metadata: Metadata = {
   title: "Lite YNAB",
-  description: "Mobile-first budgeting app with fast monthly planning.",
+  description: "輕量化記帳、預算分配與報表分析工具。",
 };
 
 export default function RootLayout({
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-Hant">
-      <body>{children}</body>
+      <body>
+        <PageQuickNav />
+        {children}
+      </body>
     </html>
   );
 }
