@@ -98,7 +98,7 @@ export function BudgetList({ items, onSave, pendingBudgetId }: BudgetListProps) 
                           accent.panel,
                         )}
                       >
-                        <p className="chrome-led-label text-[10px] uppercase">remaining</p>
+                        <p className="chrome-led-label text-chrome-xs uppercase">remaining</p>
                         <p
                           className={cn(
                             "mt-1 font-chrome-mono text-chrome-lg",
