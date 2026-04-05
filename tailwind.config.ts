@@ -110,12 +110,12 @@ const config: Config = {
         mono: ["'JetBrains Mono'", "monospace"],
       },
       fontSize: {
-        "chrome-xs": ["0.5625rem", { lineHeight: "1.2" }],
-        "chrome-sm": ["0.625rem", { lineHeight: "1.2" }],
-        "chrome-base": ["0.6875rem", { lineHeight: "1.4" }],
-        "chrome-lg": ["0.75rem", { lineHeight: "1.4" }],
-        "chrome-xl": ["1rem", { lineHeight: "1.2" }],
-        "chrome-2xl": ["1.125rem", { lineHeight: "1.2" }],
+        "chrome-xs": ["0.75rem", { lineHeight: "1.3" }],     // 12px (badge)
+        "chrome-sm": ["0.875rem", { lineHeight: "1.4" }],    // 14px (labels, descriptions)
+        "chrome-base": ["1rem", { lineHeight: "1.5" }],      // 16px (body, buttons, inputs)
+        "chrome-lg": ["1.125rem", { lineHeight: "1.4" }],    // 18px (emphasis)
+        "chrome-xl": ["1.25rem", { lineHeight: "1.3" }],     // 20px (page titles)
+        "chrome-2xl": ["1.5rem", { lineHeight: "1.3" }],     // 24px (big titles)
         "chrome-led": ["1.75rem", { lineHeight: "1.2" }],
       },
       letterSpacing: {
@@ -145,7 +145,7 @@ const config: Config = {
           "linear-gradient(180deg, #B0B0B0 0%, #989898 50%, #A8A8A8 100%)",
         "chrome-statusbar":
           "linear-gradient(180deg, #A0A0A0 0%, #888888 100%)",
-        "btn-success":
+// test       "btn-success":
           "linear-gradient(180deg, #44BB77 0%, #228855 50%, #339966 100%)",
         "btn-danger":
           "linear-gradient(180deg, #CC6644 0%, #AA4422 50%, #BB5533 100%)",
