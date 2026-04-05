@@ -149,13 +149,13 @@ export default function BudgetUsagePage() {
             <section className="sticky top-3 z-20 chrome-window p-[6px]">
               <div className="grid grid-cols-3 gap-3 px-chrome-md py-chrome-md">
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.22em] text-paper/60">
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">
                     {scope === "today" ? "今日已支出" : "本月已支出"}
                   </p>
                   <p className="mt-2 font-display text-chrome-2xl text-paper">{formatCurrency(data.summary.spent)}</p>
                 </div>
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.22em] text-paper/60">剩餘可用</p>
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">剩餘可用</p>
                   <p className={cn("mt-2 font-display text-chrome-2xl", data.summary.remaining < 0 ? "text-coral" : "text-mint")}>
                     {formatCurrency(data.summary.remaining)}
                   </p>
@@ -202,19 +202,19 @@ export default function BudgetUsagePage() {
                               <p className="mt-1 text-chrome-sm text-chrome-800">本月預算 {formatCurrency(item.allocated)}</p>
                             </div>
                             {item.isOverspent ? (
-                              <span className="chrome-btn chrome-btn--danger px-chrome-sm py-1 text-[11px]">超支</span>
+                              <span className="chrome-btn chrome-btn--danger px-chrome-sm py-1 text-xs">超支</span>
                             ) : null}
                           </div>
 
                           <div className="mt-3 grid grid-cols-2 gap-3">
                             <div className="chrome-led-panel p-chrome-md text-center">
-                              <p className="text-xs uppercase tracking-[0.18em] text-paper/60">
+                              <p className="text-sm uppercase tracking-[0.18em] text-paper/60">
                                 {scope === "today" ? "今日支出" : "本月支出"}
                               </p>
                               <p className="mt-2 font-display text-[1.9rem] text-paper">{formatCurrency(item.spent)}</p>
                             </div>
                             <div className="chrome-led-panel p-chrome-md text-center">
-                              <p className="text-xs uppercase tracking-[0.18em] text-paper/60">剩餘可用</p>
+                              <p className="text-sm uppercase tracking-[0.18em] text-paper/60">剩餘可用</p>
                               <p className={cn("mt-2 font-display text-[1.9rem]", item.remaining < 0 ? "text-coral" : "text-mint")}>
                                 {formatCurrency(item.remaining)}
                               </p>
