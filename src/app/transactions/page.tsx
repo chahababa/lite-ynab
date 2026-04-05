@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -358,11 +358,11 @@ export default function TransactionsPage() {
           <div className="chrome-window p-[6px]">
             <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
               <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                <p className="text-xs uppercase tracking-[0.26em] text-paper/60">筆數</p>
+                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">筆數</p>
                 <p className="mt-2 font-display text-3xl text-paper">{filteredTransactions.length}</p>
               </div>
               <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                <p className="text-xs uppercase tracking-[0.26em] text-paper/60">總支出</p>
+                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">總支出</p>
                 <p className="mt-2 font-display text-3xl text-mint">{formatCurrency(totalFilteredAmount)}</p>
               </div>
             </div>
