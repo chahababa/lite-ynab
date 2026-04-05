@@ -205,19 +205,19 @@ export default function ReportsPage() {
 
               <div className="grid grid-cols-2 gap-3 px-chrome-md pb-chrome-md">
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.26em] text-paper/60">收入</p>
+                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">收入</p>
                   <p className="mt-2 font-display text-3xl text-paper">{formatCurrency(data.summary.income)}</p>
                 </div>
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.26em] text-paper/60">已支出</p>
+                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">已支出</p>
                   <p className="mt-2 font-display text-3xl text-mint">{formatCurrency(data.summary.spent)}</p>
                 </div>
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.26em] text-paper/60">已分配</p>
+                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">已分配</p>
                   <p className="mt-2 font-display text-3xl text-paper">{formatCurrency(data.summary.allocated)}</p>
                 </div>
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.26em] text-paper/60">尚可分配</p>
+                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">尚可分配</p>
                   <p className={cn("mt-2 font-display text-3xl", data.summary.unallocated < 0 ? "text-coral" : "text-mint")}>
                     {formatCurrency(data.summary.unallocated)}
                   </p>
