@@ -736,11 +736,11 @@ export default function BudgetAllocationCompactPage() {
                 </label>
 
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.22em] text-paper/60">已分配</p>
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">已分配</p>
                   <p className="mt-2 font-display text-chrome-2xl text-paper">{formatCurrency(allocatedTotal)}</p>
                 </div>
                 <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-xs uppercase tracking-[0.22em] text-paper/60">剩餘可分配</p>
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">剩餘可分配</p>
                   <p className={cn("mt-2 font-display text-chrome-2xl", unallocated < 0 ? "text-coral" : "text-mint")}>
                     {formatCurrency(unallocated)}
                   </p>
@@ -860,7 +860,7 @@ export default function BudgetAllocationCompactPage() {
 
                 {!collapsedGroups[group.groupId] ? (
                 <div className="px-chrome-md py-chrome-md">
-                  <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-chrome-700 pb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-chrome-800">
+                  <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-chrome-700 pb-2 text-sm font-bold uppercase tracking-[0.14em] text-chrome-800">
                     <p className="pl-2">小項</p>
                     <p className="text-center">上月分配</p>
                     <p className="text-center">上月支出</p>
@@ -927,18 +927,18 @@ export default function BudgetAllocationCompactPage() {
                                 ) : null}
                               </div>
                             </div>
-                            <p className="text-[11px] text-chrome-800">已支出 {formatCurrency(row.spent)}</p>
+                            <p className="text-sm text-chrome-800">已支出 {formatCurrency(row.spent)}</p>
                             {pendingKey === row.budgetId ? (
-                              <p className="text-[11px] text-chrome-800">自動儲存中...</p>
+                              <p className="text-sm text-chrome-800">自動儲存中...</p>
                             ) : null}
                             {pendingKey === `quick-${row.categoryId}` ? (
-                              <p className="text-[11px] text-chrome-800">正在更新快速記帳...</p>
+                              <p className="text-sm text-chrome-800">正在更新快速記帳...</p>
                             ) : null}
                             {pendingKey === `auto-${row.categoryId}` ? (
-                              <p className="text-[11px] text-chrome-800">正在儲存固定預算...</p>
+                              <p className="text-sm text-chrome-800">正在儲存固定預算...</p>
                             ) : null}
                             {pendingKey === `delete-${row.categoryId}` ? (
-                              <p className="text-[11px] text-chrome-800">正在刪除小項...</p>
+                              <p className="text-sm text-chrome-800">正在刪除小項...</p>
                             ) : null}
                           </div>
 
