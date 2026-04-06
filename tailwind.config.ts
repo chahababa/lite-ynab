@@ -145,7 +145,7 @@ const config: Config = {
           "linear-gradient(180deg, #B0B0B0 0%, #989898 50%, #A8A8A8 100%)",
         "chrome-statusbar":
           "linear-gradient(180deg, #A0A0A0 0%, #888888 100%)",
-// test       "btn-success":
+        "btn-success":
           "linear-gradient(180deg, #44BB77 0%, #228855 50%, #339966 100%)",
         "btn-danger":
           "linear-gradient(180deg, #CC6644 0%, #AA4422 50%, #BB5533 100%)",
