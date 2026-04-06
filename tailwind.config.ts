@@ -11,7 +11,7 @@ const config: Config = {
       colors: {
         ink: "#14213d",
         paper: "#fbf7ef",
-        sun: "#fca311",h
+        sun: "#fca311",
         mint: "#2a9d8f",
         coral: "#e76f51",
         sand: "#e9c46a",
@@ -27,7 +27,7 @@ const config: Config = {
           400: "#A8A8A8",
           500: "#A0A0A0",
           600: "#888888",
-          700: "#707070",hh
+          700: "#707070",
           800: "#555555",
           900: "#2A2A2A",
           highlight: "rgba(255, 255, 255, 0.4)",
