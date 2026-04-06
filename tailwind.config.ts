@@ -11,7 +11,7 @@ const config: Config = {
       colors: {
         ink: "#14213d",
         paper: "#fbf7ef",
-        sun: "#fca311",
+        sun: "#fca311",h
         mint: "#2a9d8f",
         coral: "#e76f51",
         sand: "#e9c46a",
@@ -27,7 +27,7 @@ const config: Config = {
           400: "#A8A8A8",
           500: "#A0A0A0",
           600: "#888888",
-          700: "#707070",
+          700: "#707070",hh
           800: "#555555",
           900: "#2A2A2A",
           highlight: "rgba(255, 255, 255, 0.4)",
@@ -110,10 +110,10 @@ const config: Config = {
         mono: ["'JetBrains Mono'", "monospace"],
       },
       fontSize: {
-        "chrome-xs": ["0.75rem", { lineHeight: "1.3" }],     // 12px (badge)
-        "chrome-sm": ["0.875rem", { lineHeight: "1.4" }],    // 14px (labels, descriptions)
-        "chrome-base": ["1rem", { lineHeight: "1.5" }],      // 16px (body, buttons, inputs)
-        "chrome-lg": ["1.125rem", { lineHeight: "1.4" }],    // 18px (emphasis)
+        "chrome-xs": ["0.875rem", { lineHeight: "1.3" }],     // 12px (badge)
+        "chrome-sm": ["1rem", { lineHeight: "1.4" }],    // 14px (labels, descriptions)
+        "chrome-base": ["1.125rem", { lineHeight: "1.5" }],      // 16px (body, buttons, inputs)
+        "chrome-lg": ["1.25rem", { lineHeight: "1.4" }],    // 18px (emphasis)
         "chrome-xl": ["1.25rem", { lineHeight: "1.3" }],     // 20px (page titles)
         "chrome-2xl": ["1.5rem", { lineHeight: "1.3" }],     // 24px (big titles)
         "chrome-led": ["1.75rem", { lineHeight: "1.2" }],
