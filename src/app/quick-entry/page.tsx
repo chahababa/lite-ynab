@@ -31,6 +31,7 @@ export default function QuickEntryPage() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("");
   const [date, setDate] = useState(getTodayInTaipei());
+  const currentMonthId = useMemo(() => toMonthId(date), [date]);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,7 @@ export default function QuickEntryPage() {
       setLoadError(null);
 
       try {
-        const data = await fetchQuickEntryData(supabase, toMonthId(date));
+        const data = await fetchQuickEntryData(supabase, currentMonthId);
         if (!active) return;
 
         setAllCategories(data.allCategories);
@@ -90,7 +91,7 @@ export default function QuickEntryPage() {
     return () => {
       active = false;
     };
-  }, [date, router, supabase]);
+  }, [currentMonthId, router, supabase]);
 
   function handleKeyPress(key: string) {
     if (key === "del") {
@@ -159,13 +160,13 @@ export default function QuickEntryPage() {
         <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
           <div>
             <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wider text-chrome-900">
-              QUICK ENTRY
+              快速記帳
             </p>
             <p className="text-chrome-sm text-chrome-800">快速記帳控制台</p>
           </div>
 
           <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-            MOBILE MODE
+            手機版
           </div>
         </div>
 
@@ -173,7 +174,7 @@ export default function QuickEntryPage() {
           <section className="chrome-led-panel relative px-chrome-lg py-chrome-xl">
             <div className="flex flex-col items-center justify-center text-center">
               <div>
-                <p className="chrome-led-label text-chrome-sm uppercase">amount</p>
+                <p className="chrome-led-label text-chrome-sm uppercase">金額</p>
                 <p className="chrome-led-value mt-2 text-[2.35rem] leading-none">
                   {amount ? formatCurrency(Number(amount)) : formatCurrency(0)}
                 </p>
@@ -203,7 +204,7 @@ export default function QuickEntryPage() {
           <section className="chrome-window p-chrome-md">
             <div className="chrome-titlebar px-chrome-md py-chrome-sm">
               <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                INPUT PANEL
+                輸入面板
               </p>
             </div>
 
@@ -260,10 +261,10 @@ export default function QuickEntryPage() {
             <div className="chrome-titlebar px-chrome-md py-chrome-sm">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                  CATEGORY SELECTOR
+                  分類選擇
                 </p>
                 <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-                  {categoryMode === "quick" ? "QUICK" : "ALL"}
+                  {categoryMode === "quick" ? "快速" : "全部"}
                 </div>
               </div>
             </div>
@@ -307,17 +308,17 @@ export default function QuickEntryPage() {
             <div className="mt-chrome-md">
               {loading ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">loading</p>
-                  <p className="chrome-led-value mt-2 text-chrome-xl">READING DATA...</p>
+                  <p className="chrome-led-label text-chrome-sm uppercase">載入中</p>
+                  <p className="chrome-led-value mt-2 text-chrome-xl">正在讀取資料...</p>
                 </div>
               ) : loadError ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">error</p>
+                  <p className="chrome-led-label text-chrome-sm uppercase">錯誤</p>
                   <p className="mt-2 font-chrome-mono text-chrome-base text-danger-light">{loadError}</p>
                 </div>
               ) : visibleCategories.length === 0 ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">status</p>
+                  <p className="chrome-led-label text-chrome-sm uppercase">狀態</p>
                   <p className="mt-2 font-chrome-mono text-chrome-base text-chrome-300">
                     {categoryQuery.trim()
                       ? "找不到符合搜尋條件的分類。"
@@ -367,7 +368,7 @@ export default function QuickEntryPage() {
                           )}
                         >
                           <p className="chrome-led-label text-chrome-xs uppercase">
-                            {submittingCategoryId === category.id ? "saving" : "enter"}
+                            {submittingCategoryId === category.id ? "儲存中" : "送出"}
                           </p>
                           <p className="chrome-led-value text-chrome-lg">
                             {amount ? formatCurrency(Number(amount)) : formatCurrency(0)}
@@ -383,7 +384,7 @@ export default function QuickEntryPage() {
 
           <div className="chrome-statusbar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
             <span className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-              SHORTCUT PAGE
+              快速頁面
             </span>
             <span className="font-chrome-mono text-chrome-xs text-chrome-800">
               適合放在手機桌面捷徑使用

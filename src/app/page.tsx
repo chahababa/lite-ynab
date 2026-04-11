@@ -508,7 +508,7 @@ export default function DashboardPage() {
               <div className="chrome-titlebar mb-chrome-md flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
                 <div>
                   <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-                    quick expense
+                    快速記帳
                   </p>
                   <p className="font-chrome-heading text-chrome-lg font-bold uppercase tracking-chrome-wide text-chrome-900">
                     記一筆支出
@@ -529,7 +529,7 @@ export default function DashboardPage() {
                 <section className="chrome-led-panel relative px-chrome-lg py-chrome-xl">
                   <div className="flex flex-col items-center justify-center text-center">
                     <div>
-                      <p className="chrome-led-label text-chrome-sm uppercase">amount</p>
+                      <p className="chrome-led-label text-chrome-sm uppercase">金額</p>
                       <p className="chrome-led-value mt-2 text-[2.2rem] leading-none">
                         {expenseAmount ? formatCurrency(Number(expenseAmount)) : formatCurrency(0)}
                       </p>
@@ -553,7 +553,7 @@ export default function DashboardPage() {
                 <section className="chrome-window p-chrome-md">
                   <div className="chrome-titlebar px-chrome-md py-chrome-sm">
                     <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                      input panel
+                      輸入面板
                     </p>
                   </div>
 
@@ -611,10 +611,10 @@ export default function DashboardPage() {
                   <div className="chrome-titlebar px-chrome-md py-chrome-sm">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                        category selector
+                        分類選擇
                       </p>
                       <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-                        {expenseCategoryMode === "quick" ? "quick" : "all"}
+                        {expenseCategoryMode === "quick" ? "快速" : "全部"}
                       </div>
                     </div>
                   </div>
@@ -658,8 +658,8 @@ export default function DashboardPage() {
                   <div className="mt-chrome-md max-h-[320px] space-y-chrome-sm overflow-y-auto pr-1">
                     {visibleExpenseCategories.length === 0 ? (
                       <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                        <p className="chrome-led-label text-chrome-sm uppercase">status</p>
-                        <p className="mt-2 text-sm text-chrome-300">找不到符合�u件的分類。</p>
+                        <p className="chrome-led-label text-chrome-sm uppercase">狀態</p>
+                        <p className="mt-2 text-sm text-chrome-300">找不到符合搜尋條件的分類。</p>
                       </div>
                     ) : (
                       visibleExpenseCategories.map((category) => (
@@ -685,7 +685,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="chrome-led-panel flex min-w-[112px] shrink-0 self-stretch flex-col items-center justify-center rounded-none border-l-2 border-y-0 border-r-0 px-chrome-sm py-[6px] text-center">
                             <p className="chrome-led-label text-chrome-xs uppercase">
-                              {submittingExpenseCategoryId === category.id ? "saving" : "enter"}
+                              {submittingExpenseCategoryId === category.id ? "儲存中" : "送出"}
                             </p>
                             <p className="chrome-led-value text-chrome-lg">
                               {expenseAmount ? formatCurrency(Number(expenseAmount)) : formatCurrency(0)}

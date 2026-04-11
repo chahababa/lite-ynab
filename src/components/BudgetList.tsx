@@ -69,12 +69,12 @@ export function BudgetList({ items, onSave, pendingBudgetId }: BudgetListProps) 
                           </h3>
                           {item.isQuick ? (
                             <span className="rounded-chrome-pill border border-warning-light bg-warning-dark px-2 py-0.5 font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-white">
-                              quick
+                              快速
                             </span>
                           ) : null}
                           {item.isAuto ? (
                             <span className="rounded-chrome-pill border border-success-light bg-success-dark px-2 py-0.5 font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-white">
-                              auto
+                              固定
                             </span>
                           ) : null}
                         </div>
@@ -87,7 +87,7 @@ export function BudgetList({ items, onSave, pendingBudgetId }: BudgetListProps) 
                           </p>
                         ) : (
                           <p className="mt-2 text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-700">
-                            on track
+                            目前正常
                           </p>
                         )}
                       </div>
@@ -98,7 +98,7 @@ export function BudgetList({ items, onSave, pendingBudgetId }: BudgetListProps) 
                           accent.panel,
                         )}
                       >
-                        <p className="chrome-led-label text-chrome-xs uppercase">remaining</p>
+                        <p className="chrome-led-label text-chrome-xs uppercase">剩餘</p>
                         <p
                           className={cn(
                             "mt-1 font-chrome-mono text-chrome-lg",
@@ -147,7 +147,7 @@ export function BudgetList({ items, onSave, pendingBudgetId }: BudgetListProps) 
                         }
                         className="chrome-btn min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide disabled:cursor-not-allowed"
                       >
-                        {pendingBudgetId === item.budgetId ? "saving" : "save"}
+                        {pendingBudgetId === item.budgetId ? "儲存中" : "儲存"}
                       </button>
                     </div>
                   </div>

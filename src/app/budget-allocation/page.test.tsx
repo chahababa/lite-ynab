@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import BudgetAllocationPage from "@/app/budget-allocation/page";
 
-const { fetchBudgetAllocationData, routerValue } = vi.hoisted(() => ({
+const { fetchBudgetAllocationData, fetchBudgetReferenceData, routerValue } = vi.hoisted(() => ({
   fetchBudgetAllocationData: vi.fn(),
+  fetchBudgetReferenceData: vi.fn(),
   routerValue: {
     replace: vi.fn(),
   },
@@ -25,6 +26,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("@/lib/data", () => ({
   fetchBudgetAllocationData,
+  fetchBudgetReferenceData,
 }));
 
 vi.mock("@/lib/supabaseClient", () => ({
@@ -109,6 +111,13 @@ describe("BudgetAllocationPage", () => {
       ],
       unallocated: 3800,
     });
+    fetchBudgetReferenceData.mockResolvedValue([
+      {
+        categoryId: "cat-food",
+        allocated: 1000,
+        spent: 250,
+      },
+    ]);
   });
 
   it("renders summary and monthly planning actions", async () => {

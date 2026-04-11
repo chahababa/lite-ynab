@@ -8,7 +8,7 @@ import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
-import { fetchBudgetAllocationData } from "@/lib/data";
+import { fetchBudgetAllocationData, fetchBudgetReferenceData } from "@/lib/data";
 import { getGroupTone } from "@/lib/groupTone";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetRow, PaymentMethodOption, ToastState } from "@/lib/types";
@@ -89,16 +89,16 @@ export default function BudgetAllocationCompactPage() {
 
       try {
         const previousMonthId = shiftMonth(monthId, -1);
-        const [currentData, previousData] = await Promise.all([
+        const [currentData, previousReferences] = await Promise.all([
           fetchBudgetAllocationData(supabase, monthId),
-          fetchBudgetAllocationData(supabase, previousMonthId),
+          fetchBudgetReferenceData(supabase, previousMonthId),
         ]);
 
         if (!active) {
           return;
         }
 
-        const nextReferenceMap = previousData.budgetRows.reduce<Record<string, PreviousReference>>(
+        const nextReferenceMap = previousReferences.reduce<Record<string, PreviousReference>>(
           (accumulator, row) => {
             accumulator[row.categoryId] = {
               allocated: row.allocated,

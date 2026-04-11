@@ -87,6 +87,12 @@ export type BudgetUsagePageData = BudgetUsageData & {
   user: User;
 };
 
+export type BudgetReferenceItem = {
+  categoryId: string;
+  allocated: number;
+  spent: number;
+};
+
 export async function requireSession(supabase: SupabaseClient) {
   const {
     data: { session },
@@ -711,6 +717,49 @@ export async function fetchBudgetAllocationData(
     user,
     ...computeDashboardData(collections),
   };
+}
+
+export async function fetchBudgetReferenceData(
+  supabase: SupabaseClient,
+  monthId: string,
+): Promise<BudgetReferenceItem[]> {
+  await requireSession(supabase);
+  await bootstrapAndInitializeMonth(supabase, monthId);
+
+  const { start, end } = monthDateRange(monthId);
+  const [budgetsResult, transactionsResult] = await Promise.all([
+    supabase.from("budgets").select("category_id,allocated").eq("month_id", monthId),
+    supabase
+      .from("transactions")
+      .select("category_id,amount")
+      .gte("date", start)
+      .lt("date", end),
+  ]);
+
+  if (budgetsResult.error) {
+    throw budgetsResult.error;
+  }
+
+  if (transactionsResult.error) {
+    throw transactionsResult.error;
+  }
+
+  const spentByCategory = (transactionsResult.data ?? []).reduce<Map<string, number>>(
+    (accumulator, transaction) => {
+      accumulator.set(
+        transaction.category_id,
+        (accumulator.get(transaction.category_id) ?? 0) + transaction.amount,
+      );
+      return accumulator;
+    },
+    new Map(),
+  );
+
+  return (budgetsResult.data ?? []).map((budget) => ({
+    categoryId: budget.category_id,
+    allocated: budget.allocated,
+    spent: spentByCategory.get(budget.category_id) ?? 0,
+  }));
 }
 
 export async function fetchBudgetUsageData(

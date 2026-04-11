@@ -144,7 +144,7 @@ export function TransactionList({
     return (
       <div className="chrome-window p-[6px]">
         <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-          <p className="chrome-led-label text-chrome-sm uppercase">transactions</p>
+          <p className="chrome-led-label text-chrome-sm uppercase">交易</p>
           <p className="mt-2 text-sm text-chrome-300">目前沒有符合條件的交易資料。</p>
         </div>
       </div>
@@ -222,7 +222,7 @@ export function TransactionList({
               <div className="chrome-titlebar mb-chrome-md flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
                 <div>
                   <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-                    edit transaction
+                    編輯交易
                   </p>
                   <p className="font-chrome-heading text-chrome-lg font-bold uppercase tracking-chrome-wide text-chrome-900">
                     {formatCurrency(Number(editingDraft.amount || 0))}
@@ -348,7 +348,7 @@ export function TransactionList({
                     isEditingPending && "opacity-70",
                   )}
                 >
-                  {isEditingPending ? "saving" : "save"}
+                  {isEditingPending ? "儲存中" : "儲存"}
                 </button>
               </div>
             </div>
