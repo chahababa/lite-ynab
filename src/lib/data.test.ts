@@ -362,7 +362,7 @@ describe("computeReportData", () => {
     expect(result.trend).toEqual([
       {
         monthId: "2026-04",
-        label: "2026年 4月",
+        label: "2026 年 4 月",
         income: 20000,
         allocated: 13500,
         spent: 12650,

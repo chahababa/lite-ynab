@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "@/app/page";
 
@@ -13,12 +13,14 @@ const {
   fetchDashboardData,
   mockOnAuthStateChange,
   mockUpsert,
+  mockInsert,
 } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
   mockRefresh: vi.fn(),
   fetchDashboardData: vi.fn(),
   mockOnAuthStateChange: vi.fn(),
   mockUpsert: vi.fn(),
+  mockInsert: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -51,21 +53,25 @@ vi.mock("@/lib/supabaseClient", () => ({
 
       if (table === "transactions") {
         return {
-          insert: vi.fn().mockResolvedValue({ error: null }),
-          update: () => ({ eq: vi.fn() }),
-          delete: () => ({ eq: vi.fn() }),
+          insert: mockInsert,
+          update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+          delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
         };
       }
 
       return {
-        update: () => ({ eq: vi.fn() }),
-        delete: () => ({ eq: vi.fn() }),
+        update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
       };
     },
   }),
 }));
 
 describe("DashboardPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockOnAuthStateChange.mockReturnValue({
@@ -76,6 +82,7 @@ describe("DashboardPage", () => {
       },
     });
     mockUpsert.mockResolvedValue({ error: null });
+    mockInsert.mockResolvedValue({ error: null });
 
     fetchDashboardData.mockResolvedValue({
       user: { email: "demo@example.com" },
@@ -163,16 +170,33 @@ describe("DashboardPage", () => {
 
     expect(screen.getAllByText("$20,000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$120").length).toBeGreaterThan(0);
+    expect(screen.getByText("最近交易")).toBeInTheDocument();
   });
 
   it("opens the expense popup from the dashboard", async () => {
     render(createElement(DashboardPage));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "開啟記帳視窗" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "打開記帳視窗" })[0]);
 
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getAllByPlaceholderText("搜尋分類名稱或大項名稱").length).toBeGreaterThan(0);
+      expect(screen.getByPlaceholderText("搜尋分類名稱或群組")).toBeInTheDocument();
     });
+  });
+
+  it("shows zero-amount validation in the dashboard quick-entry modal", async () => {
+    render(createElement(DashboardPage));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "打開記帳視窗" })[0]);
+    await screen.findByRole("dialog");
+    fireEvent.click(
+      screen
+        .getAllByText("飲食")
+        .find((element) => element.closest("button"))
+        ?.closest("button") as HTMLElement,
+    );
+
+    expect(await screen.findByText("請輸入大於 0 的金額")).toBeInTheDocument();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 });

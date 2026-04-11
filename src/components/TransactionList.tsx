@@ -43,6 +43,7 @@ export function TransactionList({
   onDelete,
 }: TransactionListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -62,7 +63,9 @@ export function TransactionList({
   }, [items]);
 
   useEffect(() => {
-    if (!editingId) return;
+    if (!editingId && !confirmDeleteId) {
+      return;
+    }
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -70,14 +73,19 @@ export function TransactionList({
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [editingId]);
+  }, [confirmDeleteId, editingId]);
 
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,
     [editingId, items],
   );
+  const confirmDeleteItem = useMemo(
+    () => items.find((item) => item.id === confirmDeleteId) ?? null,
+    [confirmDeleteId, items],
+  );
   const editingDraft = editingId ? drafts[editingId] : undefined;
   const isEditingPending = editingId !== null && pendingTransactionId === editingId;
+  const isDeletePending = confirmDeleteId !== null && pendingTransactionId === confirmDeleteId;
 
   function openEditor(itemId: string) {
     setEditingId(itemId);
@@ -88,6 +96,11 @@ export function TransactionList({
     if (isEditingPending) return;
     setEditingId(null);
     setFormError(null);
+  }
+
+  function closeDeleteConfirm() {
+    if (isDeletePending) return;
+    setConfirmDeleteId(null);
   }
 
   function updateDraft(field: keyof DraftState, value: string) {
@@ -140,12 +153,22 @@ export function TransactionList({
     }
   }
 
+  async function handleDelete() {
+    if (!confirmDeleteId) return;
+
+    const didDelete = await onDelete(confirmDeleteId);
+
+    if (didDelete) {
+      setConfirmDeleteId(null);
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="chrome-window p-[6px]">
         <div className="chrome-led-panel px-chrome-md py-chrome-lg">
           <p className="chrome-led-label text-chrome-sm uppercase">交易</p>
-          <p className="mt-2 text-sm text-chrome-300">目前沒有符合條件的交易資料。</p>
+          <p className="mt-2 text-sm text-chrome-300">目前還沒有符合條件的交易資料。</p>
         </div>
       </div>
     );
@@ -154,62 +177,59 @@ export function TransactionList({
   return (
     <>
       <div className="space-y-2">
-          {items.map((item) => {
-            const isPending = pendingTransactionId === item.id;
+        {items.map((item) => {
+          const isPending = pendingTransactionId === item.id;
 
-            return (
-              <div
-                key={item.id}
-                className="chrome-window p-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-chrome-900">
-                        {item.categoryGroupName}
-                        <span className="mx-1 text-chrome-600">/</span>
-                        {item.categoryName}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-chrome-700">
-                      <span className="font-chrome-mono">{item.date}</span>
-                      <span>{item.paymentMethodName}</span>
-                    </div>
-                    {item.note ? (
-                      <p className="mt-1 text-sm text-chrome-600">{item.note}</p>
-                    ) : null}
+          return (
+            <div key={item.id} className="chrome-window p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-chrome-900">
+                      {item.categoryGroupName}
+                      <span className="mx-1 text-chrome-600">/</span>
+                      {item.categoryName}
+                    </span>
                   </div>
-                  <span className="whitespace-nowrap font-chrome-mono text-base font-bold text-[var(--chrome-led-green)]">
-                    {formatCurrency(item.amount)}
-                  </span>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-chrome-700">
+                    <span className="font-chrome-mono">{item.date}</span>
+                    <span>{item.paymentMethodName}</span>
+                  </div>
+                  {item.note ? <p className="mt-1 text-sm text-chrome-600">{item.note}</p> : null}
                 </div>
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEditor(item.id)}
-                    disabled={isPending}
-                    className="chrome-btn flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
-                    aria-label="編輯交易"
-                  >
-                    <Pencil className="h-4 w-4" />編輯
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onDelete(item.id)}
-                    disabled={isPending}
-                    className="chrome-btn chrome-btn--danger flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
-                    aria-label="刪除交易"
-                  >
-                    <Trash2 className="h-4 w-4" />刪除
-                  </button>
-                </div>
+                <span className="whitespace-nowrap font-chrome-mono text-base font-bold text-[var(--chrome-led-green)]">
+                  {formatCurrency(item.amount)}
+                </span>
               </div>
-            );
-          })}
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditor(item.id)}
+                  disabled={isPending}
+                  className="chrome-btn flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
+                  aria-label="編輯交易"
+                >
+                  <Pencil className="h-4 w-4" />
+                  編輯
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(item.id)}
+                  disabled={isPending}
+                  className="chrome-btn chrome-btn--danger flex h-9 items-center gap-1 px-3 py-1 text-sm disabled:cursor-not-allowed"
+                  aria-label="刪除交易"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  刪除
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {editingItem && editingDraft ? (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0 z-[1100]">
           <button
             type="button"
             aria-label="關閉編輯交易視窗"
@@ -218,13 +238,18 @@ export function TransactionList({
           />
 
           <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-md px-4 pb-4">
-            <div role="dialog" aria-modal="true" aria-label="編輯交易" className="chrome-window p-[6px]">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="編輯交易"
+              className="chrome-window max-h-[92vh] overflow-y-auto p-[6px]"
+            >
               <div className="chrome-titlebar mb-chrome-md flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
                 <div>
-                  <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
                     編輯交易
                   </p>
-                  <p className="font-chrome-heading text-chrome-lg font-bold uppercase tracking-chrome-wide text-chrome-900">
+                  <p className="font-chrome-heading text-chrome-lg font-bold tracking-chrome-wide text-chrome-900">
                     {formatCurrency(Number(editingDraft.amount || 0))}
                   </p>
                 </div>
@@ -241,7 +266,7 @@ export function TransactionList({
 
               <div className="space-y-3 px-chrome-md pb-chrome-md">
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                     <Wallet className="h-4 w-4" />
                     金額
                   </span>
@@ -249,14 +274,16 @@ export function TransactionList({
                     inputMode="numeric"
                     value={editingDraft.amount}
                     disabled={isEditingPending}
-                    onChange={(event) => updateDraft("amount", event.target.value.replace(/[^\d]/g, ""))}
-                    className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    onChange={(event) =>
+                      updateDraft("amount", event.target.value.replace(/[^\d]/g, ""))
+                    }
+                    className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md"
                     placeholder="0"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                     <CalendarDays className="h-4 w-4" />
                     日期
                   </span>
@@ -270,7 +297,7 @@ export function TransactionList({
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                     <Tag className="h-4 w-4" />
                     分類
                   </span>
@@ -289,7 +316,7 @@ export function TransactionList({
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                     <CreditCard className="h-4 w-4" />
                     支付方式
                   </span>
@@ -308,7 +335,7 @@ export function TransactionList({
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                  <span className="mb-2 block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                     備註
                   </span>
                   <textarea
@@ -317,7 +344,7 @@ export function TransactionList({
                     onChange={(event) => updateDraft("note", event.target.value)}
                     rows={3}
                     className="chrome-field w-full px-chrome-md py-chrome-md"
-                    placeholder="補充這筆交易的說明"
+                    placeholder="例如：午餐、家用品、交通補票"
                   />
                 </label>
               </div>
@@ -335,7 +362,7 @@ export function TransactionList({
                   type="button"
                   onClick={closeEditor}
                   disabled={isEditingPending}
-                  className="chrome-btn min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide disabled:cursor-not-allowed"
+                  className="chrome-btn min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
                 >
                   取消
                 </button>
@@ -344,12 +371,69 @@ export function TransactionList({
                   onClick={() => void handleSave()}
                   disabled={isEditingPending}
                   className={cn(
-                    "chrome-btn chrome-btn--success min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide disabled:cursor-not-allowed",
+                    "chrome-btn chrome-btn--success min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed",
                     isEditingPending && "opacity-70",
                   )}
                 >
                   {isEditingPending ? "儲存中" : "儲存"}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmDeleteItem ? (
+        <div className="fixed inset-0 z-[1100]">
+          <button
+            type="button"
+            aria-label="關閉刪除確認視窗"
+            onClick={closeDeleteConfirm}
+            className="absolute inset-0 bg-black/50"
+          />
+
+          <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-md px-4 pb-4 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="確認刪除交易"
+              className="chrome-window p-[6px]"
+            >
+              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+                <p className="font-chrome-heading text-chrome-lg font-bold tracking-chrome-wide text-chrome-900">
+                  確定要刪除這筆交易嗎？
+                </p>
+              </div>
+
+              <div className="space-y-4 px-chrome-md py-chrome-md">
+                <div className="chrome-led-panel px-chrome-md py-chrome-md">
+                  <p className="font-chrome-heading text-chrome-sm text-chrome-200">
+                    {confirmDeleteItem.categoryName} ・ {formatCurrency(confirmDeleteItem.amount)} ・{" "}
+                    {confirmDeleteItem.date}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={closeDeleteConfirm}
+                    disabled={isDeletePending}
+                    className="chrome-btn min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete()}
+                    disabled={isDeletePending}
+                    className={cn(
+                      "chrome-btn chrome-btn--danger min-h-11 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed",
+                      isDeletePending && "opacity-70",
+                    )}
+                  >
+                    {isDeletePending ? "刪除中" : "確定刪除"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

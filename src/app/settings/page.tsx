@@ -20,11 +20,11 @@ function getErrorMessage(error: unknown) {
     try {
       return JSON.stringify(error);
     } catch {
-      return "發生未知錯誤";
+      return "發生未預期的錯誤";
     }
   }
 
-  return "發生未知錯誤";
+  return "發生未預期的錯誤";
 }
 
 export default function SettingsPage() {
@@ -83,8 +83,8 @@ export default function SettingsPage() {
         const detail = getErrorMessage(error);
         const message =
           error instanceof Error && error.message === "AUTH_REQUIRED"
-            ? "你尚未登入，請先登入後再查看這一頁。"
-            : `設定頁載入失敗：${detail}`;
+            ? "請先登入，才能查看設定。"
+            : `載入設定失敗：${detail}`;
 
         setLoadError(message);
 
@@ -106,99 +106,118 @@ export default function SettingsPage() {
   }, [refreshTick, router, supabase]);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-md px-4 pb-10 pt-5">
-      <div className="mb-5 flex items-center justify-between">
-        <Link
-          href="/"
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-ink/10 bg-white/70 text-ink shadow-sm"
-          aria-label="返回首頁"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-[0.28em] text-ink/45">設定與說明</p>
-          <p className="text-sm text-ink/65">{email || "尚未載入使用者"}</p>
+    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+      <section className="mx-auto w-full max-w-md space-y-4">
+        <div className="chrome-window p-[6px]">
+          <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
+            <Link
+              href="/"
+              className="chrome-btn flex h-10 w-10 items-center justify-center"
+              aria-label="返回主控臺"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div className="text-right">
+              <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                設定
+              </p>
+              <p className="text-chrome-sm text-chrome-800">{email || "尚未載入"}</p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {loading ? (
-        <LoadingCard label="正在載入設定說明..." />
-      ) : loadError ? (
-        <StateCard
-          title="設定頁暫時無法載入"
-          description={loadError}
-          tone="error"
-          actionLabel="重試"
-          onAction={reload}
-        />
-      ) : (
-        <>
-          <section className="rounded-[32px] bg-white/85 p-5 shadow-float backdrop-blur">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-ink/45">目前設計方向</p>
-                <h1 className="mt-2 font-display text-3xl text-ink">這頁先保留為說明中心</h1>
-                <p className="mt-2 text-sm leading-6 text-ink/65">
-                  依照目前的操作習慣，快速記帳和支付方式管理已經整合回首頁。這一頁先當作整理導覽與之後的進階設定預留區。
-                </p>
+        {loading ? (
+          <LoadingCard label="正在載入設定資料..." />
+        ) : loadError ? (
+          <StateCard
+            title="載入設定失敗"
+            description={loadError}
+            tone="error"
+            actionLabel="重試"
+            onAction={reload}
+          />
+        ) : (
+          <>
+            <section className="chrome-window p-[6px]">
+              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                      系統概覽
+                    </p>
+                    <h1 className="mt-2 font-chrome-heading text-chrome-2xl font-bold text-chrome-900">
+                      目前的帳務骨架
+                    </h1>
+                    <p className="mt-2 text-sm leading-6 text-chrome-800">
+                      這裡集中顯示分類、快速記帳與支付方式的整體數量，方便我們確認資料結構是否完整。
+                    </p>
+                  </div>
+                  <div className="chrome-btn flex h-11 w-11 items-center justify-center">
+                    <Settings2 className="h-5 w-5" />
+                  </div>
+                </div>
               </div>
-              <div className="rounded-full bg-sun/18 p-3 text-ink">
-                <Settings2 className="h-5 w-5" />
-              </div>
-            </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-[24px] bg-paper p-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-ink/45">大項分類</p>
-                <p className="mt-2 font-display text-3xl text-ink">{overview.groupCount}</p>
+              <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
+                <div className="chrome-led-panel p-chrome-md text-center">
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">大項分類</p>
+                  <p className="mt-2 font-display text-3xl text-paper">{overview.groupCount}</p>
+                </div>
+                <div className="chrome-led-panel p-chrome-md text-center">
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">小項分類</p>
+                  <p className="mt-2 font-display text-3xl text-paper">{overview.categoryCount}</p>
+                </div>
+                <div className="chrome-led-panel p-chrome-md text-center">
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">快速記帳</p>
+                  <p className="mt-2 font-display text-3xl text-paper">
+                    {overview.quickCategoryCount}
+                  </p>
+                </div>
+                <div className="chrome-led-panel p-chrome-md text-center">
+                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">支付方式</p>
+                  <p className="mt-2 font-display text-3xl text-paper">
+                    {overview.paymentMethodCount}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-[24px] bg-paper p-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-ink/45">小項分類</p>
-                <p className="mt-2 font-display text-3xl text-ink">{overview.categoryCount}</p>
-              </div>
-              <div className="rounded-[24px] bg-paper p-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-ink/45">快速記帳</p>
-                <p className="mt-2 font-display text-3xl text-ink">{overview.quickCategoryCount}</p>
-              </div>
-              <div className="rounded-[24px] bg-paper p-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-ink/45">支付方式</p>
-                <p className="mt-2 font-display text-3xl text-ink">{overview.paymentMethodCount}</p>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="mt-6 rounded-[30px] border border-ink/10 bg-white/80 p-4 shadow-sm">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-ink/45">目前操作位置</p>
-              <h2 className="mt-2 font-display text-2xl text-ink">常用功能已回到主流程</h2>
-            </div>
+            <section className="chrome-window p-[6px]">
+              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+                <div>
+                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                    常用入口
+                  </p>
+                  <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                    從設定回到主要工作流
+                  </h2>
+                </div>
+              </div>
 
-            <div className="space-y-3">
-              <Link
-                href="/"
-                className="flex items-center gap-3 rounded-[24px] bg-paper px-4 py-4 text-ink"
-              >
-                <Sparkles className="h-5 w-5" />
-                <span>首頁：管理快速記帳與支付方式</span>
-              </Link>
-              <Link
-                href="/quick-entry"
-                className="flex items-center gap-3 rounded-[24px] bg-paper px-4 py-4 text-ink"
-              >
-                <ReceiptText className="h-5 w-5" />
-                <span>快速記帳頁：適合手機捷徑直接開啟</span>
-              </Link>
-              <Link
-                href="/budget-allocation"
-                className="flex items-center gap-3 rounded-[24px] bg-paper px-4 py-4 text-ink"
-              >
-                <WalletCards className="h-5 w-5" />
-                <span>預算分配頁：月初規劃收入與各項預算</span>
-              </Link>
-            </div>
-          </section>
-        </>
-      )}
+              <div className="space-y-3 px-chrome-md py-chrome-md">
+                <Link href="/" className="chrome-btn flex min-h-12 items-center gap-3 px-4 py-3">
+                  <Sparkles className="h-5 w-5" />
+                  <span>回主控臺查看預算與最近交易</span>
+                </Link>
+                <Link
+                  href="/quick-entry"
+                  className="chrome-btn flex min-h-12 items-center gap-3 px-4 py-3"
+                >
+                  <ReceiptText className="h-5 w-5" />
+                  <span>前往快速記帳，立即新增一筆支出</span>
+                </Link>
+                <Link
+                  href="/budget-allocation"
+                  className="chrome-btn flex min-h-12 items-center gap-3 px-4 py-3"
+                >
+                  <WalletCards className="h-5 w-5" />
+                  <span>前往預算分配，調整本月各分類配置</span>
+                </Link>
+              </div>
+            </section>
+          </>
+        )}
+      </section>
     </main>
   );
 }

@@ -20,7 +20,7 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return "載入資料時發生未預期錯誤。";
+  return "載入快速記帳資料時發生未預期的錯誤。";
 }
 
 export default function QuickEntryPage() {
@@ -104,7 +104,7 @@ export default function QuickEntryPage() {
 
   async function submit(categoryId: string) {
     if (!amount || Number(amount) <= 0) {
-      setToast({ tone: "info", message: "請先輸入金額。" });
+      setToast({ tone: "info", message: "請輸入大於 0 的金額" });
       return;
     }
 
@@ -113,11 +113,16 @@ export default function QuickEntryPage() {
       return;
     }
 
+    const category =
+      allCategories.find((item) => item.id === categoryId) ??
+      quickCategories.find((item) => item.id === categoryId);
+
     setSubmittingCategoryId(categoryId);
 
     try {
+      const nextAmount = Number(amount);
       const { error } = await supabase.from("transactions").insert({
-        amount: Number(amount),
+        amount: nextAmount,
         date,
         category_id: categoryId,
         payment_method_id: selectedPaymentMethodId,
@@ -129,7 +134,10 @@ export default function QuickEntryPage() {
       setAmount("");
       setNote("");
       setSuccessFlash(true);
-      setToast({ tone: "success", message: "記帳已送出。" });
+      setToast({
+        tone: "success",
+        message: `已記帳 ${formatCurrency(nextAmount)} 至 ${category?.name ?? "未命名分類"}`,
+      });
       router.refresh();
     } catch {
       setToast({ tone: "error", message: "記帳失敗，請稍後再試。" });
@@ -138,11 +146,13 @@ export default function QuickEntryPage() {
     }
   }
 
-  const visibleCategories = (categoryMode === "quick" ? quickCategories : allCategories).filter((category) => {
-    const query = categoryQuery.trim().toLowerCase();
-    if (!query) return true;
-    return `${category.groupName} ${category.name}`.toLowerCase().includes(query);
-  });
+  const visibleCategories = (categoryMode === "quick" ? quickCategories : allCategories).filter(
+    (category) => {
+      const query = categoryQuery.trim().toLowerCase();
+      if (!query) return true;
+      return `${category.groupName} ${category.name}`.toLowerCase().includes(query);
+    },
+  );
 
   const groupToneMap = useMemo(() => {
     const uniqueGroupNames = Array.from(new Set(allCategories.map((category) => category.groupName)));
@@ -153,20 +163,20 @@ export default function QuickEntryPage() {
   }, [allCategories]);
 
   return (
-    <main className="min-h-screen bg-chrome-400 px-3 py-3 font-chrome-body text-chrome-base text-chrome-900">
+    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <div className="mx-auto w-full max-w-md chrome-window p-[6px]">
         <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
           <div>
-            <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wider text-chrome-900">
+            <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wider text-chrome-900">
               快速記帳
             </p>
-            <p className="text-chrome-sm text-chrome-800">快速記帳控制台</p>
+            <p className="text-chrome-sm text-chrome-800">用最短路徑完成一筆支出記錄</p>
           </div>
 
-          <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-            手機版
+          <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
+            {date}
           </div>
         </div>
 
@@ -193,7 +203,7 @@ export default function QuickEntryPage() {
                   key={key}
                   type="button"
                   onClick={() => handleKeyPress(key)}
-                  className="chrome-btn flex min-h-11 items-center justify-center px-chrome-md py-chrome-lg font-chrome-heading text-chrome-xl font-bold uppercase tracking-chrome-wide"
+                  className="chrome-btn flex min-h-11 items-center justify-center px-chrome-md py-chrome-lg font-chrome-heading text-chrome-xl font-bold tracking-chrome-wide"
                 >
                   {key === "del" ? <Delete className="h-4 w-4" /> : key}
                 </button>
@@ -203,14 +213,14 @@ export default function QuickEntryPage() {
 
           <section className="chrome-window p-chrome-md">
             <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-              <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                輸入面板
+              <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-900">
+                欄位資訊
               </p>
             </div>
 
             <div className="mt-chrome-md space-y-chrome-md">
               <label className="block">
-                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                   日期
                 </span>
                 <input
@@ -222,7 +232,7 @@ export default function QuickEntryPage() {
               </label>
 
               <div className="block">
-                <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                   <WalletCards className="h-4 w-4" />
                   支付方式
                 </span>
@@ -233,7 +243,7 @@ export default function QuickEntryPage() {
                       type="button"
                       onClick={() => setSelectedPaymentMethodId(method.id)}
                       className={cn(
-                        "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold uppercase tracking-chrome-wide",
+                        "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
                         selectedPaymentMethodId === method.id && "chrome-btn--success text-white",
                       )}
                     >
@@ -244,14 +254,14 @@ export default function QuickEntryPage() {
               </div>
 
               <label className="block">
-                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                   備註
                 </span>
                 <input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                  placeholder="補充這筆交易的用途或對象"
+                  placeholder="例如：超商早餐、飲料、買菜"
                 />
               </label>
             </div>
@@ -260,10 +270,10 @@ export default function QuickEntryPage() {
           <section className="chrome-window p-chrome-md">
             <div className="chrome-titlebar px-chrome-md py-chrome-sm">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-900">
-                  分類選擇
+                <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-900">
+                  分類選擇器
                 </p>
-                <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
+                <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
                   {categoryMode === "quick" ? "快速" : "全部"}
                 </div>
               </div>
@@ -274,17 +284,17 @@ export default function QuickEntryPage() {
                 type="button"
                 onClick={() => setCategoryMode("quick")}
                 className={cn(
-                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold uppercase tracking-chrome-wide",
+                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
                   categoryMode === "quick" && "chrome-btn--success text-white",
                 )}
               >
-                快速記帳
+                快速
               </button>
               <button
                 type="button"
                 onClick={() => setCategoryMode("all")}
                 className={cn(
-                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold uppercase tracking-chrome-wide",
+                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
                   categoryMode === "all" && "chrome-btn--success text-white",
                 )}
               >
@@ -293,7 +303,7 @@ export default function QuickEntryPage() {
             </div>
 
             <label className="mt-chrome-md block">
-              <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
+              <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
                 <Search className="h-4 w-4" />
                 搜尋
               </span>
@@ -301,7 +311,7 @@ export default function QuickEntryPage() {
                 value={categoryQuery}
                 onChange={(event) => setCategoryQuery(event.target.value)}
                 className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                placeholder="搜尋分類名稱或大項名稱"
+                placeholder="搜尋分類名稱或群組"
               />
             </label>
 
@@ -309,7 +319,7 @@ export default function QuickEntryPage() {
               {loading ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
                   <p className="chrome-led-label text-chrome-sm uppercase">載入中</p>
-                  <p className="chrome-led-value mt-2 text-chrome-xl">正在讀取資料...</p>
+                  <p className="chrome-led-value mt-2 text-chrome-xl">正在準備分類資料...</p>
                 </div>
               ) : loadError ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
@@ -318,13 +328,13 @@ export default function QuickEntryPage() {
                 </div>
               ) : visibleCategories.length === 0 ? (
                 <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">狀態</p>
+                  <p className="chrome-led-label text-chrome-sm uppercase">沒有結果</p>
                   <p className="mt-2 font-chrome-mono text-chrome-base text-chrome-300">
                     {categoryQuery.trim()
                       ? "找不到符合搜尋條件的分類。"
                       : categoryMode === "quick"
-                        ? "目前沒有快速記帳分類。"
-                        : "目前沒有可用分類。"}
+                        ? "目前沒有已加入快速記帳的分類。"
+                        : "目前沒有任何分類。"}
                   </p>
                 </div>
               ) : (
@@ -348,7 +358,7 @@ export default function QuickEntryPage() {
                           <div className="min-w-0 text-center">
                             <p
                               className={cn(
-                                "inline-flex min-w-[72px] items-center justify-center rounded-chrome-pill border px-2 py-[2px] font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide",
+                                "inline-flex min-w-[72px] items-center justify-center rounded-chrome-pill border px-2 py-[2px] font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide",
                                 submittingCategoryId === category.id
                                   ? "border-white/40 bg-white/15 text-white"
                                   : tone.badge,
@@ -383,11 +393,11 @@ export default function QuickEntryPage() {
           </section>
 
           <div className="chrome-statusbar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
-            <span className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-chrome-wide text-chrome-800">
-              快速頁面
+            <span className="font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
+              快速記帳模式
             </span>
             <span className="font-chrome-mono text-chrome-xs text-chrome-800">
-              適合放在手機桌面捷徑使用
+              金額輸入後直接點分類即可送出
             </span>
           </div>
         </div>

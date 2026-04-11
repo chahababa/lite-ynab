@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import QuickEntryPage from "@/app/quick-entry/page";
 
@@ -48,6 +48,10 @@ vi.mock("@/lib/supabaseClient", () => ({
 }));
 
 describe("QuickEntryPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockInsert.mockResolvedValue({ error: null });
@@ -96,13 +100,13 @@ describe("QuickEntryPage", () => {
   it("updates amount and note in quick entry", async () => {
     render(createElement(QuickEntryPage));
 
-    await screen.findByRole("button", { name: "快速記帳" });
+    await screen.findByText("快速記帳");
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "0" }));
 
-    fireEvent.change(screen.getByPlaceholderText("補充這筆交易的用途或對象"), {
+    fireEvent.change(screen.getByPlaceholderText("例如：超商早餐、飲料、買菜"), {
       target: { value: "早餐" },
     });
 
@@ -110,6 +114,21 @@ describe("QuickEntryPage", () => {
     expect(screen.getByDisplayValue("早餐")).toBeInTheDocument();
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("shows an error toast when amount is zero", async () => {
+    render(createElement(QuickEntryPage));
+
+    await screen.findByText("快速記帳");
+    fireEvent.click(
+      screen
+        .getAllByText("飲食")
+        .find((element) => element.closest("button"))
+        ?.closest("button") as HTMLElement,
+    );
+
+    expect(await screen.findByText("請輸入大於 0 的金額")).toBeInTheDocument();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("shows all categories after switching to the all-categories tab", async () => {
@@ -123,17 +142,25 @@ describe("QuickEntryPage", () => {
     });
   });
 
-  it("filters categories with the search box", async () => {
+  it("submits successfully and shows a success toast", async () => {
     render(createElement(QuickEntryPage));
 
-    fireEvent.click((await screen.findAllByRole("button", { name: "全部分類" }))[0]);
-
-    fireEvent.change(screen.getAllByPlaceholderText("搜尋分類名稱或大項名稱")[0], {
-      target: { value: "房租" },
+    await screen.findByText("快速記帳");
+    await waitFor(() => {
+      expect(screen.queryByText("正在準備分類資料...")).not.toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+    fireEvent.click(
+      (await screen.findAllByText("飲食"))
+        .find((element) => element.closest("button"))
+        ?.closest("button") as HTMLElement,
+    );
 
     await waitFor(() => {
-      expect(screen.getByText("房租")).toBeInTheDocument();
+      expect(mockInsert).toHaveBeenCalled();
+      expect(screen.getByText("已記帳 $123 至 飲食")).toBeInTheDocument();
     });
   });
 });

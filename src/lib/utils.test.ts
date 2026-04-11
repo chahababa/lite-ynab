@@ -34,7 +34,7 @@ describe("utils", () => {
   });
 
   it("formats month labels for the switcher", () => {
-    expect(formatMonthLabel("2026-04")).toBe("2026\u5e74 4\u6708");
+    expect(formatMonthLabel("2026-04")).toBe("2026 年 4 月");
   });
 
   it("builds month date ranges", () => {

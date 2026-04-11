@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
@@ -13,6 +13,9 @@ const { fetchTransactionsPageData, routerValue } = vi.hoisted(() => ({
     replace: vi.fn(),
   },
 }));
+
+const deleteEq = vi.fn().mockResolvedValue({ error: null });
+const updateEq = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerValue,
@@ -40,10 +43,10 @@ vi.mock("@/lib/supabaseClient", () => ({
     },
     from: () => ({
       update: () => ({
-        eq: vi.fn().mockResolvedValue({ error: null }),
+        eq: updateEq,
       }),
       delete: () => ({
-        eq: vi.fn().mockResolvedValue({ error: null }),
+        eq: deleteEq,
       }),
     }),
   }),
@@ -56,6 +59,8 @@ describe("TransactionsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    deleteEq.mockResolvedValue({ error: null });
+    updateEq.mockResolvedValue({ error: null });
     fetchTransactionsPageData.mockResolvedValue({
       user: { email: "demo@example.com" },
       categories: [
@@ -117,7 +122,7 @@ describe("TransactionsPage", () => {
     render(createElement(TransactionsPage));
 
     expect(await screen.findByText("全部交易")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /CSV/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "匯出 CSV" })).toBeInTheDocument();
     expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(3);
   });
 
@@ -135,17 +140,21 @@ describe("TransactionsPage", () => {
     });
   });
 
-  it("filters transactions by payment method", async () => {
+  it("opens a custom delete confirmation modal", async () => {
     render(createElement(TransactionsPage));
 
     await screen.findByText("全部交易");
-    const selects = screen.getAllByRole("combobox");
+    fireEvent.click(screen.getAllByRole("button", { name: "刪除交易" })[0]);
 
-    fireEvent.change(selects[1], { target: { value: "pm-card" } });
+    expect(await screen.findByText("確定要刪除這筆交易嗎？")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "確認刪除交易" })).toHaveTextContent("房租");
+    expect(screen.getByRole("dialog", { name: "確認刪除交易" })).toHaveTextContent("2026-04-02");
+
+    fireEvent.click(screen.getByRole("button", { name: "確定刪除" }));
 
     await waitFor(() => {
-      expect(screen.getByText("四月房租")).toBeInTheDocument();
-      expect(screen.queryByText("早餐")).not.toBeInTheDocument();
+      expect(deleteEq).toHaveBeenCalled();
+      expect(screen.getByText("已刪除交易")).toBeInTheDocument();
     });
   });
 });

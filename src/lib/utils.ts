@@ -44,7 +44,7 @@ export function formatCurrency(amount: number): string {
 
 export function formatMonthLabel(monthId: string): string {
   const [year, month] = monthId.split("-").map(Number);
-  return `${year}年 ${month}月`;
+  return `${year} 年 ${month} 月`;
 }
 
 export function monthDateRange(monthId: string): { start: string; end: string } {

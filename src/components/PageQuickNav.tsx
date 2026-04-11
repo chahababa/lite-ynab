@@ -12,6 +12,7 @@ import {
   LogOut,
   PieChart,
   ReceiptText,
+  Settings,
   WalletCards,
   X,
 } from "lucide-react";
@@ -24,8 +25,9 @@ const QUICK_LINKS = [
   { href: "/quick-entry", label: "快速記帳", icon: WalletCards },
   { href: "/budget-allocation", label: "預算分配", icon: LayoutDashboard },
   { href: "/budget-usage", label: "預算使用", icon: PieChart },
-  { href: "/transactions", label: "全部交易", icon: ReceiptText },
+  { href: "/transactions", label: "交易列表", icon: ReceiptText },
   { href: "/reports", label: "報表", icon: BarChart3 },
+  { href: "/settings", label: "設定", icon: Settings },
 ];
 
 export function PageQuickNav() {
@@ -98,12 +100,12 @@ export function PageQuickNav() {
               <div className="mb-2 w-56 chrome-window p-[6px]">
                 <div className="space-y-2">
                   <div className="chrome-statusbar px-chrome-sm py-chrome-sm">
-                    <p className="font-chrome-heading text-chrome-xs font-bold uppercase tracking-[0.16em] text-chrome-800">
-                      Account
+                    <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                      帳號
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <p className="min-w-0 truncate font-chrome-mono text-chrome-sm text-chrome-900">
-                        {email || "尚未登入"}
+                        {email || "尚未載入"}
                       </p>
                       <button
                         type="button"
@@ -126,7 +128,7 @@ export function PageQuickNav() {
                       className="chrome-btn flex min-h-11 w-full items-center justify-start gap-3 px-3 py-2 text-left font-chrome-heading text-chrome-xs font-bold tracking-[0.08em]"
                     >
                       <ChevronLeft className="h-4 w-4 shrink-0" />
-                      <span className="leading-tight">上一頁</span>
+                      <span className="leading-tight">返回上一頁</span>
                     </button>
                   ) : null}
 
@@ -154,7 +156,7 @@ export function PageQuickNav() {
 
             <button
               type="button"
-              aria-label={open ? "關閉頁面選單" : "開啟頁面選單"}
+              aria-label={open ? "關閉頁面選單" : "打開頁面選單"}
               aria-expanded={open}
               onClick={() => setOpen((value) => !value)}
               className="chrome-btn chrome-btn--info flex min-h-12 min-w-[136px] items-center justify-center gap-2 px-4 py-3 text-sm font-bold tracking-[0.08em] shadow-[0_8px_18px_rgba(0,0,0,0.4)]"

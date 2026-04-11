@@ -2,15 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowDownUp,
-  CalendarRange,
-  Download,
-  ListFilter,
-  Search,
-  WalletCards,
-  X,
-} from "lucide-react";
+import { ArrowDownUp, CalendarRange, Download, Search, WalletCards, X } from "lucide-react";
 
 import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
@@ -75,7 +67,6 @@ export default function TransactionsPage() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [toast, setToast] = useState<ToastState>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
@@ -124,7 +115,6 @@ export default function TransactionsPage() {
           return;
         }
 
-        setEmail(data.user.email ?? "");
         setCategories(data.categories);
         setPaymentMethods(data.paymentMethods);
         setTransactions(data.transactions);
@@ -136,8 +126,8 @@ export default function TransactionsPage() {
         const detail = getErrorMessage(error);
         const message =
           error instanceof Error && error.message === "AUTH_REQUIRED"
-            ? "請先登入，才能查看交易頁。"
-            : `載入交易頁資料失敗：${detail}`;
+            ? "請先登入，才能查看交易列表。"
+            : `載入交易列表失敗：${detail}`;
 
         setLoadError(message);
         setToast({ tone: "error", message });
@@ -212,10 +202,7 @@ export default function TransactionsPage() {
             "zh-Hant",
           );
         case "payment-asc":
-          return left.paymentMethodName.localeCompare(
-            right.paymentMethodName,
-            "zh-Hant",
-          );
+          return left.paymentMethodName.localeCompare(right.paymentMethodName, "zh-Hant");
         default:
           return 0;
       }
@@ -254,7 +241,7 @@ export default function TransactionsPage() {
 
   function exportCsv() {
     const lines = [
-      ["日期", "大項", "小項", "支付方式", "金額", "備註"].join(","),
+      ["日期", "大項分類", "分類", "支付方式", "金額", "備註"].join(","),
       ...filteredTransactions.map((item) =>
         [
           csvEscape(item.date),
@@ -315,7 +302,7 @@ export default function TransactionsPage() {
       if (error) throw error;
 
       setTransactions((current) => current.filter((item) => item.id !== id));
-      setToast({ tone: "success", message: "交易已刪除。" });
+      setToast({ tone: "success", message: "已刪除交易" });
       return true;
     } catch {
       setToast({ tone: "error", message: "刪除交易失敗，請稍後再試。" });
@@ -326,15 +313,13 @@ export default function TransactionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-chrome-400 px-3 py-3 pb-28 font-chrome-body text-chrome-base text-chrome-900">
+    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
         <div className="chrome-window p-[6px]">
           <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">
-              全部交易
-            </h1>
+            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">全部交易</h1>
           </div>
         </div>
 
@@ -347,13 +332,7 @@ export default function TransactionsPage() {
         {loading ? (
           <LoadingCard label="正在載入交易資料..." />
         ) : loadError ? (
-          <StateCard
-            title="載入交易失敗"
-            description={loadError}
-            tone="error"
-            actionLabel="重試"
-            onAction={reload}
-          />
+          <StateCard title="載入交易失敗" description={loadError} tone="error" actionLabel="重試" onAction={reload} />
         ) : (
           <div className="chrome-window p-[6px]">
             <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
@@ -362,8 +341,10 @@ export default function TransactionsPage() {
                 <p className="mt-2 font-display text-3xl text-paper">{filteredTransactions.length}</p>
               </div>
               <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">總支出</p>
-                <p className="mt-2 font-display text-3xl text-mint">{formatCurrency(totalFilteredAmount)}</p>
+                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">總金額</p>
+                <p className="mt-2 font-display text-3xl text-mint">
+                  {formatCurrency(totalFilteredAmount)}
+                </p>
               </div>
             </div>
           </div>
@@ -373,20 +354,24 @@ export default function TransactionsPage() {
           <>
             <div className="chrome-window p-[6px]">
               <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">篩選與排序</h2>
+                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                  篩選條件
+                </h2>
                 <button
                   type="button"
                   className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm"
                   onClick={clearFilters}
                 >
-                  <X className="h-4 w-4" />清除條件
+                  <X className="h-4 w-4" />
+                  清除篩選
                 </button>
               </div>
 
               <div className="space-y-3 px-chrome-md py-chrome-md">
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                    <Search className="h-4 w-4" />搜尋
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                    <Search className="h-4 w-4" />
+                    搜尋
                   </span>
                   <input
                     value={searchText}
@@ -398,10 +383,15 @@ export default function TransactionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />分類
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <WalletCards className="h-4 w-4" />
+                      分類
                     </span>
-                    <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md">
+                    <select
+                      value={categoryFilter}
+                      onChange={(event) => setCategoryFilter(event.target.value)}
+                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    >
                       <option value="">全部分類</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
@@ -412,10 +402,15 @@ export default function TransactionsPage() {
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />支付方式
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <WalletCards className="h-4 w-4" />
+                      支付方式
                     </span>
-                    <select value={paymentMethodFilter} onChange={(event) => setPaymentMethodFilter(event.target.value)} className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md">
+                    <select
+                      value={paymentMethodFilter}
+                      onChange={(event) => setPaymentMethodFilter(event.target.value)}
+                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    >
                       <option value="">全部支付方式</option>
                       {paymentMethods.map((paymentMethod) => (
                         <option key={paymentMethod.id} value={paymentMethod.id}>
@@ -428,45 +423,74 @@ export default function TransactionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <CalendarRange className="h-4 w-4" />起始日期
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <CalendarRange className="h-4 w-4" />
+                      起始日期
                     </span>
-                    <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md" />
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(event) => setDateFrom(event.target.value)}
+                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    />
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <CalendarRange className="h-4 w-4" />結束日期
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <CalendarRange className="h-4 w-4" />
+                      結束日期
                     </span>
-                    <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md" />
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(event) => setDateTo(event.target.value)}
+                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    />
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />最低金額
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <WalletCards className="h-4 w-4" />
+                      最低金額
                     </span>
-                    <input inputMode="numeric" value={minAmount} onChange={(event) => setMinAmount(event.target.value.replace(/[^\d]/g, ""))} className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md" />
+                    <input
+                      inputMode="numeric"
+                      value={minAmount}
+                      onChange={(event) => setMinAmount(event.target.value.replace(/[^\d]/g, ""))}
+                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md"
+                    />
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />最高金額
+                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                      <WalletCards className="h-4 w-4" />
+                      最高金額
                     </span>
-                    <input inputMode="numeric" value={maxAmount} onChange={(event) => setMaxAmount(event.target.value.replace(/[^\d]/g, ""))} className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md" />
+                    <input
+                      inputMode="numeric"
+                      value={maxAmount}
+                      onChange={(event) => setMaxAmount(event.target.value.replace(/[^\d]/g, ""))}
+                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md"
+                    />
                   </label>
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold uppercase tracking-chrome-wide text-chrome-800">
-                    <ArrowDownUp className="h-4 w-4" />排序
+                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+                    <ArrowDownUp className="h-4 w-4" />
+                    排序
                   </span>
-                  <select value={sortOption} onChange={(event) => setSortOption(event.target.value as SortOption)} className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md">
+                  <select
+                    value={sortOption}
+                    onChange={(event) => setSortOption(event.target.value as SortOption)}
+                    className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                  >
                     <option value="date-desc">日期：新到舊</option>
                     <option value="date-asc">日期：舊到新</option>
-                    <option value="amount-desc">金額：高到低</option>
-                    <option value="amount-asc">金額：低到高</option>
+                    <option value="amount-desc">金額：大到小</option>
+                    <option value="amount-asc">金額：小到大</option>
                     <option value="category-asc">分類排序</option>
                     <option value="payment-asc">支付方式排序</option>
                   </select>
@@ -477,15 +501,20 @@ export default function TransactionsPage() {
             <div className="chrome-window p-[6px]">
               <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
                 <div>
-                  <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">符合條件的交易</h2>
-                  <p className="mt-1 text-chrome-sm text-chrome-800">共 {filteredTransactions.length} 筆</p>
+                  <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                    交易清單
+                  </h2>
+                  <p className="mt-1 text-chrome-sm text-chrome-800">
+                    共 {filteredTransactions.length} 筆
+                  </p>
                 </div>
                 <button
                   type="button"
                   className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm"
                   onClick={exportCsv}
                 >
-                  <Download className="h-4 w-4" />匯出 CSV
+                  <Download className="h-4 w-4" />
+                  匯出 CSV
                 </button>
               </div>
 

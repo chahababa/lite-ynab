@@ -5,7 +5,7 @@ import { PageQuickNav } from "@/components/PageQuickNav";
 
 export const metadata: Metadata = {
   title: "Lite YNAB",
-  description: "輕量化記帳、預算分配與報表分析工具。",
+  description: "輕量化個人記帳與預算分配工具。",
 };
 
 export default function RootLayout({

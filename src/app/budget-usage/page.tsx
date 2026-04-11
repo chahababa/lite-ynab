@@ -100,7 +100,7 @@ export default function BudgetUsagePage() {
   }
 
   return (
-    <main className="min-h-screen bg-chrome-400 px-3 py-3 pb-24 font-chrome-body text-chrome-base text-chrome-900">
+    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">

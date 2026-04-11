@@ -57,13 +57,13 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("renders the simplified guidance page", async () => {
+  it("renders the chrome-styled settings overview", async () => {
     render(createElement(SettingsPage));
 
-    await screen.findByText("這頁先保留為說明中心");
+    await screen.findByText("目前的帳務骨架");
 
-    expect(screen.getByText("常用功能已回到主流程")).toBeInTheDocument();
-    expect(screen.getByText("首頁：管理快速記帳與支付方式")).toBeInTheDocument();
-    expect(screen.getByText("快速記帳頁：適合手機捷徑直接開啟")).toBeInTheDocument();
+    expect(screen.getByText("從設定回到主要工作流")).toBeInTheDocument();
+    expect(screen.getByText("回主控臺查看預算與最近交易")).toBeInTheDocument();
+    expect(screen.getByText("前往快速記帳，立即新增一筆支出")).toBeInTheDocument();
   });
 });
