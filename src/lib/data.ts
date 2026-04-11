@@ -93,6 +93,228 @@ export type BudgetReferenceItem = {
   spent: number;
 };
 
+const LEGACY_CATEGORY_NAME_MAP = {
+  Food: "飲食",
+  Coffee: "咖啡",
+  Transport: "交通",
+  "Daily Needs": "日常用品",
+  "Fun Money": "娛樂",
+  Health: "健康",
+  Rent: "房租",
+  Travel: "旅行",
+  Subscriptions: "訂閱",
+  "Emergency Fund": "緊急預備金",
+} as const;
+
+const legacyCategoryNormalizationTasks = new Map<string, Promise<void>>();
+
+function getLegacyCategoryTargetName(name: string) {
+  return LEGACY_CATEGORY_NAME_MAP[name as keyof typeof LEGACY_CATEGORY_NAME_MAP] ?? null;
+}
+
+async function normalizeLegacyDuplicateCategories(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const categoriesResult = await supabase
+    .from("categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (categoriesResult.error) {
+    throw categoriesResult.error;
+  }
+
+  const categories = (categoriesResult.data ?? []) as Category[];
+  const legacyCategories = categories.filter((category) => getLegacyCategoryTargetName(category.name));
+
+  if (legacyCategories.length === 0) {
+    return;
+  }
+
+  const categoryMap = new Map<string, Category>(
+    categories.map((category) => [`${category.category_group_id}:${category.name}`, category] as const),
+  );
+
+  for (const sourceCategory of legacyCategories) {
+    const targetName = getLegacyCategoryTargetName(sourceCategory.name);
+
+    if (!targetName) {
+      continue;
+    }
+
+    const targetKey = `${sourceCategory.category_group_id}:${targetName}`;
+    let targetCategory = categoryMap.get(targetKey);
+
+    if (!targetCategory) {
+      const insertCategoryResult = await supabase
+        .from("categories")
+        .insert({
+          user_id: userId,
+          category_group_id: sourceCategory.category_group_id,
+          name: targetName,
+          is_auto: sourceCategory.is_auto,
+          auto_amount: sourceCategory.auto_amount,
+          is_quick: sourceCategory.is_quick,
+          sort_order: sourceCategory.sort_order,
+        })
+        .select("*")
+        .single();
+
+      if (insertCategoryResult.error) {
+        throw insertCategoryResult.error;
+      }
+
+      targetCategory = insertCategoryResult.data as Category;
+      categoryMap.set(targetKey, targetCategory);
+    }
+
+    if (targetCategory.id === sourceCategory.id) {
+      continue;
+    }
+
+    const mergedCategoryValues = {
+      is_quick: targetCategory.is_quick || sourceCategory.is_quick,
+      is_auto: targetCategory.is_auto || sourceCategory.is_auto,
+      auto_amount: Math.max(targetCategory.auto_amount, sourceCategory.auto_amount),
+      sort_order: Math.min(targetCategory.sort_order, sourceCategory.sort_order),
+    };
+
+    if (
+      mergedCategoryValues.is_quick !== targetCategory.is_quick ||
+      mergedCategoryValues.is_auto !== targetCategory.is_auto ||
+      mergedCategoryValues.auto_amount !== targetCategory.auto_amount ||
+      mergedCategoryValues.sort_order !== targetCategory.sort_order
+    ) {
+      const updateCategoryResult = await supabase
+        .from("categories")
+        .update(mergedCategoryValues)
+        .eq("id", targetCategory.id);
+
+      if (updateCategoryResult.error) {
+        throw updateCategoryResult.error;
+      }
+
+      targetCategory = {
+        ...targetCategory,
+        is_quick: mergedCategoryValues.is_quick,
+        is_auto: mergedCategoryValues.is_auto,
+        auto_amount: mergedCategoryValues.auto_amount,
+        sort_order: mergedCategoryValues.sort_order,
+      };
+      categoryMap.set(targetKey, targetCategory);
+    }
+
+    const budgetsResult = await supabase
+      .from("budgets")
+      .select("*")
+      .in("category_id", [sourceCategory.id, targetCategory.id]);
+
+    if (budgetsResult.error) {
+      throw budgetsResult.error;
+    }
+
+    const budgets = (budgetsResult.data ?? []) as Budget[];
+    const sourceBudgets = budgets.filter((budget) => budget.category_id === sourceCategory.id);
+    const targetBudgetByMonth = new Map(
+      budgets
+        .filter((budget) => budget.category_id === targetCategory.id)
+        .map((budget) => [budget.month_id, budget] as const),
+    );
+
+    for (const sourceBudget of sourceBudgets) {
+      const existingTargetBudget = targetBudgetByMonth.get(sourceBudget.month_id);
+
+      if (existingTargetBudget) {
+        const updateBudgetResult = await supabase
+          .from("budgets")
+          .update({
+            allocated: existingTargetBudget.allocated + sourceBudget.allocated,
+          })
+          .eq("id", existingTargetBudget.id);
+
+        if (updateBudgetResult.error) {
+          throw updateBudgetResult.error;
+        }
+
+        targetBudgetByMonth.set(sourceBudget.month_id, {
+          ...existingTargetBudget,
+          allocated: existingTargetBudget.allocated + sourceBudget.allocated,
+        });
+        continue;
+      }
+
+      const insertBudgetResult = await supabase.from("budgets").insert({
+        user_id: userId,
+        month_id: sourceBudget.month_id,
+        category_id: targetCategory.id,
+        allocated: sourceBudget.allocated,
+      });
+
+      if (insertBudgetResult.error) {
+        throw insertBudgetResult.error;
+      }
+    }
+
+    if (sourceBudgets.length > 0) {
+      const deleteBudgetsResult = await supabase
+        .from("budgets")
+        .delete()
+        .eq("category_id", sourceCategory.id);
+
+      if (deleteBudgetsResult.error) {
+        throw deleteBudgetsResult.error;
+      }
+    }
+
+    const updateTransactionsResult = await supabase
+      .from("transactions")
+      .update({ category_id: targetCategory.id })
+      .eq("category_id", sourceCategory.id);
+
+    if (updateTransactionsResult.error) {
+      throw updateTransactionsResult.error;
+    }
+
+    const deleteCategoryResult = await supabase.from("categories").delete().eq("id", sourceCategory.id);
+
+    if (deleteCategoryResult.error) {
+      throw deleteCategoryResult.error;
+    }
+
+    categoryMap.delete(`${sourceCategory.category_group_id}:${sourceCategory.name}`);
+  }
+}
+
+async function ensureLegacyCategoryNormalization(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const existingTask = legacyCategoryNormalizationTasks.get(userId);
+
+  if (existingTask) {
+    return existingTask;
+  }
+
+  const task = normalizeLegacyDuplicateCategories(supabase, userId).finally(() => {
+    legacyCategoryNormalizationTasks.delete(userId);
+  });
+
+  legacyCategoryNormalizationTasks.set(userId, task);
+  return task;
+}
+
+async function runLegacyCategoryNormalization(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  try {
+    await ensureLegacyCategoryNormalization(supabase, userId);
+  } catch (error) {
+    console.error("Failed to normalize legacy duplicate categories", error);
+  }
+}
+
 export async function requireSession(supabase: SupabaseClient) {
   const {
     data: { session },
@@ -695,6 +917,7 @@ export async function fetchDashboardData(
 ): Promise<DashboardData> {
   const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const collections = await fetchBaseCollections(supabase, monthId);
 
@@ -710,6 +933,7 @@ export async function fetchBudgetAllocationData(
 ): Promise<BudgetAllocationData> {
   const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const collections = await fetchBaseCollections(supabase, monthId);
 
@@ -723,8 +947,9 @@ export async function fetchBudgetReferenceData(
   supabase: SupabaseClient,
   monthId: string,
 ): Promise<BudgetReferenceItem[]> {
-  await requireSession(supabase);
+  const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const { start, end } = monthDateRange(monthId);
   const [budgetsResult, transactionsResult] = await Promise.all([
@@ -769,6 +994,7 @@ export async function fetchBudgetUsageData(
 ): Promise<BudgetUsagePageData> {
   const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const collections = await fetchBaseCollections(supabase, monthId);
   const today = getTodayInTaipei();
@@ -877,6 +1103,7 @@ export async function fetchReportsData(
   const endMonthId = options?.endMonthId ?? monthId;
   const monthIds = listMonthIds(startMonthId, endMonthId);
   await bootstrapAndInitializeMonths(supabase, monthIds);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const monthCount = monthIds.length;
   const previousStartMonthId = shiftMonth(startMonthId, -monthCount);
@@ -906,6 +1133,7 @@ export async function fetchTransactionsPageData(
 ): Promise<TransactionsPageData> {
   const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const collections = await fetchBaseCollections(supabase, monthId);
 
@@ -926,8 +1154,9 @@ export async function fetchQuickEntryData(
   supabase: SupabaseClient,
   monthId: string,
 ) {
-  await requireSession(supabase);
+  const user = await requireSession(supabase);
   await bootstrapAndInitializeMonth(supabase, monthId);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const [groupsResult, categoriesResult, paymentMethodsResult] = await Promise.all([
     supabase.from("category_groups").select("*").order("sort_order", { ascending: true }),
@@ -962,6 +1191,7 @@ export async function fetchSettingsData(
 ): Promise<SettingsPageData> {
   const user = await requireSession(supabase);
   await bootstrapUserDefaults(supabase);
+  await runLegacyCategoryNormalization(supabase, user.id);
 
   const [groupsResult, categoriesResult, paymentMethodsResult] = await Promise.all([
     supabase.from("category_groups").select("*").order("sort_order", { ascending: true }),

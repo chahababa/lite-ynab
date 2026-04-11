@@ -454,7 +454,7 @@ export default function DashboardPage() {
             aria-label="打開記帳視窗"
           >
             <Plus className="h-4 w-4" />
-            <span>+ 記帳</span>
+            <span>記帳</span>
           </button>
         </div>
       </div>
