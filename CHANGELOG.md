@@ -2,6 +2,23 @@
 
 ## 2026-04-11
 
+### Added
+
+- 新增 YNAB 匯入器頁面，可貼入 Personal Access Token、讀取 YNAB 計畫並建立匯入預覽
+- 新增 `/api/ynab` 路由，透過官方 YNAB API 讀取 plans、accounts、categories、transactions
+- 新增 YNAB 資料整理與 Lite YNAB 寫入邏輯，支援大項分類、小項分類、支付方式與支出交易匯入
+
+### Changed
+
+- 設定頁新增「匯入 YNAB 歷史資料」入口，直接連到新的匯入工具
+
+### Verified
+
+- `npm run typecheck`
+- `npm run test`
+
+## 2026-04-11
+
 ### Fixed
 
 - 新增登入後自動執行的英文重複分類補救流程，避免部署平台未執行 Supabase migration 時，`Food`、`Fun Money` 等舊分類持續殘留在線上資料中

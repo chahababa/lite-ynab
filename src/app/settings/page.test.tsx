@@ -57,13 +57,13 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("renders the chrome-styled settings overview", async () => {
+  it("renders the settings shell and includes the YNAB importer entry", async () => {
     render(createElement(SettingsPage));
 
-    await screen.findByText("目前的帳務骨架");
+    await screen.findByText("匯入 YNAB 歷史資料");
 
-    expect(screen.getByText("從設定回到主要工作流")).toBeInTheDocument();
-    expect(screen.getByText("回主控臺查看預算與最近交易")).toBeInTheDocument();
-    expect(screen.getByText("前往快速記帳，立即新增一筆支出")).toBeInTheDocument();
+    expect(document.querySelector('a[href="/settings/ynab-import"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/budget-allocation"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/quick-entry"]')).not.toBeNull();
   });
 });

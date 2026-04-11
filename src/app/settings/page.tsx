@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ReceiptText, Settings2, Sparkles, WalletCards } from "lucide-react";
+import { ArrowLeft, DatabaseZap, ReceiptText, Settings2, Sparkles, WalletCards } from "lucide-react";
 
 import { LoadingCard } from "@/components/LoadingCard";
 import { StateCard } from "@/components/StateCard";
@@ -212,6 +212,13 @@ export default function SettingsPage() {
                 >
                   <WalletCards className="h-5 w-5" />
                   <span>前往預算分配，調整本月各分類配置</span>
+                </Link>
+                <Link
+                  href="/settings/ynab-import"
+                  className="chrome-btn flex min-h-12 items-center gap-3 px-4 py-3"
+                >
+                  <DatabaseZap className="h-5 w-5" />
+                  <span>匯入 YNAB 歷史資料</span>
                 </Link>
               </div>
             </section>
