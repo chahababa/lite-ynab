@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-04-13
+
+### Added
+
+- 新增使用者操作手冊，方便跨裝置接手時快速了解 Lite YNAB 的主要頁面與日常使用方式
+- 新增專案 QA / Notion 筆記 Markdown，整理專案背景、驗收重點與常見問題
+- 新增瀏覽器 AI 測試 prompt 文件，方便後續在其他電腦上延續自動化測試流程
+
+### Changed
+
+- 將 `.claude/` 本機工作目錄加入 `.gitignore`，避免把本機代理工作樹同步進 GitHub
+
+### Verified
+
+- `git status`
+
 ## 2026-04-11
 
 ### Added
