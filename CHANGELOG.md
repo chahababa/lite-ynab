@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## [v2.0 Step 2] - 2026-05-07 — Material 3 共用元件
+
+### Added
+
+- `src/components/m3/` 8 個共用元件 + barrel `index.ts`：
+  - `MoneyText.tsx` — 金額顯示（mono + tabular-nums + tnum + 千分位 + 語意化顏色 + 自動 ± 前綴），這是全站金額統一入口。API：`<MoneyText value={1280} type="expense" size="display" />`
+  - `Card.tsx` — 三 variant（outlined / elevated / filled）
+  - `Button.tsx` — 四 variant（filled / tonal / outlined / text），含 startIcon / endIcon
+  - `Chip.tsx` — selected 狀態自動切 secondary-container
+  - `TextField.tsx` — 含 label + helperText + error 狀態，`numeric` prop 切置中 + mono
+  - `Progress.tsx` — variant 支援 primary / expense / warn / income，含 a11y `progressbar` role
+  - `Fab.tsx` — 三 size + extended 模式
+  - `AppBar.tsx` — leading + title + actions 三段式
+- `src/components/m3/MoneyText.test.tsx` — 8 個 case（千分位、預設前綴、prefix=false、showCurrency=false、size/type class、負數、decimals）
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（17 test files / 60 tests 全綠，淨增 8 個 MoneyText 測試）
+
+### Notes
+
+- 這些元件 **尚未被任何頁面使用**。Step 3 開始才會逐頁套到 `/quick-entry`、`/`、`/budget-usage`、`/budget-allocation`。
+- 對應 HANDOFF.md Step 2。
+
 ## [v2.0 Step 1] - 2026-05-07 — Material 3 設計系統切換
 
 ### Changed
