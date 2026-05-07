@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Delete, Plus, Settings as SettingsIcon, X } from "lucide-react";
 
+import { CategoryPickerModal } from "@/components/CategoryPickerModal";
 import { EntryFieldChip } from "@/components/EntryFieldChip";
+import { PaymentMethodModal } from "@/components/PaymentMethodModal";
 import { Toast } from "@/components/Toast";
 import { fetchQuickEntryData } from "@/lib/data";
 import { getGroupTone } from "@/lib/groupTone";
@@ -47,6 +49,8 @@ export default function QuickEntryPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const currentMonthId = useMemo(() => toMonthId(date), [date]);
 
@@ -98,6 +102,9 @@ export default function QuickEntryPage() {
     [quickCategories],
   );
 
+  const noPaymentMethods = !loading && paymentMethods.length === 0;
+  const noQuickCategories = !loading && !loadError && quickCategories.length === 0;
+
 
   function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
@@ -125,13 +132,12 @@ export default function QuickEntryPage() {
   }
 
   function handlePaymentMethodChipClick() {
-    // Sprint 3 會接 PaymentMethodModal
-    console.log("[quick-entry] payment method chip clicked");
+    if (paymentMethods.length === 0) return;
+    setIsPaymentModalOpen(true);
   }
 
   function handleOpenMoreCategories() {
-    // Sprint 4 會接 CategoryPickerModal
-    console.log("[quick-entry] more-categories clicked");
+    setIsCategoryModalOpen(true);
   }
 
   function resetAfterSubmit() {
@@ -144,6 +150,10 @@ export default function QuickEntryPage() {
   async function submitTransaction(categoryId: string) {
     if (!amount || Number(amount) <= 0) {
       setToast({ tone: "info", message: "請先輸入金額" });
+      return;
+    }
+    if (paymentMethods.length === 0) {
+      setToast({ tone: "info", message: "請先到設定建立支付方式" });
       return;
     }
     if (!selectedPaymentMethodId) {
@@ -210,6 +220,17 @@ export default function QuickEntryPage() {
           </Link>
         </div>
 
+        {/* Banner: 沒有支付方式時引導到 /settings */}
+        {noPaymentMethods ? (
+          <div className="mt-chrome-sm rounded-chrome-card border border-warning-light bg-warning/10 px-chrome-md py-chrome-sm text-chrome-sm text-warning-dark">
+            尚未建立支付方式，請先到{" "}
+            <Link href="/settings" className="font-bold underline">
+              設定
+            </Link>{" "}
+            建立後再記帳。
+          </div>
+        ) : null}
+
         {/* Amount + chips row */}
         <section className="mt-chrome-sm flex items-center justify-between gap-chrome-sm rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm">
           <p
@@ -251,7 +272,13 @@ export default function QuickEntryPage() {
               {loadError}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-chrome-sm">
+            <>
+              {noQuickCategories ? (
+                <p className="mb-chrome-sm rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm text-chrome-sm text-chrome-800">
+                  尚未標記常用分類，點「+ 更多」選擇分類
+                </p>
+              ) : null}
+              <div className="grid grid-cols-3 gap-chrome-sm">
               {visibleQuickCategories.map((category) => {
                 const tone = getGroupTone(category.groupName);
                 return (
@@ -294,7 +321,8 @@ export default function QuickEntryPage() {
                 <Plus className="h-5 w-5" />
                 <span className="mt-1 font-chrome-heading text-chrome-sm font-bold">更多</span>
               </button>
-            </div>
+              </div>
+            </>
           )}
         </section>
 
@@ -324,6 +352,22 @@ export default function QuickEntryPage() {
           ))}
         </section>
       </div>
+
+      <PaymentMethodModal
+        open={isPaymentModalOpen}
+        paymentMethods={paymentMethods}
+        selectedId={selectedPaymentMethodId}
+        onSelect={(id) => setSelectedPaymentMethodId(id)}
+        onClose={() => setIsPaymentModalOpen(false)}
+      />
+
+      <CategoryPickerModal
+        open={isCategoryModalOpen}
+        allCategories={allCategories}
+        disabled={isSubmitting}
+        onSelect={(categoryId) => void submitTransaction(categoryId)}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </main>
   );
 }

@@ -171,4 +171,58 @@ describe("QuickEntryPage", () => {
       expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
     });
   });
+
+  it("shows banner and blocks submit when no payment methods exist", async () => {
+    fetchQuickEntryData.mockResolvedValue({
+      allCategories: QUICK_CATEGORIES,
+      quickCategories: QUICK_CATEGORIES,
+      paymentMethods: [],
+    });
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByText(/尚未建立支付方式/)).toBeInTheDocument();
+    });
+
+    // Type amount + try to submit
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("請先到設定建立支付方式")).toBeInTheDocument();
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("shows hint text when there are no quick categories", async () => {
+    fetchQuickEntryData.mockResolvedValue({
+      allCategories: QUICK_CATEGORIES,
+      quickCategories: [],
+      paymentMethods: [{ id: "pm-cash", name: "現金", sortOrder: 10 }],
+    });
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByText(/尚未標記常用分類/)).toBeInTheDocument();
+    });
+    // 「+ 更多」 should still be the entry point
+    expect(screen.getByRole("button", { name: "更多分類" })).toBeInTheDocument();
+  });
+
+  it("opens category picker modal when 「+ 更多」 is clicked", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "更多分類" }));
+    // Picker is a dialog with aria-label
+    expect(screen.getByRole("dialog", { name: "選擇分類" })).toBeInTheDocument();
+  });
+
+  it("opens payment method modal when payment chip is clicked", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /支付方式/ })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /支付方式/ }));
+    expect(screen.getByRole("dialog", { name: "選擇支付方式" })).toBeInTheDocument();
+  });
 });

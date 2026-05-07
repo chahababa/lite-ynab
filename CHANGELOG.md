@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## [Sprint 6] - 2026-05-07
+
+### Released
+
+- v1.0：quick-entry 介面重做完成（密集 1 屏、9 格分類 grid、PaymentMethodModal、CategoryPickerModal）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 52 tests 全綠）
+- `npm run build`（14 routes 全部編譯成功，所有頁面 size 正常：`/quick-entry` 5.42 kB / 186 kB First Load JS）
+
+### Notes
+
+- 待人類在實機驗證（worktree 沒帶 `.env.local`，dev server 跑不起來）。
+- 部署：等 PR merge 到 main 後 Zeabur 自動 redeploy。
+
+## [Sprint 5] - 2026-05-07
+
+### Added
+
+- 邊界情況：`paymentMethods.length === 0` 顯示 banner 引導 `/settings`，並阻擋送出（toast「請先到設定建立支付方式」）。
+- 邊界情況：`quickCategories.length === 0` 顯示提示文字「尚未標記常用分類，點『+ 更多』選擇分類」，「+ 更多」按鈕仍保留為入口。
+- 4 個新測試（noPaymentMethods banner、空 quickCategories 提示、開啟 CategoryPickerModal、開啟 PaymentMethodModal）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 52 tests 全綠）
+
+## [Sprint 4] - 2026-05-07
+
+### Added
+
+- `src/components/CategoryPickerModal.tsx`：全分類搜尋 + 選擇 modal，依 groupName 分區顯示，搜尋比對 `groupName + name`。
+- `src/components/CategoryPickerModal.test.tsx`：6 個測試（closed、grouped 渲染、filter、選擇、空結果、disabled）。
+- `quick-entry/page.tsx` 整合：點「+ 更多」開啟 modal，選定後直接送出（重用 `submitTransaction`）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 48 tests 全綠）
+
+## [Sprint 3] - 2026-05-07
+
+### Added
+
+- `src/lib/hooks/useModalLifecycle.ts`：modal 共用生命週期 hook（body scroll lock + ESC + Android 返回鍵 popstate）。Sprint 4 也共用。
+- `src/components/PaymentMethodModal.tsx`：切換支付方式 modal，含 overlay click + 卡片 stopPropagation。
+- `src/components/PaymentMethodModal.test.tsx`：5 個測試（closed、open + highlight、onSelect/onClose、overlay 行為、ESC + body scroll lock）。
+- `quick-entry/page.tsx` 整合：點支付方式 chip 開啟 modal，選定後寫 localStorage 並更新 chip。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（15 test files / 42 tests 全綠）
+
 ## [Sprint 2] - 2026-05-07
 
 ### Changed
