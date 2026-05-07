@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-05-07
+
+### Fixed
+
+- 修正報表日期範圍：選擇結束月份時，不再額外多抓下一個月的交易。
+- 修正多月報表分類統計：同一分類跨多個月份有多筆預算時，不再重複計算支出金額與交易筆數。
+
+### Verified
+
+- `npm run typecheck`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+### Notes
+
+- PR: #2
+- Commit: `2546055 fix: correct report range aggregation (#2)`
+- 無資料庫 migration 或環境變數異動。
+
 ## 2026-04-13
 
 ### Added
