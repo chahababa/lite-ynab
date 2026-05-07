@@ -108,6 +108,13 @@ const LEGACY_CATEGORY_NAME_MAP = {
 
 const legacyCategoryNormalizationTasks = new Map<string, Promise<void>>();
 
+export function getReportRangeBounds(startMonthId: string, endMonthId: string) {
+  const { start } = monthDateRange(startMonthId);
+  const { end } = monthDateRange(endMonthId);
+
+  return { start, end };
+}
+
 function getLegacyCategoryTargetName(name: string) {
   return LEGACY_CATEGORY_NAME_MAP[name as keyof typeof LEGACY_CATEGORY_NAME_MAP] ?? null;
 }
@@ -597,9 +604,18 @@ export function computeReportData(
     );
   }
 
-  const categoryRows = budgets
-    .map((budget) => {
-      const category = categoryMap.get(budget.category_id);
+  const allocatedByCategory = new Map<string, number>();
+
+  for (const budget of budgets) {
+    allocatedByCategory.set(
+      budget.category_id,
+      (allocatedByCategory.get(budget.category_id) ?? 0) + budget.allocated,
+    );
+  }
+
+  const categoryRows = Array.from(allocatedByCategory.entries())
+    .map(([categoryId, allocated]) => {
+      const category = categoryMap.get(categoryId);
 
       if (!category) {
         return null;
@@ -612,9 +628,9 @@ export function computeReportData(
       return {
         id: category.id,
         name: category.name,
-        allocated: budget.allocated,
+        allocated,
         spent,
-        remaining: budget.allocated - spent,
+        remaining: allocated - spent,
         transactionCount,
         previousSpent,
         deltaSpent: spent - previousSpent,
@@ -839,8 +855,7 @@ async function fetchTransactionsForRange(
   startMonthId: string,
   endMonthId: string,
 ) {
-  const { start } = monthDateRange(startMonthId);
-  const { end } = monthDateRange(shiftMonth(endMonthId, 1));
+  const { start, end } = getReportRangeBounds(startMonthId, endMonthId);
 
   const result = await supabase
     .from("transactions")
@@ -863,8 +878,7 @@ async function fetchReportCollections(
   endMonthId: string,
 ) {
   const monthIds = listMonthIds(startMonthId, endMonthId);
-  const { start } = monthDateRange(startMonthId);
-  const { end } = monthDateRange(shiftMonth(endMonthId, 1));
+  const { start, end } = getReportRangeBounds(startMonthId, endMonthId);
 
   const [groupsResult, categoriesResult, paymentMethodsResult, incomesResult, budgetsResult, transactionsResult] =
     await Promise.all([
