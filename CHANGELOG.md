@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## [Sprint 1] - 2026-05-07
+
+### Added
+
+- `src/lib/hooks/useLastPaymentMethod.ts`：localStorage 記住上次支付方式，stored id 失效時自動 fallback 到 `paymentMethods[0]`。
+- `src/components/EntryFieldChip.tsx`：通用 pill 形 chip 元件（rounded-chrome-pill + 1px border，無立體 inset shadow）。
+- `src/lib/hooks/useLastPaymentMethod.test.ts`：5 個情境測試（空 localStorage、有效 id、失效 id、寫回 localStorage、空 paymentMethods）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（14 test files / 36 tests 全綠，新增 5 個）
+
 ## [Sprint 0] - 2026-05-07
 
 ### Changed
