@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [Sprint 0] - 2026-05-07
+
+### Changed
+
+- 啟動 quick-entry 介面重做（SPEC v1.0），於 worktree 分支 `claude/busy-hellman-b32b7e` 上進行（沿用 worktree 流程，不另開 `feature/quick-entry-redesign`）。
+
+### Verified
+
+- `npm install`
+- `npm run typecheck`（0 errors）
+- `npm run test`（13 test files / 31 tests 全綠）
+
+### Notes
+
+- 對應 SPEC：`SPEC-lite-ynab-quick-entry-redesign.md`（v1.0，2026-05-07）
+- 本 Sprint 不變更程式碼，僅環境準備與起手紀錄。
+
 ## 2026-05-07
 
 ### Fixed
