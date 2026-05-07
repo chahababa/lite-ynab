@@ -32,12 +32,13 @@
     dot: "bg-success-dark",
   },
   {
-    badge: "border-primary-light bg-primary text-white shadow-chrome-sm",
-    softBadge: "border-primary-light/80 bg-primary/15 text-primary",
-    panel: "border-primary-light/80",
-    shell: "border-primary-light/30 bg-primary/8",
-    item: "border-primary-light/25 bg-white/90",
-    dot: "bg-primary",
+    // primary preset 沿用 v1.0 的深藍 (legacy.primary)，等該頁遷移到 M3 後再改色
+    badge: "border-legacy-primary-light bg-legacy-primary text-white shadow-chrome-sm",
+    softBadge: "border-legacy-primary-light/80 bg-legacy-primary/15 text-legacy-primary",
+    panel: "border-legacy-primary-light/80",
+    shell: "border-legacy-primary-light/30 bg-legacy-primary/8",
+    item: "border-legacy-primary-light/25 bg-white/90",
+    dot: "bg-legacy-primary",
   },
 ] as const;
 

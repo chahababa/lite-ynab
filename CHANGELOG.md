@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## [v2.0 Step 1] - 2026-05-07 — Material 3 設計系統切換
+
+### Changed
+
+- 設計系統視覺方向：從 Winamp 金屬鍍鉻擬物化（v1.0）改為 Material 3 淺色明亮（v2.0）。
+- `design/design-tokens.json`、`design/DESIGN-SPEC.md`、`design/components.md`：覆蓋為 M3 規範。
+- `tailwind.config.ts`：新增 M3 命名空間（primary/secondary/surface/on-surface/outline/money/cat），新增 M3 fontSize（label/body/title/headline/display/num-hero/num-display/num-title）、borderRadius（xs/sm/md/lg/full）、boxShadow（elev-1/2/3）、transition（m3-standard、m3-short/medium/long）。
+- `tailwind.config.ts`：v1.0 的 `primary`（深藍 #1A1A2E）搬到 `legacy.primary`，僅 `groupTone.ts` 仍引用，待頁面遷移後一併清理。
+- `src/lib/groupTone.ts`：primary preset 改用 `legacy-primary-*` class 名稱，避免與 M3 新 `primary` 衝突。
+- `src/app/layout.tsx`：用 `next/font/google` 引入 Roboto + Noto Sans TC + Roboto Mono，掛在 `<html>` 上的 CSS 變數（`--font-roboto`、`--font-noto-sans-tc`、`--font-roboto-mono`），由 Tailwind `font-sans` / `font-mono` 引用。
+- `tsconfig.json`：`jsx: preserve` → `react-jsx`（Next 15 build 會再自動改回；vitest/rolldown 需要 react-jsx 才能解析 .test.tsx，所以這個值會在 dev 與 build 之間切換，這是正常的）。
+
+### Added
+
+- `design/material3/Lite YNAB Material 3.html`：完整 hi-fi 設計稿（4 個變體頁面），可直接在瀏覽器打開查看。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 52 tests 全綠，無回歸）
+
+### Notes
+
+- v1.0 的 chrome-* / neu-* / success/danger/warning/info 等命名 **保留 top-level** 不動，現有頁面繼續使用，等逐頁遷移完成後 cleanup。
+- 對應 handoff 文件：`HANDOFF.md`（Step 1 完成）。
+
 ## [Sprint 6] - 2026-05-07
 
 ### Released
