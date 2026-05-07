@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDashboardData, computeReportData } from "@/lib/data";
+import { computeDashboardData, computeReportData, getReportRangeBounds } from "@/lib/data";
 import type {
   Budget,
   Category,
@@ -370,5 +370,81 @@ describe("computeReportData", () => {
       },
     ]);
     expect(result.recentTransactions).toHaveLength(4);
+  });
+
+  it("uses an exclusive end date for the selected report range", () => {
+    expect(getReportRangeBounds("2026-04", "2026-04")).toEqual({
+      start: "2026-04-01",
+      end: "2026-05-01",
+    });
+
+    expect(getReportRangeBounds("2026-04", "2026-05")).toEqual({
+      start: "2026-04-01",
+      end: "2026-06-01",
+    });
+  });
+
+  it("aggregates multi-month category budgets without duplicating spent totals", () => {
+    const groups = [createGroup({ id: "group-personal", name: "個人", sort_order: 10 })];
+    const categories = [
+      createCategory({ id: "cat-food", category_group_id: "group-personal", name: "飲食", sort_order: 10 }),
+    ];
+    const paymentMethods = [createPaymentMethod({ id: "pm-cash", name: "現金", sort_order: 10 })];
+    const budgets = [
+      createBudget({ id: "budget-food-apr", month_id: "2026-04", category_id: "cat-food", allocated: 1000 }),
+      createBudget({ id: "budget-food-may", month_id: "2026-05", category_id: "cat-food", allocated: 1500 }),
+    ];
+    const transactions = [
+      createTransaction({
+        id: "tx-food-apr",
+        date: "2026-04-10",
+        category_id: "cat-food",
+        payment_method_id: "pm-cash",
+        amount: 300,
+      }),
+      createTransaction({
+        id: "tx-food-may",
+        date: "2026-05-10",
+        category_id: "cat-food",
+        payment_method_id: "pm-cash",
+        amount: 700,
+      }),
+    ];
+
+    const result = computeReportData(
+      {
+        groups,
+        categories,
+        paymentMethods,
+        budgets,
+        transactions,
+        incomes: [],
+      },
+      [],
+      {
+        mode: "range",
+        startMonthId: "2026-04",
+        endMonthId: "2026-05",
+        monthCount: 2,
+        previousStartMonthId: "2026-02",
+        previousEndMonthId: "2026-03",
+      },
+    );
+
+    expect(result.summary.allocated).toBe(2500);
+    expect(result.summary.spent).toBe(1000);
+    expect(result.categoryGroups[0]).toMatchObject({
+      allocated: 2500,
+      spent: 1000,
+      remaining: 1500,
+      transactionCount: 2,
+    });
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0]).toMatchObject({
+      allocated: 2500,
+      spent: 1000,
+      remaining: 1500,
+      transactionCount: 2,
+    });
   });
 });
