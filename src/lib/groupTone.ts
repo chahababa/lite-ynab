@@ -5,6 +5,7 @@
     panel: "border-danger-light/80",
     shell: "border-danger-light/35 bg-danger/8",
     item: "border-danger-light/30 bg-white/90",
+    dot: "bg-danger-dark",
   },
   {
     badge: "border-warning-light bg-warning-dark text-white shadow-chrome-sm",
@@ -12,6 +13,7 @@
     panel: "border-warning-light/80",
     shell: "border-warning-light/35 bg-warning/10",
     item: "border-warning-light/30 bg-white/90",
+    dot: "bg-warning-dark",
   },
   {
     badge: "border-info-light bg-info-dark text-white shadow-chrome-sm",
@@ -19,6 +21,7 @@
     panel: "border-info-light/80",
     shell: "border-info-light/35 bg-info/8",
     item: "border-info-light/30 bg-white/90",
+    dot: "bg-info-dark",
   },
   {
     badge: "border-success-light bg-success-dark text-white shadow-chrome-sm",
@@ -26,6 +29,7 @@
     panel: "border-success-light/80",
     shell: "border-success-light/35 bg-success/8",
     item: "border-success-light/30 bg-white/90",
+    dot: "bg-success-dark",
   },
   {
     badge: "border-primary-light bg-primary text-white shadow-chrome-sm",
@@ -33,6 +37,7 @@
     panel: "border-primary-light/80",
     shell: "border-primary-light/30 bg-primary/8",
     item: "border-primary-light/25 bg-white/90",
+    dot: "bg-primary",
   },
 ] as const;
 

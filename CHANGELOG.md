@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## [Sprint 2] - 2026-05-07
+
+### Changed
+
+- `src/app/quick-entry/page.tsx`：重寫為密集 1 屏 layout（金額列 + 9 格分類 grid + 備註 + keypad）。
+- `src/lib/groupTone.ts`：每個 preset 新增 `dot` class（純背景色），供 9 格 grid 左上角 6×6 群組顏色點使用。
+- `src/app/quick-entry/page.test.tsx`：改寫為新版測試（5 個 case：layout 標題、keypad/note 輸入、amount=0 阻擋、成功送出 + reset、「+ 更多」入口）。
+
+### Added
+
+- 9 格常用分類 grid（前 8 + 「+ 更多」入口固定為最後一格）。
+- 點分類即送出邏輯（保留既有快速感），含 amount=0 toast 與 isSubmitting 鎖。
+- 跨日防呆：`hasUserModifiedDate` flag 確保送出當下重抓 `getTodayInTaipei()`，除非使用者主動改過 date。
+
+### Fixed
+
+- 移除 useEffect dep 中的 `router` / `supabase`（在測試環境下 mock 會回傳新 ref，造成無限重抓 loop）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（14 test files / 37 tests 全綠）
+
 ## [Sprint 1] - 2026-05-07
 
 ### Added

@@ -1,84 +1,78 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Delete, Search, WalletCards } from "lucide-react";
+import { Delete, Plus, Settings as SettingsIcon, X } from "lucide-react";
 
+import { EntryFieldChip } from "@/components/EntryFieldChip";
 import { Toast } from "@/components/Toast";
 import { fetchQuickEntryData } from "@/lib/data";
 import { getGroupTone } from "@/lib/groupTone";
+import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { CategoryOption, PaymentMethodOption, ToastState } from "@/lib/types";
 import { cn, formatCurrency, getTodayInTaipei, toMonthId } from "@/lib/utils";
 
-const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"];
-
-type CategoryMode = "quick" | "all";
+const KEYPAD_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "del"] as const;
+const QUICK_GRID_SIZE = 8;
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
     return error.message;
   }
-
   return "載入快速記帳資料時發生未預期的錯誤。";
+}
+
+function formatDateChipLabel(value: string): string {
+  return value === getTodayInTaipei() ? "今天" : value;
 }
 
 export default function QuickEntryPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
   const [allCategories, setAllCategories] = useState<CategoryOption[]>([]);
   const [quickCategories, setQuickCategories] = useState<CategoryOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("");
-  const [date, setDate] = useState(getTodayInTaipei());
-  const currentMonthId = useMemo(() => toMonthId(date), [date]);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
+    useLastPaymentMethod(paymentMethods);
+
   const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(getTodayInTaipei());
+  const [hasUserModifiedDate, setHasUserModifiedDate] = useState(false);
   const [note, setNote] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [submittingCategoryId, setSubmittingCategoryId] = useState<string | null>(null);
-  const [successFlash, setSuccessFlash] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
-  const [categoryMode, setCategoryMode] = useState<CategoryMode>("quick");
-  const [categoryQuery, setCategoryQuery] = useState("");
+
+  const currentMonthId = useMemo(() => toMonthId(date), [date]);
 
   useEffect(() => {
-    const timer = toast ? window.setTimeout(() => setToast(null), 2600) : undefined;
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
   }, [toast]);
 
   useEffect(() => {
-    const timer = successFlash ? window.setTimeout(() => setSuccessFlash(false), 1000) : undefined;
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [successFlash]);
-
-  useEffect(() => {
     let active = true;
-
     async function load() {
       setLoading(true);
       setLoadError(null);
-
       try {
         const data = await fetchQuickEntryData(supabase, currentMonthId);
         if (!active) return;
-
         setAllCategories(data.allCategories);
         setQuickCategories(data.quickCategories);
         setPaymentMethods(data.paymentMethods);
-        setSelectedPaymentMethodId((current) => current || data.paymentMethods[0]?.id || "");
       } catch (error) {
         if (!active) return;
-
         if (error instanceof Error && error.message === "AUTH_REQUIRED") {
           router.replace("/login");
           return;
         }
-
         const message = getErrorMessage(error);
         setLoadError(message);
         setToast({ tone: "error", message });
@@ -86,321 +80,249 @@ export default function QuickEntryPage() {
         if (active) setLoading(false);
       }
     }
-
     void load();
     return () => {
       active = false;
     };
-  }, [currentMonthId, router, supabase]);
+    // router & supabase are stable refs in production; excluded to avoid mock-induced re-fetch loops in tests
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonthId]);
 
-  function handleKeyPress(key: string) {
+  const selectedPaymentMethod = useMemo(
+    () => paymentMethods.find((pm) => pm.id === selectedPaymentMethodId) ?? null,
+    [paymentMethods, selectedPaymentMethodId],
+  );
+
+  const visibleQuickCategories = useMemo(
+    () => quickCategories.slice(0, QUICK_GRID_SIZE),
+    [quickCategories],
+  );
+
+
+  function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
-      setAmount((value) => value.slice(0, -1));
+      setAmount((v) => v.slice(0, -1));
       return;
     }
-
-    setAmount((value) => `${value}${key}`.replace(/^0+(?=\d)/, ""));
+    setAmount((v) => `${v}${key}`.replace(/^0+(?=\d)/, ""));
   }
 
-  async function submit(categoryId: string) {
+  function handleDateChipClick() {
+    // Sprint 2 placeholder: 用瀏覽器原生 prompt 取日期，Sprint 3+ 之後可用 input[type=date]
+    const next = window.prompt("輸入日期 (YYYY-MM-DD)，留空恢復今天", date);
+    if (next === null) return;
+    if (next === "") {
+      setDate(getTodayInTaipei());
+      setHasUserModifiedDate(false);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) {
+      setToast({ tone: "info", message: "日期格式請用 YYYY-MM-DD" });
+      return;
+    }
+    setDate(next);
+    setHasUserModifiedDate(true);
+  }
+
+  function handlePaymentMethodChipClick() {
+    // Sprint 3 會接 PaymentMethodModal
+    console.log("[quick-entry] payment method chip clicked");
+  }
+
+  function handleOpenMoreCategories() {
+    // Sprint 4 會接 CategoryPickerModal
+    console.log("[quick-entry] more-categories clicked");
+  }
+
+  function resetAfterSubmit() {
+    setAmount("");
+    setNote("");
+    setDate(getTodayInTaipei());
+    setHasUserModifiedDate(false);
+  }
+
+  async function submitTransaction(categoryId: string) {
     if (!amount || Number(amount) <= 0) {
-      setToast({ tone: "info", message: "請輸入大於 0 的金額" });
+      setToast({ tone: "info", message: "請先輸入金額" });
       return;
     }
-
     if (!selectedPaymentMethodId) {
-      setToast({ tone: "info", message: "請先選擇支付方式。" });
+      setToast({ tone: "info", message: "請先選擇支付方式" });
       return;
     }
 
-    const category =
-      allCategories.find((item) => item.id === categoryId) ??
-      quickCategories.find((item) => item.id === categoryId);
-
-    setSubmittingCategoryId(categoryId);
-
+    setIsSubmitting(true);
     try {
+      const dateToSubmit = hasUserModifiedDate ? date : getTodayInTaipei();
       const nextAmount = Number(amount);
+      const category =
+        quickCategories.find((c) => c.id === categoryId) ??
+        allCategories.find((c) => c.id === categoryId);
+
       const { error } = await supabase.from("transactions").insert({
         amount: nextAmount,
-        date,
+        date: dateToSubmit,
         category_id: categoryId,
         payment_method_id: selectedPaymentMethodId,
         note: note.trim(),
       });
-
       if (error) throw error;
 
-      setAmount("");
-      setNote("");
-      setSuccessFlash(true);
       setToast({
         tone: "success",
         message: `已記帳 ${formatCurrency(nextAmount)} 至 ${category?.name ?? "未命名分類"}`,
       });
+      resetAfterSubmit();
       router.refresh();
     } catch {
-      setToast({ tone: "error", message: "記帳失敗，請稍後再試。" });
+      setToast({ tone: "error", message: "記帳失敗，請稍後再試" });
     } finally {
-      setSubmittingCategoryId(null);
+      setIsSubmitting(false);
     }
   }
 
-  const visibleCategories = (categoryMode === "quick" ? quickCategories : allCategories).filter(
-    (category) => {
-      const query = categoryQuery.trim().toLowerCase();
-      if (!query) return true;
-      return `${category.groupName} ${category.name}`.toLowerCase().includes(query);
-    },
-  );
-
-  const groupToneMap = useMemo(() => {
-    const uniqueGroupNames = Array.from(new Set(allCategories.map((category) => category.groupName)));
-
-    return new Map(
-      uniqueGroupNames.map((groupName, index) => [groupName, getGroupTone(groupName, index)]),
-    );
-  }, [allCategories]);
+  const amountDisplay = amount ? formatCurrency(Number(amount)) : formatCurrency(0);
 
   return (
     <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <div className="mx-auto w-full max-w-md chrome-window p-[6px]">
-        <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
-          <div>
-            <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wider text-chrome-900">
-              快速記帳
-            </p>
-            <p className="text-chrome-sm text-chrome-800">用最短路徑完成一筆支出記錄</p>
-          </div>
-
-          <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
-            {date}
-          </div>
+        {/* Header */}
+        <div className="chrome-titlebar flex items-center justify-between gap-2 px-chrome-md py-chrome-sm">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            aria-label="關閉"
+            className="flex h-8 w-8 items-center justify-center rounded-chrome-btn border border-chrome-700 bg-chrome-100 text-chrome-900 hover:bg-chrome-50 active:bg-chrome-200"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wider text-chrome-900">
+            記一筆
+          </p>
+          <Link
+            href="/settings"
+            aria-label="設定"
+            className="flex h-8 w-8 items-center justify-center rounded-chrome-btn border border-chrome-700 bg-chrome-100 text-chrome-900 hover:bg-chrome-50 active:bg-chrome-200"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </Link>
         </div>
 
-        <div className="mt-chrome-md space-y-chrome-md">
-          <section className="chrome-led-panel relative px-chrome-lg py-chrome-xl">
-            <div className="flex flex-col items-center justify-center text-center">
-              <div>
-                <p className="chrome-led-label text-chrome-sm uppercase">金額</p>
-                <p className="chrome-led-value mt-2 text-[2.35rem] leading-none">
-                  {amount ? formatCurrency(Number(amount)) : formatCurrency(0)}
-                </p>
-              </div>
-            </div>
+        {/* Amount + chips row */}
+        <section className="mt-chrome-sm flex items-center justify-between gap-chrome-sm rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm">
+          <p
+            className={cn(
+              "font-chrome-mono text-[20px] font-bold leading-none",
+              amount ? "text-danger-dark" : "text-chrome-700",
+            )}
+          >
+            −{amountDisplay}
+          </p>
+          <div className="flex items-center gap-chrome-sm">
+            <EntryFieldChip
+              label={formatDateChipLabel(date)}
+              ariaLabel={`日期 ${formatDateChipLabel(date)}`}
+              onClick={handleDateChipClick}
+            />
+            <EntryFieldChip
+              label={selectedPaymentMethod?.name ?? "未設定"}
+              ariaLabel={`支付方式 ${selectedPaymentMethod?.name ?? "未設定"}`}
+              onClick={handlePaymentMethodChipClick}
+              disabled={paymentMethods.length === 0}
+            />
+          </div>
+        </section>
 
-            {successFlash ? (
-              <div className="chrome-led-accent absolute right-chrome-md top-chrome-md rounded-chrome-pill border border-chrome-700 bg-primary/70 px-chrome-md py-chrome-sm font-chrome-mono text-chrome-sm font-bold uppercase tracking-chrome-wide">
-                <Check className="h-4 w-4" />
-              </div>
-            ) : null}
-
-            <div className="mt-chrome-lg grid grid-cols-3 gap-chrome-md">
-              {keypad.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleKeyPress(key)}
-                  className="chrome-btn flex min-h-11 items-center justify-center px-chrome-md py-chrome-lg font-chrome-heading text-chrome-xl font-bold tracking-chrome-wide"
-                >
-                  {key === "del" ? <Delete className="h-4 w-4" /> : key}
-                </button>
+        {/* Quick category 3x3 grid */}
+        <section className="mt-chrome-sm">
+          {loading ? (
+            <div className="grid grid-cols-3 gap-chrome-sm">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="aspect-square animate-pulse rounded-chrome-card border border-chrome-700 bg-chrome-200"
+                />
               ))}
             </div>
-          </section>
-
-          <section className="chrome-window p-chrome-md">
-            <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-              <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-900">
-                欄位資訊
-              </p>
+          ) : loadError ? (
+            <div className="rounded-chrome-card border border-danger-light bg-chrome-100 px-chrome-md py-chrome-md text-chrome-sm text-danger-dark">
+              {loadError}
             </div>
-
-            <div className="mt-chrome-md space-y-chrome-md">
-              <label className="block">
-                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                  日期
-                </span>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                />
-              </label>
-
-              <div className="block">
-                <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                  <WalletCards className="h-4 w-4" />
-                  支付方式
-                </span>
-                <div className="grid grid-cols-2 gap-chrome-sm">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => setSelectedPaymentMethodId(method.id)}
+          ) : (
+            <div className="grid grid-cols-3 gap-chrome-sm">
+              {visibleQuickCategories.map((category) => {
+                const tone = getGroupTone(category.groupName);
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void submitTransaction(category.id)}
+                    aria-label={`${category.groupName} ${category.name}`}
+                    className={cn(
+                      "relative flex aspect-square flex-col items-center justify-center rounded-chrome-card border border-chrome-700 bg-chrome-100 px-1 py-2 text-center transition-colors duration-fast hover:bg-chrome-50 active:bg-chrome-200",
+                      "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
+                    )}
+                  >
+                    <span
                       className={cn(
-                        "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                        selectedPaymentMethodId === method.id && "chrome-btn--success text-white",
+                        "absolute left-1 top-1 inline-block h-1.5 w-1.5 rounded-full",
+                        tone.dot,
                       )}
-                    >
-                      {method.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      aria-hidden
+                    />
+                    <span className="font-chrome-heading text-chrome-base font-bold leading-tight text-chrome-900">
+                      {category.name}
+                    </span>
+                  </button>
+                );
+              })}
 
-              <label className="block">
-                <span className="mb-chrome-sm block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                  備註
-                </span>
-                <input
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                  placeholder="例如：超商早餐、飲料、買菜"
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="chrome-window p-chrome-md">
-            <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-900">
-                  分類選擇器
-                </p>
-                <div className="chrome-statusbar px-chrome-sm py-[3px] text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
-                  {categoryMode === "quick" ? "快速" : "全部"}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-chrome-md grid grid-cols-2 gap-chrome-sm">
+              {/* 「+ 更多」永遠在最後一格 */}
               <button
                 type="button"
-                onClick={() => setCategoryMode("quick")}
+                disabled={isSubmitting}
+                onClick={handleOpenMoreCategories}
+                aria-label="更多分類"
                 className={cn(
-                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                  categoryMode === "quick" && "chrome-btn--success text-white",
+                  "flex aspect-square flex-col items-center justify-center rounded-chrome-card border border-dashed border-chrome-700 bg-chrome-100 px-1 py-2 text-chrome-800 transition-colors duration-fast hover:bg-chrome-50 active:bg-chrome-200",
+                  "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
                 )}
               >
-                快速
-              </button>
-              <button
-                type="button"
-                onClick={() => setCategoryMode("all")}
-                className={cn(
-                  "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                  categoryMode === "all" && "chrome-btn--success text-white",
-                )}
-              >
-                全部分類
+                <Plus className="h-5 w-5" />
+                <span className="mt-1 font-chrome-heading text-chrome-sm font-bold">更多</span>
               </button>
             </div>
+          )}
+        </section>
 
-            <label className="mt-chrome-md block">
-              <span className="mb-chrome-sm flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                <Search className="h-4 w-4" />
-                搜尋
-              </span>
-              <input
-                value={categoryQuery}
-                onChange={(event) => setCategoryQuery(event.target.value)}
-                className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                placeholder="搜尋分類名稱或群組"
-              />
-            </label>
+        {/* Note (compact) */}
+        <section className="mt-chrome-sm">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="備註（可留空）"
+            aria-label="備註"
+            className="chrome-field min-h-9 w-full px-chrome-md py-chrome-sm text-chrome-sm"
+          />
+        </section>
 
-            <div className="mt-chrome-md">
-              {loading ? (
-                <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">載入中</p>
-                  <p className="chrome-led-value mt-2 text-chrome-xl">正在準備分類資料...</p>
-                </div>
-              ) : loadError ? (
-                <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">錯誤</p>
-                  <p className="mt-2 font-chrome-mono text-chrome-base text-danger-light">{loadError}</p>
-                </div>
-              ) : visibleCategories.length === 0 ? (
-                <div className="chrome-led-panel px-chrome-md py-chrome-lg">
-                  <p className="chrome-led-label text-chrome-sm uppercase">沒有結果</p>
-                  <p className="mt-2 font-chrome-mono text-chrome-base text-chrome-300">
-                    {categoryQuery.trim()
-                      ? "找不到符合搜尋條件的分類。"
-                      : categoryMode === "quick"
-                        ? "目前沒有已加入快速記帳的分類。"
-                        : "目前沒有任何分類。"}
-                  </p>
-                </div>
-              ) : (
-                <div className="max-h-[340px] space-y-chrome-sm overflow-y-auto pr-1">
-                  {visibleCategories.map((category) => {
-                    const tone = groupToneMap.get(category.groupName) ?? getGroupTone(category.groupName);
-
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        disabled={submittingCategoryId !== null}
-                        onClick={() => void submit(category.id)}
-                        className={cn(
-                          "chrome-btn flex min-h-[92px] w-full items-stretch justify-between overflow-hidden p-0 text-left",
-                          submittingCategoryId === category.id &&
-                            "chrome-btn--success translate-y-[1px] text-white",
-                        )}
-                      >
-                        <div className="flex min-w-0 flex-1 items-center justify-center px-chrome-md py-chrome-md">
-                          <div className="min-w-0 text-center">
-                            <p
-                              className={cn(
-                                "inline-flex min-w-[72px] items-center justify-center rounded-chrome-pill border px-2 py-[2px] font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide",
-                                submittingCategoryId === category.id
-                                  ? "border-white/40 bg-white/15 text-white"
-                                  : tone.badge,
-                              )}
-                            >
-                              {category.groupName}
-                            </p>
-                            <p className="mt-2 truncate font-chrome-heading text-chrome-lg font-bold text-chrome-900">
-                              {category.name}
-                            </p>
-                          </div>
-                        </div>
-                        <div
-                          className={cn(
-                            "chrome-led-panel flex min-w-[120px] shrink-0 self-stretch rounded-none border-l-2 border-y-0 border-r-0 flex-col items-center justify-center px-chrome-sm py-[6px] text-center",
-                            tone.panel,
-                          )}
-                        >
-                          <p className="chrome-led-label text-chrome-xs uppercase">
-                            {submittingCategoryId === category.id ? "儲存中" : "送出"}
-                          </p>
-                          <p className="chrome-led-value text-chrome-lg">
-                            {amount ? formatCurrency(Number(amount)) : formatCurrency(0)}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <div className="chrome-statusbar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
-            <span className="font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
-              快速記帳模式
-            </span>
-            <span className="font-chrome-mono text-chrome-xs text-chrome-800">
-              金額輸入後直接點分類即可送出
-            </span>
-          </div>
-        </div>
+        {/* Keypad 4x3 */}
+        <section className="mt-chrome-sm grid grid-cols-3 gap-chrome-sm">
+          {KEYPAD_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleKeypad(key)}
+              aria-label={key === "del" ? "刪除" : key}
+              className="chrome-btn flex min-h-9 items-center justify-center px-1 py-2 font-chrome-heading text-chrome-base font-bold tracking-chrome-wide"
+            >
+              {key === "del" ? <Delete className="h-4 w-4" /> : key}
+            </button>
+          ))}
+        </section>
       </div>
     </main>
   );
