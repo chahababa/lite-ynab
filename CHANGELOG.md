@@ -1,5 +1,115 @@
 # CHANGELOG
 
+## [Sprint 6] - 2026-05-07
+
+### Released
+
+- v1.0：quick-entry 介面重做完成（密集 1 屏、9 格分類 grid、PaymentMethodModal、CategoryPickerModal）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 52 tests 全綠）
+- `npm run build`（14 routes 全部編譯成功，所有頁面 size 正常：`/quick-entry` 5.42 kB / 186 kB First Load JS）
+
+### Notes
+
+- 待人類在實機驗證（worktree 沒帶 `.env.local`，dev server 跑不起來）。
+- 部署：等 PR merge 到 main 後 Zeabur 自動 redeploy。
+
+## [Sprint 5] - 2026-05-07
+
+### Added
+
+- 邊界情況：`paymentMethods.length === 0` 顯示 banner 引導 `/settings`，並阻擋送出（toast「請先到設定建立支付方式」）。
+- 邊界情況：`quickCategories.length === 0` 顯示提示文字「尚未標記常用分類，點『+ 更多』選擇分類」，「+ 更多」按鈕仍保留為入口。
+- 4 個新測試（noPaymentMethods banner、空 quickCategories 提示、開啟 CategoryPickerModal、開啟 PaymentMethodModal）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 52 tests 全綠）
+
+## [Sprint 4] - 2026-05-07
+
+### Added
+
+- `src/components/CategoryPickerModal.tsx`：全分類搜尋 + 選擇 modal，依 groupName 分區顯示，搜尋比對 `groupName + name`。
+- `src/components/CategoryPickerModal.test.tsx`：6 個測試（closed、grouped 渲染、filter、選擇、空結果、disabled）。
+- `quick-entry/page.tsx` 整合：點「+ 更多」開啟 modal，選定後直接送出（重用 `submitTransaction`）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（16 test files / 48 tests 全綠）
+
+## [Sprint 3] - 2026-05-07
+
+### Added
+
+- `src/lib/hooks/useModalLifecycle.ts`：modal 共用生命週期 hook（body scroll lock + ESC + Android 返回鍵 popstate）。Sprint 4 也共用。
+- `src/components/PaymentMethodModal.tsx`：切換支付方式 modal，含 overlay click + 卡片 stopPropagation。
+- `src/components/PaymentMethodModal.test.tsx`：5 個測試（closed、open + highlight、onSelect/onClose、overlay 行為、ESC + body scroll lock）。
+- `quick-entry/page.tsx` 整合：點支付方式 chip 開啟 modal，選定後寫 localStorage 並更新 chip。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（15 test files / 42 tests 全綠）
+
+## [Sprint 2] - 2026-05-07
+
+### Changed
+
+- `src/app/quick-entry/page.tsx`：重寫為密集 1 屏 layout（金額列 + 9 格分類 grid + 備註 + keypad）。
+- `src/lib/groupTone.ts`：每個 preset 新增 `dot` class（純背景色），供 9 格 grid 左上角 6×6 群組顏色點使用。
+- `src/app/quick-entry/page.test.tsx`：改寫為新版測試（5 個 case：layout 標題、keypad/note 輸入、amount=0 阻擋、成功送出 + reset、「+ 更多」入口）。
+
+### Added
+
+- 9 格常用分類 grid（前 8 + 「+ 更多」入口固定為最後一格）。
+- 點分類即送出邏輯（保留既有快速感），含 amount=0 toast 與 isSubmitting 鎖。
+- 跨日防呆：`hasUserModifiedDate` flag 確保送出當下重抓 `getTodayInTaipei()`，除非使用者主動改過 date。
+
+### Fixed
+
+- 移除 useEffect dep 中的 `router` / `supabase`（在測試環境下 mock 會回傳新 ref，造成無限重抓 loop）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（14 test files / 37 tests 全綠）
+
+## [Sprint 1] - 2026-05-07
+
+### Added
+
+- `src/lib/hooks/useLastPaymentMethod.ts`：localStorage 記住上次支付方式，stored id 失效時自動 fallback 到 `paymentMethods[0]`。
+- `src/components/EntryFieldChip.tsx`：通用 pill 形 chip 元件（rounded-chrome-pill + 1px border，無立體 inset shadow）。
+- `src/lib/hooks/useLastPaymentMethod.test.ts`：5 個情境測試（空 localStorage、有效 id、失效 id、寫回 localStorage、空 paymentMethods）。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（14 test files / 36 tests 全綠，新增 5 個）
+
+## [Sprint 0] - 2026-05-07
+
+### Changed
+
+- 啟動 quick-entry 介面重做（SPEC v1.0），於 worktree 分支 `claude/busy-hellman-b32b7e` 上進行（沿用 worktree 流程，不另開 `feature/quick-entry-redesign`）。
+
+### Verified
+
+- `npm install`
+- `npm run typecheck`（0 errors）
+- `npm run test`（13 test files / 31 tests 全綠）
+
+### Notes
+
+- 對應 SPEC：`SPEC-lite-ynab-quick-entry-redesign.md`（v1.0，2026-05-07）
+- 本 Sprint 不變更程式碼，僅環境準備與起手紀錄。
+
 ## 2026-05-07
 
 ### Fixed

@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import QuickEntryPage from "@/app/quick-entry/page";
 
-const { mockReplace, mockRefresh, fetchQuickEntryData, mockInsert } = vi.hoisted(() => ({
+const { mockReplace, mockPush, mockRefresh, fetchQuickEntryData, mockInsert } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
+  mockPush: vi.fn(),
   mockRefresh: vi.fn(),
   fetchQuickEntryData: vi.fn(),
   mockInsert: vi.fn(),
@@ -16,6 +17,7 @@ const { mockReplace, mockRefresh, fetchQuickEntryData, mockInsert } = vi.hoisted
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: mockReplace,
+    push: mockPush,
     refresh: mockRefresh,
   }),
 }));
@@ -28,28 +30,45 @@ vi.mock("@/lib/supabaseClient", () => ({
   getSupabaseBrowserClient: () => ({
     auth: {
       onAuthStateChange: () => ({
-        data: {
-          subscription: {
-            unsubscribe: vi.fn(),
-          },
-        },
+        data: { subscription: { unsubscribe: vi.fn() } },
       }),
     },
     from: (table: string) => {
       if (table === "transactions") {
-        return {
-          insert: mockInsert,
-        };
+        return { insert: mockInsert };
       }
-
       return {};
     },
   }),
 }));
 
+const QUICK_CATEGORIES = [
+  {
+    id: "cat-food",
+    groupId: "group-personal",
+    groupName: "個人",
+    name: "飲食",
+    isQuick: true,
+    isAuto: false,
+    autoAmount: 0,
+    sortOrder: 10,
+  },
+  {
+    id: "cat-coffee",
+    groupId: "group-personal",
+    groupName: "個人",
+    name: "咖啡",
+    isQuick: true,
+    isAuto: false,
+    autoAmount: 0,
+    sortOrder: 20,
+  },
+];
+
 describe("QuickEntryPage", () => {
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
   });
 
   beforeEach(() => {
@@ -57,16 +76,7 @@ describe("QuickEntryPage", () => {
     mockInsert.mockResolvedValue({ error: null });
     fetchQuickEntryData.mockResolvedValue({
       allCategories: [
-        {
-          id: "cat-food",
-          groupId: "group-personal",
-          groupName: "個人",
-          name: "飲食",
-          isQuick: true,
-          isAuto: false,
-          autoAmount: 0,
-          sortOrder: 10,
-        },
+        ...QUICK_CATEGORIES,
         {
           id: "cat-rent",
           groupId: "group-home",
@@ -75,21 +85,10 @@ describe("QuickEntryPage", () => {
           isQuick: false,
           isAuto: true,
           autoAmount: 12000,
-          sortOrder: 20,
+          sortOrder: 30,
         },
       ],
-      quickCategories: [
-        {
-          id: "cat-food",
-          groupId: "group-personal",
-          groupName: "個人",
-          name: "飲食",
-          isQuick: true,
-          isAuto: false,
-          autoAmount: 0,
-          sortOrder: 10,
-        },
-      ],
+      quickCategories: QUICK_CATEGORIES,
       paymentMethods: [
         { id: "pm-cash", name: "現金", sortOrder: 10 },
         { id: "pm-card", name: "信用卡 A", sortOrder: 20 },
@@ -97,70 +96,133 @@ describe("QuickEntryPage", () => {
     });
   });
 
-  it("updates amount and note in quick entry", async () => {
+  it("renders the dense layout with title 記一筆", async () => {
     render(createElement(QuickEntryPage));
+    expect(await screen.findByText("記一筆")).toBeInTheDocument();
+  });
 
-    await screen.findByText("快速記帳");
+  it("updates amount and note from keypad and input", async () => {
+    render(createElement(QuickEntryPage));
+    await screen.findByText("記一筆");
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "0" }));
 
-    fireEvent.change(screen.getByPlaceholderText("例如：超商早餐、飲料、買菜"), {
+    fireEvent.change(screen.getByPlaceholderText("備註（可留空）"), {
       target: { value: "早餐" },
     });
 
-    expect(screen.getAllByText("$120")[0]).toBeInTheDocument();
+    expect(screen.getByText("−$120")).toBeInTheDocument();
     expect(screen.getByDisplayValue("早餐")).toBeInTheDocument();
     expect(mockInsert).not.toHaveBeenCalled();
-    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("shows an error toast when amount is zero", async () => {
+  it("blocks submit and toasts when amount is zero", async () => {
     render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
 
-    await screen.findByText("快速記帳");
-    fireEvent.click(
-      screen
-        .getAllByText("飲食")
-        .find((element) => element.closest("button"))
-        ?.closest("button") as HTMLElement,
-    );
-
-    expect(await screen.findByText("請輸入大於 0 的金額")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("請先輸入金額")).toBeInTheDocument();
+    });
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("shows all categories after switching to the all-categories tab", async () => {
+  it("submits successfully and clears amount/note (keeps payment method)", async () => {
     render(createElement(QuickEntryPage));
+    await screen.findByText("記一筆");
 
-    fireEvent.click((await screen.findAllByRole("button", { name: "全部分類" }))[0]);
-
-    await waitFor(() => {
-      expect(screen.getByText("房租")).toBeInTheDocument();
-      expect(screen.getByText("家庭")).toBeInTheDocument();
-    });
-  });
-
-  it("submits successfully and shows a success toast", async () => {
-    render(createElement(QuickEntryPage));
-
-    await screen.findByText("快速記帳");
-    await waitFor(() => {
-      expect(screen.queryByText("正在準備分類資料...")).not.toBeInTheDocument();
-    });
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "3" }));
-    fireEvent.click(
-      (await screen.findAllByText("飲食"))
-        .find((element) => element.closest("button"))
-        ?.closest("button") as HTMLElement,
-    );
+    fireEvent.change(screen.getByPlaceholderText("備註（可留空）"), {
+      target: { value: "午餐" },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "個人 飲食" }));
 
     await waitFor(() => {
-      expect(mockInsert).toHaveBeenCalled();
-      expect(screen.getByText("已記帳 $123 至 飲食")).toBeInTheDocument();
+      expect(mockInsert).toHaveBeenCalledTimes(1);
     });
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 123,
+        category_id: "cat-food",
+        payment_method_id: "pm-cash",
+        note: "午餐",
+      }),
+    );
+    expect(await screen.findByText("已記帳 $123 至 飲食")).toBeInTheDocument();
+
+    // amount/note 清空，pm 保留
+    await waitFor(() => {
+      expect(screen.getByText("−$0")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("備註（可留空）")).toHaveValue("");
+    });
+  });
+
+  it("renders the 「+ 更多」 entry as the last grid cell", async () => {
+    render(createElement(QuickEntryPage));
+    await screen.findByText("記一筆");
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
+    });
+  });
+
+  it("shows banner and blocks submit when no payment methods exist", async () => {
+    fetchQuickEntryData.mockResolvedValue({
+      allCategories: QUICK_CATEGORIES,
+      quickCategories: QUICK_CATEGORIES,
+      paymentMethods: [],
+    });
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByText(/尚未建立支付方式/)).toBeInTheDocument();
+    });
+
+    // Type amount + try to submit
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("請先到設定建立支付方式")).toBeInTheDocument();
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("shows hint text when there are no quick categories", async () => {
+    fetchQuickEntryData.mockResolvedValue({
+      allCategories: QUICK_CATEGORIES,
+      quickCategories: [],
+      paymentMethods: [{ id: "pm-cash", name: "現金", sortOrder: 10 }],
+    });
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByText(/尚未標記常用分類/)).toBeInTheDocument();
+    });
+    // 「+ 更多」 should still be the entry point
+    expect(screen.getByRole("button", { name: "更多分類" })).toBeInTheDocument();
+  });
+
+  it("opens category picker modal when 「+ 更多」 is clicked", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "更多分類" }));
+    // Picker is a dialog with aria-label
+    expect(screen.getByRole("dialog", { name: "選擇分類" })).toBeInTheDocument();
+  });
+
+  it("opens payment method modal when payment chip is clicked", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /支付方式/ })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /支付方式/ }));
+    expect(screen.getByRole("dialog", { name: "選擇支付方式" })).toBeInTheDocument();
   });
 });
