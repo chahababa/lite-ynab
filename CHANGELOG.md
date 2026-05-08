@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## [v2.0] - 2026-05-08 — Material 3 設計改版完成（WIP → ready for review）
+
+### Step 3.3 — `/budget-usage`（完整 M3）
+
+- 重寫為 BudgetUsageA Progress List 風格：header / 月份 + scope chips / 4 summary cards / overspent banner / 平面化分類列表（依使用率排序，超支在前）
+- 4 個整合測試（M3 layout / overspent banner / sort / scope toggle）
+
+### Step 3.4 — `/budget-allocation`（partial M3）
+
+- Page wrapper + sticky 收入/已分配/剩餘卡片改 M3 風格
+- 內部 group rows 與 admin 功能（rename group/category、create category、reorder、delete、payment-method 管理、copy 上月、批次套用 auto budget）暫留 chrome 樣式
+- 程式內以註解 `[v2.0 Step 3.4 partial M3]` 標記，留待 v2.1 完整重寫
+
+### Step 3.5 — 其他頁
+
+- **`/login`** 完整 M3：primary-container hero + segmented toggle + M3 TextField + M3 Button（取代既有 ink/paper/sun/mint 自訂風格）
+- **`/settings`** 完整 M3：top bar / 帳號卡 / 4 格 overview / 4 個 shortcut links（每個有 primary-container icon avatar + chevron）
+- **`/transactions`** partial M3：header + 筆數/總金額 summary 改 M3，內部篩選器與 TransactionList 列表暫留 chrome（TransactionList 給 dashboard 也用過，整體重寫留 v2.1）
+- **`/reports`** partial M3：header 改 M3，內部 summary 卡與分類明細表暫留 chrome
+
+### v2.0 重構摘要（Step 1–3.5 累積）
+
+- 設計系統：Winamp 鍍鉻 → Material 3 light（M3 tonal palette + Roboto/Noto Sans TC/Roboto Mono + tabular-nums）
+- 8 個 m3 共用元件（Card / Button / Chip / TextField / Progress / **MoneyText** / Fab / AppBar）
+- 全站金額顯示走 `<MoneyText>`（mono + tnum + 千分位 + 語意化顏色 + 自動 ± 前綴）
+- 分類視覺：M3 cat palette（food / transport / shop / home / health / fun）+ lucide icon keyword 對應
+- 全部 7 條主要 routes 都過了 M3 第一輪改造（其中 4 條完整、2 條 partial、1 條 deferred）
+- vitest 加 `@vitejs/plugin-react`，永久解決 Next build 改 tsconfig.json `jsx: preserve` 後測試壞的問題
+- 0 schema 變動、0 環境變數變動、0 v1.0 功能回歸
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（17 test files / 64 tests 全綠）
+- `npm run build`（14 routes 全部編譯成功）
+
+### v2.1 候選清單（v2.0 沒做完的）
+
+- `/budget-allocation` 內部 group + admin 功能完整 M3 重寫
+- `/transactions` 篩選器 + 列表完整 M3 重寫
+- `/reports` summary cards + 分類明細表完整 M3 重寫
+- `Inflow（收入）` 完整支援（要 DB schema 加 type 欄位 + transactions amount > 0 constraint 解開）
+- 移除 `legacy.primary` 與所有 chrome-* / neu-* / ink/paper/sun/mint/coral/sand tokens（等所有頁面都不再使用後）
+- 移除 `BudgetList.tsx`（Step 3.2 後變孤兒）
+- `MonthSwitcher` 元件 M3 化（目前是 chrome 風）
+
 ## [v2.0 Step 3.2] - 2026-05-08 — `/` Dashboard 套 Material 3
 
 ### Changed

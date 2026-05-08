@@ -313,13 +313,16 @@ export default function TransactionsPage() {
   }
 
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    // [v2.0 Step 3.5c partial M3]：page wrapper + 月份 + summary 已 M3 化；
+    // 內部 filter 區塊 + transaction list 暫留 chrome（TransactionList 也用在 dashboard 之外）
+    <main className="box-border min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">全部交易</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-label-md text-on-surface-variant">交易紀錄</p>
+            <p className="text-headline-sm">全部交易</p>
           </div>
         </div>
 
@@ -334,18 +337,18 @@ export default function TransactionsPage() {
         ) : loadError ? (
           <StateCard title="載入交易失敗" description={loadError} tone="error" actionLabel="重試" onAction={reload} />
         ) : (
-          <div className="chrome-window p-[6px]">
-            <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
-              <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">筆數</p>
-                <p className="mt-2 font-display text-3xl text-paper">{filteredTransactions.length}</p>
-              </div>
-              <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                <p className="text-sm uppercase tracking-[0.26em] text-paper/60">總金額</p>
-                <p className="mt-2 font-display text-3xl text-mint">
-                  {formatCurrency(totalFilteredAmount)}
-                </p>
-              </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-md border border-outline bg-surface p-4">
+              <p className="text-label-md text-on-surface-variant">筆數</p>
+              <p className="mt-1 font-mono text-num-display font-medium tabular-nums">
+                {filteredTransactions.length}
+              </p>
+            </div>
+            <div className="rounded-md border border-outline bg-money-expense-container p-4">
+              <p className="text-label-md text-on-surface-variant">總金額</p>
+              <p className="mt-1 font-mono text-num-display font-medium text-money-expense tabular-nums">
+                {formatCurrency(totalFilteredAmount)}
+              </p>
             </div>
           </div>
         )}

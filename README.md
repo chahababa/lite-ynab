@@ -26,6 +26,11 @@
 - 固定預算設定
 - 基本測試與型別檢查
 
+## UI 設計風格
+
+- **v2.0 (2026-05)**：Material 3 淺色明亮（Material You），所有金額走 `MoneyText` 元件（mono + tabular-nums + 千分位 + 語意化顏色），分類用 M3 cat palette + lucide icon。設計規範見 `design/DESIGN-SPEC.md`，hi-fi 設計稿在 `design/material3/`。
+- v1.0 的 Winamp 金屬鍍鉻擬物化已淘汰（部分頁面 v2.0 仍保留樣式作為過渡，以 `[partial M3]` 程式註解標記，待 v2.1 完整改造）。
+
 ## 技衃棧
 
 - `Next.js 15`

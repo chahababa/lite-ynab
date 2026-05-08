@@ -169,15 +169,16 @@ export default function ReportsPage() {
   }
 
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    // [v2.0 Step 3.5d partial M3]：page wrapper + header 已 M3 化；
+    // summary cards / 內部分類明細表暫留 chrome
+    <main className="box-border min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">
-              報表分析
-            </h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-label-md text-on-surface-variant">報表分析</p>
+            <p className="text-headline-sm">支出與分類概覽</p>
           </div>
         </div>
 

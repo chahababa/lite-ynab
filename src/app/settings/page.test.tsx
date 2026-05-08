@@ -60,7 +60,7 @@ describe("SettingsPage", () => {
   it("renders the settings shell and includes the YNAB importer entry", async () => {
     render(createElement(SettingsPage));
 
-    await screen.findByText("匯入 YNAB 歷史資料");
+    await screen.findByText("匯入 YNAB");
 
     expect(document.querySelector('a[href="/settings/ynab-import"]')).not.toBeNull();
     expect(document.querySelector('a[href="/budget-allocation"]')).not.toBeNull();
