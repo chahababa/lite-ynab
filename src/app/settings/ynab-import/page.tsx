@@ -220,7 +220,7 @@ export default function YnabImportPage() {
 
   if (isCheckingSession) {
     return (
-      <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+      <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
         <section className="mx-auto w-full max-w-md">
           <LoadingCard label="正在確認登入狀態..." />
         </section>
@@ -229,52 +229,52 @@ export default function YnabImportPage() {
   }
 
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
+        <div className="rounded-md border border-outline bg-surface">
+          <div className="border-b border-outline flex items-center justify-between gap-3 px-4 py-3">
             <Link
               href="/settings"
-              className="chrome-btn flex h-10 w-10 items-center justify-center"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
               aria-label="返回設定"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <div className="text-right">
-              <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+              <p className="text-label-md uppercase tracking-wider text-on-surface-variant">
                 YNAB 匯入器
               </p>
-              <p className="text-chrome-sm text-chrome-800">把歷史交易搬進 Lite YNAB</p>
+              <p className="text-body-sm text-on-surface-variant">把歷史交易搬進 Lite YNAB</p>
             </div>
           </div>
         </div>
 
-        <section className="chrome-window p-[6px]">
-          <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+        <section className="rounded-md border border-outline bg-surface">
+          <div className="border-b border-outline px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                <p className="text-label-md uppercase tracking-wider text-on-surface-variant">
                   匯入流程
                 </p>
-                <h1 className="mt-2 font-chrome-heading text-chrome-2xl font-bold text-chrome-900">
+                <h1 className="mt-2 text-headline-sm text-on-surface">
                   先預覽，再正式匯入
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-chrome-800">
+                <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                   這個工具會用 YNAB API 讀取你的計畫、分類、帳戶與支出交易，再自動建立 Lite YNAB
                   缺少的大項分類、小項分類與支付方式。為了安全起見，它會先顯示預覽，再由你按下正式匯入。
                 </p>
               </div>
-              <div className="chrome-btn flex h-11 w-11 items-center justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-container text-primary-on-container">
                 <DatabaseZap className="h-5 w-5" />
               </div>
             </div>
           </div>
 
-          <div className="space-y-4 px-chrome-md py-chrome-md">
+          <div className="space-y-4 px-4 py-3">
             <label className="block">
-              <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+              <span className="mb-2 flex items-center gap-2 text-label-md font-medium text-on-surface-variant">
                 <KeyRound className="h-4 w-4" />
                 YNAB Personal Access Token
               </span>
@@ -282,10 +282,10 @@ export default function YnabImportPage() {
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
                 rows={4}
-                className="chrome-field min-h-[112px] w-full px-chrome-md py-chrome-md font-chrome-mono text-sm"
+                className="min-h-[112px] w-full rounded-xs border border-outline-variant bg-surface px-4 py-3 font-mono text-body-sm text-on-surface outline-none focus:border-primary focus:border-2"
                 placeholder="貼上你在 YNAB Developer Settings 產生的 Personal Access Token"
               />
-              <p className="mt-2 text-xs leading-5 text-chrome-700">
+              <p className="mt-2 text-xs leading-5 text-on-surface-variant">
                 Token 只會在你按下讀取時送到本網站的 API 路由，不會寫進資料庫，也不會出現在 Change Log。
               </p>
             </label>
@@ -295,7 +295,7 @@ export default function YnabImportPage() {
                 type="button"
                 onClick={() => void handleLoadPlans()}
                 disabled={isLoadingPlans || isLoadingPreview || isImporting}
-                className="chrome-btn flex min-h-11 items-center justify-center gap-2 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-transparent px-6 text-body-md font-medium text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:opacity-40"
               >
                 {isLoadingPlans ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
                 讀取計畫
@@ -304,7 +304,7 @@ export default function YnabImportPage() {
                 type="button"
                 onClick={() => void handleLoadPreview()}
                 disabled={!selectedPlanId || isLoadingPlans || isLoadingPreview || isImporting}
-                className="chrome-btn chrome-btn--info flex min-h-11 items-center justify-center gap-2 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-6 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
               >
                 {isLoadingPreview ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <WalletCards className="h-4 w-4" />}
                 建立預覽
@@ -312,13 +312,13 @@ export default function YnabImportPage() {
             </div>
 
             <label className="block">
-              <span className="mb-2 block font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
+              <span className="mb-2 block text-label-md font-medium text-on-surface-variant">
                 YNAB 計畫
               </span>
               <select
                 value={selectedPlanId}
                 onChange={(event) => setSelectedPlanId(event.target.value)}
-                className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                className="h-11 w-full rounded-xs border border-outline-variant bg-surface px-4 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[15px]"
               >
                 <option value="">請先讀取計畫</option>
                 {plans.map((plan) => (
@@ -341,86 +341,86 @@ export default function YnabImportPage() {
 
         {preview ? (
           <>
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+            <section className="rounded-md border border-outline bg-surface">
+              <div className="border-b border-outline px-4 py-3">
                 <div>
-                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                  <p className="text-label-md uppercase tracking-wider text-on-surface-variant">
                     預覽摘要
                   </p>
-                  <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                  <h2 className="mt-2 text-title-lg text-on-surface">
                     {preview.planName}
                   </h2>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">大項分類</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{preview.groupNames.length}</p>
+              <div className="grid grid-cols-2 gap-3 px-4 py-3">
+                <div className="rounded-md bg-surface-container p-3 text-center">
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">大項分類</p>
+                  <p className="mt-1 font-mono text-num-display font-medium tabular-nums text-on-surface">{preview.groupNames.length}</p>
                 </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">小項分類</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{preview.categoryPairs.length}</p>
+                <div className="rounded-md bg-surface-container p-3 text-center">
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">小項分類</p>
+                  <p className="mt-1 font-mono text-num-display font-medium tabular-nums text-on-surface">{preview.categoryPairs.length}</p>
                 </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">支付方式</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{preview.paymentMethodNames.length}</p>
+                <div className="rounded-md bg-surface-container p-3 text-center">
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">支付方式</p>
+                  <p className="mt-1 font-mono text-num-display font-medium tabular-nums text-on-surface">{preview.paymentMethodNames.length}</p>
                 </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">支出交易</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{preview.transactions.length}</p>
+                <div className="rounded-md bg-surface-container p-3 text-center">
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">支出交易</p>
+                  <p className="mt-1 font-mono text-num-display font-medium tabular-nums text-on-surface">{preview.transactions.length}</p>
                 </div>
               </div>
 
-              <div className="px-chrome-md pb-chrome-md text-sm leading-6 text-chrome-800">
+              <div className="px-4 pb-4 text-body-sm leading-6 text-on-surface-variant">
                 <p>匯入區間：{preview.startDate ?? "無"} 至 {preview.endDate ?? "無"}</p>
                 <p>本版預設只匯入支出交易，收入與轉帳會先略過。</p>
               </div>
             </section>
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+            <section className="rounded-md border border-outline bg-surface">
+              <div className="border-b border-outline px-4 py-3">
                 <div>
-                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                  <p className="text-label-md uppercase tracking-wider text-on-surface-variant">
                     樣本資料
                   </p>
-                  <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                  <h2 className="mt-2 text-title-lg text-on-surface">
                     前 5 筆預覽
                   </h2>
                 </div>
               </div>
 
-              <div className="space-y-3 px-chrome-md py-chrome-md">
+              <div className="space-y-3 px-4 py-3">
                 {preview.sampleTransactions.map((transaction) => (
-                  <div key={transaction.sourceId} className="chrome-window p-[6px]">
-                    <div className="chrome-statusbar flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
+                  <div key={transaction.sourceId} className="rounded-md border border-outline bg-surface">
+                    <div className="flex items-center justify-between gap-3 rounded-md bg-surface-container px-4 py-3">
                       <span>{transaction.date}</span>
                       <span>${transaction.amount.toLocaleString("zh-TW")}</span>
                     </div>
-                    <div className="space-y-1 px-chrome-md py-chrome-md text-sm text-chrome-900">
+                    <div className="space-y-1 px-4 py-3 text-sm text-on-surface">
                       <p>{transaction.categoryGroupName} / {transaction.categoryName}</p>
                       <p>{transaction.accountName}</p>
-                      <p className="text-chrome-700">{transaction.note || "無備註"}</p>
+                      <p className="text-on-surface-variant">{transaction.note || "無備註"}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
+            <section className="rounded-md border border-outline bg-surface">
+              <div className="border-b border-outline px-4 py-3">
                 <div>
-                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
+                  <p className="text-label-md uppercase tracking-wider text-on-surface-variant">
                     正式匯入
                   </p>
-                  <h2 className="mt-2 font-chrome-heading text-chrome-xl font-bold text-chrome-900">
+                  <h2 className="mt-2 text-title-lg text-on-surface">
                     將資料寫進 Lite YNAB
                   </h2>
                 </div>
               </div>
 
-              <div className="space-y-4 px-chrome-md py-chrome-md">
-                <p className="text-sm leading-6 text-chrome-800">
+              <div className="space-y-4 px-4 py-3">
+                <p className="text-sm leading-6 text-on-surface-variant">
                   匯入時會自動建立缺少的大項分類、小項分類與支付方式，並且用
                   「日期＋金額＋分類＋支付方式＋備註」做一次重複檢查，避免你重跑時整批重複灌入。
                 </p>
@@ -429,14 +429,14 @@ export default function YnabImportPage() {
                   type="button"
                   onClick={() => void handleImport()}
                   disabled={isImporting || isLoadingPreview || isLoadingPlans}
-                  className="chrome-btn chrome-btn--success flex min-h-11 w-full items-center justify-center gap-2 px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
                 >
                   {isImporting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <DatabaseZap className="h-4 w-4" />}
                   開始匯入
                 </button>
 
                 {importResult ? (
-                  <div className="chrome-led-panel space-y-2 px-chrome-md py-chrome-md text-sm text-paper">
+                  <div className="space-y-2 rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
                     <p>已建立大項分類 {importResult.createdGroupCount} 個</p>
                     <p>已建立小項分類 {importResult.createdCategoryCount} 個</p>
                     <p>已建立支付方式 {importResult.createdPaymentMethodCount} 個</p>

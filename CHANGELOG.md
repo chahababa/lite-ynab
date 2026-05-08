@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## [v2.1] - 2026-05-08 — Material 3 全站完整化 + Legacy 清理
+
+### Changed — 完整 M3
+
+- `/reports` summary cards (income/expense/allocated/unallocated 用 money tonal containers) + 細項支出 + 支付方式列表全部改 M3
+- `/transactions` 篩選器 + 列表完整 M3（含搜尋 input、5 個篩選欄位、排序 select、CSV 匯出按鈕）
+- `/transactions` 內的 `TransactionList` 元件完整 M3 重寫：list 用 cat icon avatar、編輯 modal 用 surface + elev-3、刪除 confirm modal 用 M3Button
+- `/budget-allocation` 內部 group rows + admin 功能（rename/delete/reorder group、create/rename/delete category、quick toggle、payment method 管理）全部改 M3
+- `/settings/ynab-import` 完整 M3（之前漏做）
+- `MonthSwitcher` 元件改 M3（之前是 chrome-window）
+- `Toast` 元件改 M3（success/error/info 對應 money / surface tonal containers）
+- `LoadingCard` / `StateCard` 元件改 M3
+- `EntryFieldChip` 元件 token 改 M3
+- `PageQuickNav` 浮動選單改 M3（surface + elev-3 + primary-container 標示 active）
+
+### Removed — Legacy 清理
+
+- `src/components/BudgetList.tsx`（v2.0 Step 3.2 Dashboard 重寫後變孤兒）
+- `src/lib/groupTone.ts`（v2.0 後分類顏色全用 M3 cat palette + categoryStyle 對應，groupTone 不再被任何頁面使用）
+- `tailwind.config.ts` 整個 chrome / neu / ink / paper / sun / mint / coral / sand / led / panel / legacy.primary 系列 tokens 全部移除（包括 chrome shadow / chrome bg gradient / chrome 字型 / chrome spacing / chrome rounded / chrome transition）
+- `src/app/globals.css` 移除 chrome-window / chrome-titlebar / chrome-statusbar / chrome-btn / chrome-field / chrome-led-panel 等 75 行 chrome custom CSS，body background 改 M3 #fafbfd
+- 各頁面內所有 `chrome-` / `bg-paper` / `text-paper` / `font-display` 類別全部清空（grep 驗證 0 occurrences）
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（17 test files / 64 tests 全綠）
+- `npm run build`（14 routes 全部編譯成功）
+
+### v2.2 候選
+
+- **Inflow 收入記帳**：DB schema 改動（`amount > 0` constraint 解開 + 加 `type` 欄位），quick-entry 收入/轉帳 segments 改成可運作；報表 / dashboard / budget-usage 增加 income vs expense 區分
+- 字型載入優化（移除 next/font 副作用，用 system stack）
+- 暗色模式（M3 dark theme tokens 已在 design-tokens.json 有定義，但未實作）
+- 國際化（目前只有正體中文）
+
 ## [v2.0] - 2026-05-08 — Material 3 設計改版完成（WIP → ready for review）
 
 ### Step 3.3 — `/budget-usage`（完整 M3）

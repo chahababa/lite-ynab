@@ -97,27 +97,27 @@ export function PageQuickNav() {
         <div ref={containerRef} className="pointer-events-auto flex justify-start">
           <div className="relative">
             {open ? (
-              <div className="mb-2 w-56 chrome-window p-[6px]">
-                <div className="space-y-2">
-                  <div className="chrome-statusbar px-chrome-sm py-chrome-sm">
-                    <p className="font-chrome-heading text-chrome-xs font-bold tracking-[0.16em] text-chrome-800">
-                      帳號
+              <div className="mb-2 w-60 rounded-md border border-outline bg-surface p-2 shadow-elev-3">
+                <div className="rounded-sm bg-surface-container px-3 py-2">
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+                    帳號
+                  </p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate font-mono text-body-sm tabular-nums text-on-surface">
+                      {email || "尚未載入"}
                     </p>
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <p className="min-w-0 truncate font-chrome-mono text-chrome-sm text-chrome-900">
-                        {email || "尚未載入"}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void handleSignOut()}
-                        className="chrome-btn flex h-9 w-9 items-center justify-center px-0 py-0"
-                        aria-label="登出"
-                      >
-                        <LogOut className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleSignOut()}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-on-surface/5 active:bg-on-surface/10"
+                      aria-label="登出"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
                   </div>
+                </div>
 
+                <div className="mt-1">
                   {pathname !== "/" ? (
                     <button
                       type="button"
@@ -125,28 +125,27 @@ export function PageQuickNav() {
                         setOpen(false);
                         router.back();
                       }}
-                      className="chrome-btn flex min-h-11 w-full items-center justify-start gap-3 px-3 py-2 text-left font-chrome-heading text-chrome-xs font-bold tracking-[0.08em]"
+                      className="flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
                     >
                       <ChevronLeft className="h-4 w-4 shrink-0" />
-                      <span className="leading-tight">返回上一頁</span>
+                      <span>返回上一頁</span>
                     </button>
                   ) : null}
 
                   {QUICK_LINKS.map((link) => {
                     const Icon = link.icon;
                     const isActive = pathname === link.href;
-
                     return (
                       <Link
                         key={link.href}
                         href={link.href}
                         className={cn(
-                          "chrome-btn flex min-h-11 w-full items-center justify-start gap-3 px-3 py-2 text-left font-chrome-heading text-chrome-xs font-bold tracking-[0.08em]",
-                          isActive && "chrome-btn--success",
+                          "flex items-center gap-3 rounded-sm px-3 py-2 text-body-sm text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10",
+                          isActive && "bg-primary-container text-primary-on-container font-medium",
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
-                        <span className="leading-tight">{link.label}</span>
+                        <span>{link.label}</span>
                       </Link>
                     );
                   })}
@@ -159,7 +158,7 @@ export function PageQuickNav() {
               aria-label={open ? "關閉頁面選單" : "打開頁面選單"}
               aria-expanded={open}
               onClick={() => setOpen((value) => !value)}
-              className="chrome-btn chrome-btn--info flex min-h-12 min-w-[136px] items-center justify-center gap-2 px-4 py-3 text-sm font-bold tracking-[0.08em] shadow-[0_8px_18px_rgba(0,0,0,0.4)]"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-primary px-5 text-body-md font-medium text-primary-on shadow-elev-2 transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80"
             >
               {open ? <X className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               <span>頁面選單</span>

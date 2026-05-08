@@ -169,9 +169,7 @@ export default function ReportsPage() {
   }
 
   return (
-    // [v2.0 Step 3.5d partial M3]：page wrapper + header 已 M3 化；
-    // summary cards / 內部分類明細表暫留 chrome
-    <main className="box-border min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
+    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
@@ -194,78 +192,134 @@ export default function ReportsPage() {
           <StateCard title="載入報表失敗" description={loadError} tone="error" actionLabel="重試" onAction={reload} />
         ) : data ? (
           <>
-            <section className="chrome-window p-[6px]">
-              <div className="flex justify-end gap-2 px-chrome-md pb-chrome-md pt-4">
-                <button type="button" onClick={exportCsv} className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm">
-                  <Download className="h-4 w-4" />CSV
-                </button>
-                <button type="button" onClick={exportExcel} className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm">
-                  <FileSpreadsheet className="h-4 w-4" />Excel
-                </button>
-              </div>
+            {/* Export buttons */}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10"
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </button>
+              <button
+                type="button"
+                onClick={exportExcel}
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3 px-chrome-md pb-chrome-md">
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">收入</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{formatCurrency(data.summary.income)}</p>
-                </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">已支出</p>
-                  <p className="mt-2 font-display text-3xl text-mint">{formatCurrency(data.summary.spent)}</p>
-                </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">已分配</p>
-                  <p className="mt-2 font-display text-3xl text-paper">{formatCurrency(data.summary.allocated)}</p>
-                </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.26em] text-paper/60">尚可分配</p>
-                  <p className={cn("mt-2 font-display text-3xl", data.summary.unallocated < 0 ? "text-coral" : "text-mint")}>
-                    {formatCurrency(data.summary.unallocated)}
-                  </p>
-                </div>
+            {/* 4 summary cards */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-md bg-money-income-container p-4">
+                <p className="text-label-md text-on-surface-variant">收入</p>
+                <p className="mt-1 font-mono text-num-display font-medium text-money-income tabular-nums">
+                  ${data.summary.income.toLocaleString("en-US")}
+                </p>
               </div>
-            </section>
+              <div className="rounded-md bg-money-expense-container p-4">
+                <p className="text-label-md text-on-surface-variant">已支出</p>
+                <p className="mt-1 font-mono text-num-display font-medium text-money-expense tabular-nums">
+                  ${data.summary.spent.toLocaleString("en-US")}
+                </p>
+              </div>
+              <div className="rounded-md border border-outline bg-surface p-4">
+                <p className="text-label-md text-on-surface-variant">已分配</p>
+                <p className="mt-1 font-mono text-num-display font-medium tabular-nums">
+                  ${data.summary.allocated.toLocaleString("en-US")}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "rounded-md p-4",
+                  data.summary.unallocated < 0
+                    ? "bg-money-warn-container"
+                    : "bg-money-remain-container",
+                )}
+              >
+                <p className="text-label-md text-on-surface-variant">尚可分配</p>
+                <p
+                  className={cn(
+                    "mt-1 font-mono text-num-display font-medium tabular-nums",
+                    data.summary.unallocated < 0
+                      ? "text-money-warn"
+                      : "text-money-remain",
+                  )}
+                >
+                  ${data.summary.unallocated.toLocaleString("en-US")}
+                </p>
+              </div>
+            </div>
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar flex items-center gap-2 px-chrome-md py-chrome-sm">
+            {/* Categories breakdown */}
+            <section>
+              <h2 className="mb-3 flex items-center gap-2 text-title-md">
                 <BarChart3 className="h-4 w-4" />
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">細項支出總覽</h2>
-              </div>
-              <div className="space-y-2 px-chrome-md py-chrome-md">
-                {data.categories.map((item) => (
-                  <div key={item.id} className="rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm shadow-chrome-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-chrome-heading text-chrome-base font-bold text-chrome-900">{item.name}</p>
-                        <p className="mt-1 text-chrome-sm text-chrome-800">交易 {item.transactionCount} 筆</p>
+                細項支出總覽
+              </h2>
+              {data.categories.length === 0 ? (
+                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                  本期間沒有支出資料
+                </p>
+              ) : (
+                <div className="rounded-md border border-outline bg-surface">
+                  {data.categories.map((item, i) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-5 py-4",
+                        i > 0 && "border-t border-outline",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-body-md font-medium">{item.name}</p>
+                        <p className="text-body-sm text-on-surface-variant">
+                          交易 {item.transactionCount} 筆 · 預算{" "}
+                          {formatCurrency(item.allocated)}
+                        </p>
                       </div>
-                      <div className="text-right text-chrome-sm">
-                        <p className="text-chrome-800">預算 {formatCurrency(item.allocated)}</p>
-                        <p className="font-bold text-chrome-900">支出 {formatCurrency(item.spent)}</p>
-                      </div>
+                      <p className="font-mono text-title-md font-medium tabular-nums">
+                        {formatCurrency(item.spent)}
+                      </p>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">支付方式</h2>
-              </div>
-              <div className="space-y-2 px-chrome-md py-chrome-md">
-                {data.paymentMethods.map((item) => (
-                  <div key={item.id} className="rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm shadow-chrome-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-chrome-heading text-chrome-base font-bold text-chrome-900">{item.name}</p>
-                      <div className="text-right text-chrome-sm">
-                        <p className="font-bold text-chrome-900">{formatCurrency(item.spent)}</p>
-                        <p className="text-chrome-800">占比 {Math.round(item.share * 100)}%</p>
+            {/* Payment methods breakdown */}
+            <section>
+              <h2 className="mb-3 text-title-md">支付方式</h2>
+              {data.paymentMethods.length === 0 ? (
+                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                  本期間沒有支付方式統計
+                </p>
+              ) : (
+                <div className="rounded-md border border-outline bg-surface">
+                  {data.paymentMethods.map((item, i) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-5 py-4",
+                        i > 0 && "border-t border-outline",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-body-md font-medium">{item.name}</p>
+                        <p className="text-body-sm text-on-surface-variant">
+                          占比 {Math.round(item.share * 100)}%
+                        </p>
                       </div>
+                      <p className="font-mono text-title-md font-medium tabular-nums">
+                        {formatCurrency(item.spent)}
+                      </p>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </>
         ) : null}

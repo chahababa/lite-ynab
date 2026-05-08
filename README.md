@@ -28,8 +28,8 @@
 
 ## UI 設計風格
 
-- **v2.0 (2026-05)**：Material 3 淺色明亮（Material You），所有金額走 `MoneyText` 元件（mono + tabular-nums + 千分位 + 語意化顏色），分類用 M3 cat palette + lucide icon。設計規範見 `design/DESIGN-SPEC.md`，hi-fi 設計稿在 `design/material3/`。
-- v1.0 的 Winamp 金屬鍍鉻擬物化已淘汰（部分頁面 v2.0 仍保留樣式作為過渡，以 `[partial M3]` 程式註解標記，待 v2.1 完整改造）。
+- **v2.0+ (2026-05)**：Material 3 淺色明亮（Material You），所有金額走 `MoneyText` 元件（mono + tabular-nums + 千分位 + 語意化顏色），分類用 M3 cat palette + lucide icon。設計規範見 `design/DESIGN-SPEC.md`，hi-fi 設計稿在 `design/material3/`。
+- v1.0 的 Winamp 金屬鍍鉻擬物化已於 v2.1 完整淘汰（所有 chrome / neu / ink-paper-sun-mint legacy tokens 已從 tailwind.config.ts 移除，globals.css 也清掉 chrome custom CSS）。
 
 ## 技衃棧
 

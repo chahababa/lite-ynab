@@ -313,9 +313,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    // [v2.0 Step 3.5c partial M3]：page wrapper + 月份 + summary 已 M3 化；
-    // 內部 filter 區塊 + transaction list 暫留 chrome（TransactionList 也用在 dashboard 之外）
-    <main className="box-border min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
+    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
@@ -355,69 +353,62 @@ export default function TransactionsPage() {
 
         {!loading && !loadError ? (
           <>
-            <div className="chrome-window p-[6px]">
-              <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
-                  篩選條件
-                </h2>
+            {/* Filters card */}
+            <div className="rounded-md border border-outline bg-surface p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-title-md">篩選條件</h2>
                 <button
                   type="button"
-                  className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm"
                   onClick={clearFilters}
+                  className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-body-sm text-primary hover:bg-primary/5 active:bg-primary/10"
                 >
                   <X className="h-4 w-4" />
-                  清除篩選
+                  清除
                 </button>
               </div>
 
-              <div className="space-y-3 px-chrome-md py-chrome-md">
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                    <Search className="h-4 w-4" />
-                    搜尋
-                  </span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-xs border border-outline-variant bg-surface px-3">
+                  <Search aria-hidden className="h-4 w-4 text-on-surface-variant" />
                   <input
                     value={searchText}
-                    onChange={(event) => setSearchText(event.target.value)}
-                    className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    onChange={(e) => setSearchText(e.target.value)}
                     placeholder="可搜尋分類、支付方式、備註、日期"
+                    className="h-10 w-full bg-transparent text-body-md text-on-surface outline-none"
                   />
-                </label>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />
+                    <span className="mb-1 block text-label-md text-on-surface-variant">
                       分類
                     </span>
                     <select
                       value={categoryFilter}
-                      onChange={(event) => setCategoryFilter(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     >
                       <option value="">全部分類</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.groupName} / {category.name}
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.groupName} / {c.name}
                         </option>
                       ))}
                     </select>
                   </label>
-
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />
+                    <span className="mb-1 block text-label-md text-on-surface-variant">
                       支付方式
                     </span>
                     <select
                       value={paymentMethodFilter}
-                      onChange={(event) => setPaymentMethodFilter(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     >
                       <option value="">全部支付方式</option>
-                      {paymentMethods.map((paymentMethod) => (
-                        <option key={paymentMethod.id} value={paymentMethod.id}>
-                          {paymentMethod.name}
+                      {paymentMethods.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
                         </option>
                       ))}
                     </select>
@@ -426,69 +417,66 @@ export default function TransactionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <CalendarRange className="h-4 w-4" />
-                      起始日期
+                    <span className="mb-1 flex items-center gap-1 text-label-md text-on-surface-variant">
+                      <CalendarRange className="h-3.5 w-3.5" /> 起始日期
                     </span>
                     <input
                       type="date"
                       value={dateFrom}
-                      onChange={(event) => setDateFrom(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     />
                   </label>
-
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <CalendarRange className="h-4 w-4" />
-                      結束日期
+                    <span className="mb-1 flex items-center gap-1 text-label-md text-on-surface-variant">
+                      <CalendarRange className="h-3.5 w-3.5" /> 結束日期
                     </span>
                     <input
                       type="date"
                       value={dateTo}
-                      onChange={(event) => setDateTo(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     />
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />
+                    <span className="mb-1 block text-label-md text-on-surface-variant">
                       最低金額
                     </span>
                     <input
                       inputMode="numeric"
                       value={minAmount}
-                      onChange={(event) => setMinAmount(event.target.value.replace(/[^\d]/g, ""))}
-                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) =>
+                        setMinAmount(e.target.value.replace(/[^\d]/g, ""))
+                      }
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     />
                   </label>
-
                   <label className="block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <WalletCards className="h-4 w-4" />
+                    <span className="mb-1 block text-label-md text-on-surface-variant">
                       最高金額
                     </span>
                     <input
                       inputMode="numeric"
                       value={maxAmount}
-                      onChange={(event) => setMaxAmount(event.target.value.replace(/[^\d]/g, ""))}
-                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md"
+                      onChange={(e) =>
+                        setMaxAmount(e.target.value.replace(/[^\d]/g, ""))
+                      }
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                     />
                   </label>
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                    <ArrowDownUp className="h-4 w-4" />
-                    排序
+                  <span className="mb-1 flex items-center gap-1 text-label-md text-on-surface-variant">
+                    <ArrowDownUp className="h-3.5 w-3.5" /> 排序
                   </span>
                   <select
                     value={sortOption}
-                    onChange={(event) => setSortOption(event.target.value as SortOption)}
-                    className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                    onChange={(e) => setSortOption(e.target.value as SortOption)}
+                    className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                   >
                     <option value="date-desc">日期：新到舊</option>
                     <option value="date-asc">日期：舊到新</option>
@@ -501,36 +489,33 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            <div className="chrome-window p-[6px]">
-              <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
+            {/* Transaction list */}
+            <div className="rounded-md border border-outline bg-surface">
+              <div className="flex items-center justify-between border-b border-outline px-5 py-4">
                 <div>
-                  <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
-                    交易清單
-                  </h2>
-                  <p className="mt-1 text-chrome-sm text-chrome-800">
+                  <h2 className="text-title-md">交易清單</h2>
+                  <p className="text-body-sm text-on-surface-variant">
                     共 {filteredTransactions.length} 筆
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="chrome-btn flex items-center gap-2 px-chrome-md py-chrome-sm text-chrome-sm"
                   onClick={exportCsv}
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10"
                 >
                   <Download className="h-4 w-4" />
                   匯出 CSV
                 </button>
               </div>
 
-              <div className="px-chrome-md py-chrome-md">
-                <TransactionList
-                  categories={categories}
-                  paymentMethods={paymentMethods}
-                  items={filteredTransactions}
-                  pendingTransactionId={pendingTransactionId}
-                  onSave={saveTransaction}
-                  onDelete={deleteTransaction}
-                />
-              </div>
+              <TransactionList
+                categories={categories}
+                paymentMethods={paymentMethods}
+                items={filteredTransactions}
+                pendingTransactionId={pendingTransactionId}
+                onSave={saveTransaction}
+                onDelete={deleteTransaction}
+              />
             </div>
           </>
         ) : null}
