@@ -131,7 +131,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
   it("blocks submit and toasts when amount is zero", async () => {
     render(createElement(QuickEntryPage));
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "飲食" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
     });
     // tap save without amount
     fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
@@ -158,13 +158,13 @@ describe("QuickEntryPage (M3 v2.0)", () => {
   it("submits successfully when amount + category + payment method are set", async () => {
     render(createElement(QuickEntryPage));
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "飲食" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "3" }));
-    fireEvent.click(screen.getByRole("button", { name: "飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
     fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {
@@ -198,7 +198,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
-    fireEvent.click(screen.getByRole("button", { name: "飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
     fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {

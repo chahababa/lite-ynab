@@ -28,7 +28,15 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
     return error.message;
   }
-
+  // Supabase PostgrestError 不是 Error instance，但有 .message / .code / .details / .hint
+  if (typeof error === "object" && error !== null) {
+    const e = error as { message?: string; code?: string; details?: string; hint?: string };
+    if (e.message) {
+      const code = e.code ? ` (${e.code})` : "";
+      const hint = e.hint ? ` — ${e.hint}` : "";
+      return `${e.message}${code}${hint}`;
+    }
+  }
   return "發生未預期的錯誤";
 }
 
@@ -592,6 +600,20 @@ export default function BudgetAllocationCompactPage() {
     setPendingKey(`payment-delete-${method.id}`);
 
     try {
+      // 先計算還有幾筆交易用這個支付方式（包含所有月份），給出明確訊息
+      const { count: txCount } = await supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("payment_method_id", method.id);
+
+      if (txCount && txCount > 0) {
+        setToast({
+          tone: "error",
+          message: `「${method.name}」還有 ${txCount} 筆交易（含過去月份），請先到 /transactions 跨月份刪除或改成其他支付方式後再刪`,
+        });
+        return;
+      }
+
       const { error } = await supabase.from("payment_methods").delete().eq("id", method.id);
       if (error) {
         throw error;
