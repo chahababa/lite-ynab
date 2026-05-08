@@ -32,6 +32,10 @@ import {
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
+import {
+  getAmbiguousCategoryNames,
+  getCategoryDisplay,
+} from "@/lib/categoryDisplay";
 import { fetchQuickEntryData } from "@/lib/data";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -137,6 +141,13 @@ export default function QuickEntryPage() {
   const visibleQuickCategories = useMemo(
     () => quickCategories.slice(0, QUICK_GRID_SIZE),
     [quickCategories],
+  );
+
+  // 偵測 1×6 grid 內是否有同名分類（例如「個人/飲食」+「家庭/飲食」）
+  // 範圍只看「實際在 grid 上顯示的 6 個」，不必管整個 allCategories。
+  const ambiguousNames = useMemo(
+    () => getAmbiguousCategoryNames(visibleQuickCategories),
+    [visibleQuickCategories],
   );
 
   const noPaymentMethods = !loading && paymentMethods.length === 0;
@@ -358,15 +369,16 @@ export default function QuickEntryPage() {
                 const style = getCategoryStyle(category.name);
                 const Icon = ICON_COMPONENTS[style.icon];
                 const isSelected = selectedCategoryId === category.id;
+                const display = getCategoryDisplay(category, ambiguousNames);
                 return (
                   <button
                     key={category.id}
                     type="button"
                     onClick={() => setSelectedCategoryId(category.id)}
-                    aria-label={category.name}
+                    aria-label={`${category.groupName} ${category.name}`}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex flex-col items-center gap-1 px-1 py-2 rounded-[10px] transition-colors duration-m3-short",
+                      "flex flex-col items-center gap-0.5 px-1 py-2 rounded-[10px] transition-colors duration-m3-short",
                       isSelected
                         ? cn(
                             "border-[1.5px]",
@@ -378,8 +390,13 @@ export default function QuickEntryPage() {
                     )}
                   >
                     <Icon className="h-[18px] w-[18px]" />
+                    {display.secondary ? (
+                      <span className="text-[8px] leading-none opacity-70">
+                        {display.secondary}
+                      </span>
+                    ) : null}
                     <span className="text-[10px] font-medium leading-tight">
-                      {category.name}
+                      {display.primary}
                     </span>
                   </button>
                 );
