@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 
-import { getGroupTone } from "@/lib/groupTone";
 import { useModalLifecycle } from "@/lib/hooks/useModalLifecycle";
+import { CAT_TEXT_CLASS, getCategoryStyle } from "@/lib/categoryStyle";
 import type { CategoryOption } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -56,57 +56,51 @@ export function CategoryPickerModal({
       aria-modal="true"
       aria-label="選擇分類"
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="chrome-window flex w-full max-w-[320px] flex-col p-[6px]"
+        className="flex w-full max-w-[360px] flex-col rounded-md bg-surface shadow-elev-3"
         style={{ maxHeight: "80vh" }}
       >
-        <div className="chrome-titlebar flex items-center justify-between gap-2 px-chrome-md py-chrome-sm">
-          <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wider text-chrome-900">
-            選擇分類
-          </p>
+        <div className="flex items-center justify-between px-5 pt-5 pb-2">
+          <p className="text-title-md text-on-surface">選擇分類</p>
           <button
             type="button"
             onClick={onClose}
             aria-label="關閉"
-            className="flex h-6 w-6 items-center justify-center rounded-chrome-btn border border-chrome-700 bg-chrome-100 text-chrome-900 hover:bg-chrome-50 active:bg-chrome-200"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
           >
-            <X className="h-3 w-3" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-chrome-sm flex items-center gap-chrome-sm rounded-chrome-input border border-chrome-700 bg-chrome-100 px-chrome-sm">
-          <Search aria-hidden className="h-4 w-4 text-chrome-700" />
+        <div className="mx-5 mt-1 mb-3 flex items-center gap-2 rounded-xs border border-outline-variant bg-surface px-3">
+          <Search aria-hidden className="h-4 w-4 text-on-surface-variant" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜尋分類名稱或群組"
             aria-label="搜尋分類"
-            className="min-h-9 w-full bg-transparent py-chrome-sm text-chrome-sm text-chrome-900 outline-none"
+            className="h-10 w-full bg-transparent text-body-md text-on-surface outline-none"
           />
         </div>
 
-        <div className="mt-chrome-sm flex-1 overflow-y-auto pr-1">
+        <div className="flex-1 overflow-y-auto px-2 pb-4">
           {grouped.length === 0 ? (
-            <p className="px-chrome-md py-chrome-md text-chrome-sm text-chrome-700">
+            <p className="px-3 py-3 text-body-md text-on-surface-variant">
               {query.trim() ? "找不到符合搜尋條件的分類" : "目前沒有分類"}
             </p>
           ) : (
-            grouped.map(([groupName, items]) => {
-              const tone = getGroupTone(groupName);
-              return (
-                <div key={groupName} className="mt-chrome-sm first:mt-0">
-                  <p className="mb-chrome-xs flex items-center gap-2 px-chrome-sm font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
-                    <span
-                      aria-hidden
-                      className={cn("inline-block h-1.5 w-1.5 rounded-full", tone.dot)}
-                    />
-                    {groupName}
-                  </p>
-                  <ul>
-                    {items.map((c) => (
+            grouped.map(([groupName, items]) => (
+              <div key={groupName} className="mb-2">
+                <p className="px-3 py-1 text-label-sm uppercase text-on-surface-variant">
+                  {groupName}
+                </p>
+                <ul>
+                  {items.map((c) => {
+                    const style = getCategoryStyle(c.name);
+                    return (
                       <li key={c.id}>
                         <button
                           type="button"
@@ -117,19 +111,26 @@ export function CategoryPickerModal({
                           }}
                           aria-label={`${groupName} ${c.name}`}
                           className={cn(
-                            "mt-chrome-xs flex w-full items-center justify-between rounded-chrome-btn border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm text-left font-chrome-body text-chrome-sm text-chrome-900 transition-colors duration-fast",
-                            "hover:bg-chrome-50 active:bg-chrome-200",
-                            "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
+                            "flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-body-md text-on-surface transition-colors duration-m3-short",
+                            "hover:bg-on-surface/5 active:bg-on-surface/10",
+                            "disabled:cursor-not-allowed disabled:opacity-40",
                           )}
                         >
-                          <span>{c.name}</span>
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "inline-block h-2 w-2 rounded-full",
+                              CAT_TEXT_CLASS[style.color].replace("text-", "bg-"),
+                            )}
+                          />
+                          {c.name}
                         </button>
                       </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })
+                    );
+                  })}
+                </ul>
+              </div>
+            ))
           )}
         </div>
       </div>

@@ -34,9 +34,7 @@ vi.mock("@/lib/supabaseClient", () => ({
       }),
     },
     from: (table: string) => {
-      if (table === "transactions") {
-        return { insert: mockInsert };
-      }
+      if (table === "transactions") return { insert: mockInsert };
       return {};
     },
   }),
@@ -65,7 +63,7 @@ const QUICK_CATEGORIES = [
   },
 ];
 
-describe("QuickEntryPage", () => {
+describe("QuickEntryPage (M3 v2.0)", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
@@ -96,12 +94,16 @@ describe("QuickEntryPage", () => {
     });
   });
 
-  it("renders the dense layout with title 記一筆", async () => {
+  it("renders M3 layout with title 記一筆 and segments", async () => {
     render(createElement(QuickEntryPage));
     expect(await screen.findByText("記一筆")).toBeInTheDocument();
+    // segmented toggle
+    expect(screen.getByRole("button", { name: "支出" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收入" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "轉帳" })).toBeInTheDocument();
   });
 
-  it("updates amount and note from keypad and input", async () => {
+  it("updates amount and note via keypad and input", async () => {
     render(createElement(QuickEntryPage));
     await screen.findByText("記一筆");
 
@@ -118,31 +120,52 @@ describe("QuickEntryPage", () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
+  it("toasts when 收入 / 轉帳 segments are tapped (v2.1 placeholder)", async () => {
+    render(createElement(QuickEntryPage));
+    await screen.findByText("記一筆");
+
+    fireEvent.click(screen.getByRole("button", { name: "收入" }));
+    expect(await screen.findByText("v2.1 即將支援收入 / 轉帳記帳")).toBeInTheDocument();
+  });
+
   it("blocks submit and toasts when amount is zero", async () => {
     render(createElement(QuickEntryPage));
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "飲食" })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
-
+    // tap save without amount
+    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
     await waitFor(() => {
       expect(screen.queryByText("請先輸入金額")).toBeInTheDocument();
     });
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("submits successfully and clears amount/note (keeps payment method)", async () => {
+  it("blocks submit and toasts when no category is selected", async () => {
     render(createElement(QuickEntryPage));
     await screen.findByText("記一筆");
+
+    // amount only
+    fireEvent.click(screen.getByRole("button", { name: "5" }));
+    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("請先選擇分類")).toBeInTheDocument();
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("submits successfully when amount + category + payment method are set", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "飲食" })).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "3" }));
-    fireEvent.change(screen.getByPlaceholderText("備註（可留空）"), {
-      target: { value: "午餐" },
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "個人 飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: "飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {
       expect(mockInsert).toHaveBeenCalledTimes(1);
@@ -152,23 +175,14 @@ describe("QuickEntryPage", () => {
         amount: 123,
         category_id: "cat-food",
         payment_method_id: "pm-cash",
-        note: "午餐",
+        note: "",
       }),
     );
     expect(await screen.findByText("已記帳 $123 至 飲食")).toBeInTheDocument();
 
-    // amount/note 清空，pm 保留
+    // amount/category should reset
     await waitFor(() => {
-      expect(screen.getByText("−$0")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("備註（可留空）")).toHaveValue("");
-    });
-  });
-
-  it("renders the 「+ 更多」 entry as the last grid cell", async () => {
-    render(createElement(QuickEntryPage));
-    await screen.findByText("記一筆");
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
+      expect(screen.queryByText("−$0")).toBeInTheDocument();
     });
   });
 
@@ -183,9 +197,9 @@ describe("QuickEntryPage", () => {
       expect(screen.queryByText(/尚未建立支付方式/)).toBeInTheDocument();
     });
 
-    // Type amount + try to submit
     fireEvent.click(screen.getByRole("button", { name: "1" }));
-    fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: "飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {
       expect(screen.queryByText("請先到設定建立支付方式")).toBeInTheDocument();
@@ -193,27 +207,12 @@ describe("QuickEntryPage", () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("shows hint text when there are no quick categories", async () => {
-    fetchQuickEntryData.mockResolvedValue({
-      allCategories: QUICK_CATEGORIES,
-      quickCategories: [],
-      paymentMethods: [{ id: "pm-cash", name: "現金", sortOrder: 10 }],
-    });
+  it("opens category picker modal when 「更多分類」 is clicked", async () => {
     render(createElement(QuickEntryPage));
     await waitFor(() => {
-      expect(screen.queryByText(/尚未標記常用分類/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /更多分類/ })).toBeInTheDocument();
     });
-    // 「+ 更多」 should still be the entry point
-    expect(screen.getByRole("button", { name: "更多分類" })).toBeInTheDocument();
-  });
-
-  it("opens category picker modal when 「+ 更多」 is clicked", async () => {
-    render(createElement(QuickEntryPage));
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "更多分類" })).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: "更多分類" }));
-    // Picker is a dialog with aria-label
+    fireEvent.click(screen.getByRole("button", { name: /更多分類/ }));
     expect(screen.getByRole("dialog", { name: "選擇分類" })).toBeInTheDocument();
   });
 

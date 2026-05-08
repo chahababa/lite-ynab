@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [v2.0 Step 3.1] - 2026-05-08 — `/quick-entry` 套 Material 3
+
+### Changed
+
+- **`src/app/quick-entry/page.tsx` 重寫為 M3 QuickEntryA 風格**：
+  - 頂部 ✕ + 「記一筆」+ ⚙ 三段式 app bar
+  - 支出 / 收入 / 轉帳 segmented control（v2.0 只開放支出，點收入/轉帳會 toast「v2.1 即將支援」，UI 保留視覺）
+  - Amount 卡片用 `bg-primary-container`，金額用 `<MoneyText size="display" />`，自動處理 ±$ 與 tabular-nums
+  - 1 排 6 個常用分類（icon + 名稱），分類顏色用 `categoryStyle.ts` 對 M3 cat palette 做 keyword 匹配（飲食→food、交通→transport、咖啡→food、健康→health、房租→home、娛樂→fun…）
+  - 「更多分類 →」按鈕在分類下方獨立一行，開既有 CategoryPickerModal
+  - 支付方式 chips 改用 M3 `<Chip>`（selected 自動切 secondary-container）
+  - 數字鍵盤 4×3 改 M3 風（`bg-surface-container` + `text-num-title` + mono）
+  - **行為改變**：從 v1.0「點分類即送出」改為 M3 顯式「儲存」按鈕（多一步，符合設計稿）
+- `src/components/PaymentMethodModal.tsx` 重新樣式為 M3：M3 surface + elev-3 + rounded-md，選中項用 primary-container，無垢漸層
+- `src/components/CategoryPickerModal.tsx` 同樣 M3 化，群組顏色點改用 cat palette
+- `src/lib/categoryStyle.ts` 新增：分類名稱 → M3 cat 顏色 + lucide icon 對應的 keyword 規則表
+
+### Added
+
+- `vitest.config.ts` 加 `@vitejs/plugin-react` plugin，**永久解決 Next.js build 把 tsconfig `jsx` 改 `preserve` 後測試失效** 的問題（之前每次 build 後要手動改回 react-jsx）。`@vitejs/plugin-react` 為 dev dependency。
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（17 test files / 60 tests 全綠，9 個 quick-entry 整合測試覆蓋新 UI 與行為）
+- `npm run build`（14 routes 全部編譯成功，`/quick-entry` 7.36 kB / 188 kB First Load JS，比 v1.0 增加 ~2 kB）
+
+### UX 變更 vs v1.0
+
+- ⚠️ **點分類即送出消失**：v2.0 需要顯式按「儲存」。連續記帳的速度會變慢（v1.0 = 1 click，v2.0 = 2 click）。如使用者反映過慢可考慮在 v2.1 加回 long-press 或設定切換。
+- ⚠️ **3×3 grid → 1×6 + 更多按鈕**：常用分類數量上限從 8 個變成 6 個（多的進「更多分類」modal）
+
+### Notes
+
+- Inflow（收入）DB schema 還沒做（`amount > 0` constraint），`/quick-entry` 收入 segment 是 placeholder。
+- 對應 HANDOFF.md Step 3.1。
+
 ## [v2.0 Step 2] - 2026-05-07 — Material 3 共用元件
 
 ### Added
