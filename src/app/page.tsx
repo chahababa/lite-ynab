@@ -1,15 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CreditCard, Delete, Plus, Search, Tag, X } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpFromLine,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Wallet,
+} from "lucide-react";
 
-import { BudgetList } from "@/components/BudgetList";
 import { LoadingCard } from "@/components/LoadingCard";
-import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
-import { TransactionList } from "@/components/TransactionList";
+import { Button as M3Button } from "@/components/m3/Button";
+import { MoneyText } from "@/components/m3/MoneyText";
+import { Progress } from "@/components/m3/Progress";
+import {
+  CAT_BG_CLASS,
+  CAT_TEXT_CLASS,
+  type M3CatIcon,
+  getCategoryStyle,
+} from "@/lib/categoryStyle";
 import { fetchDashboardData } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type {
@@ -19,17 +35,36 @@ import type {
   ToastState,
   TransactionWithCategory,
 } from "@/lib/types";
-import { cn, formatCurrency, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
+import { cn, formatMonthLabel, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
 
-const keypad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"];
+import {
+  Car,
+  Coffee,
+  CreditCard,
+  Heart,
+  Home,
+  Music,
+  Plane,
+  ShoppingBag,
+  Tag,
+  Utensils,
+} from "lucide-react";
 
-type ExpenseCategoryMode = "quick" | "all";
+const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
+  Utensils,
+  Coffee,
+  Car,
+  ShoppingBag,
+  Home,
+  Heart,
+  Music,
+  Plane,
+  CreditCard,
+  Tag,
+};
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
+  if (error instanceof Error && error.message) return error.message;
   return "發生未預期的錯誤";
 }
 
@@ -39,26 +74,16 @@ export default function DashboardPage() {
   const [monthId, setMonthId] = useState(() => toMonthId(getTodayInTaipei()));
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [quickCategories, setQuickCategories] = useState<CategoryOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  // categories / paymentMethods 仍然 fetch 但暫不使用，留給後續 widgets
+  const [, setCategories] = useState<CategoryOption[]>([]);
+  const [, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [budgetRows, setBudgetRows] = useState<BudgetRow[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<TransactionWithCategory[]>([]);
   const [incomeAmount, setIncomeAmount] = useState("0");
-  const [unallocated, setUnallocated] = useState(0);
   const [toast, setToast] = useState<ToastState>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [pendingBudgetId, setPendingBudgetId] = useState<string | null>(null);
-  const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
+  const [isEditingIncome, setIsEditingIncome] = useState(false);
   const [isSavingIncome, setIsSavingIncome] = useState(false);
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [expenseCategoryMode, setExpenseCategoryMode] = useState<ExpenseCategoryMode>("quick");
-  const [expenseDate, setExpenseDate] = useState(getTodayInTaipei());
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseNote, setExpenseNote] = useState("");
-  const [selectedExpensePaymentMethodId, setSelectedExpensePaymentMethodId] = useState("");
-  const [submittingExpenseCategoryId, setSubmittingExpenseCategoryId] = useState<string | null>(null);
-  const [expenseCategoryQuery, setExpenseCategoryQuery] = useState("");
 
   const showToast = useCallback((nextToast: ToastState) => {
     setToast(nextToast);
@@ -69,157 +94,82 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const timer = toast ? window.setTimeout(() => setToast(null), 2600) : undefined;
-    return () => {
-      if (timer) {
-        window.clearTimeout(timer);
-      }
-    };
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    if (!isExpenseModalOpen) {
-      return;
-    }
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isExpenseModalOpen]);
 
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
-        router.replace("/login");
-      }
+      if (!session?.user) router.replace("/login");
     });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [router, supabase]);
 
   useEffect(() => {
     let active = true;
-
     async function load() {
       setLoading(true);
       setLoadError(null);
-
       try {
         const data = await fetchDashboardData(supabase, monthId);
-
-        if (!active) {
-          return;
-        }
-
+        if (!active) return;
         setCategories(data.categoryOptions);
-        setQuickCategories(data.quickCategories);
         setPaymentMethods(data.paymentMethods);
         setBudgetRows(data.budgetRows);
         setRecentTransactions(data.recentTransactions);
         setIncomeAmount(String(data.income?.amount ?? 0));
-        setUnallocated(data.unallocated);
-        setSelectedExpensePaymentMethodId((current) => current || data.paymentMethods[0]?.id || "");
       } catch (error) {
-        if (!active) {
-          return;
-        }
-
+        if (!active) return;
         const detail = getErrorMessage(error);
         const message =
           error instanceof Error && error.message === "AUTH_REQUIRED"
             ? "請先登入，才能查看主控臺。"
             : `載入主控臺失敗：${detail}`;
-
         setLoadError(message);
         showToast({ tone: "error", message });
-
         if (error instanceof Error && error.message === "AUTH_REQUIRED") {
           router.replace("/login");
         }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
-
     void load();
-
     return () => {
       active = false;
     };
-  }, [monthId, refreshTick, router, showToast, supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthId, refreshTick]);
 
-  const allocatedTotal = useMemo(
-    () => budgetRows.reduce((sum, row) => sum + row.allocated, 0),
+  const totalBudget = useMemo(
+    () => budgetRows.reduce((s, r) => s + r.allocated, 0),
     [budgetRows],
   );
-
-  const visibleExpenseCategories = (
-    expenseCategoryMode === "quick" ? quickCategories : categories
-  ).filter((category) => {
-    const query = expenseCategoryQuery.trim().toLowerCase();
-
-    if (!query) {
-      return true;
-    }
-
-    return `${category.groupName} ${category.name}`.toLowerCase().includes(query);
-  });
-
-  function openExpenseModal() {
-    setExpenseCategoryMode("quick");
-    setExpenseDate(getTodayInTaipei());
-    setExpenseAmount("");
-    setExpenseNote("");
-    setExpenseCategoryQuery("");
-    setSelectedExpensePaymentMethodId((current) => current || paymentMethods[0]?.id || "");
-    setIsExpenseModalOpen(true);
-  }
-
-  function closeExpenseModal() {
-    if (submittingExpenseCategoryId) {
-      return;
-    }
-
-    setIsExpenseModalOpen(false);
-  }
-
-  function handleExpenseKeyPress(key: string) {
-    if (key === "del") {
-      setExpenseAmount((value) => value.slice(0, -1));
-      return;
-    }
-
-    setExpenseAmount((value) => `${value}${key}`.replace(/^0+(?=\d)/, ""));
-  }
+  const totalSpent = useMemo(
+    () => budgetRows.reduce((s, r) => s + r.spent, 0),
+    [budgetRows],
+  );
+  const remainBudget = totalBudget - totalSpent;
+  const usagePct =
+    totalBudget > 0 ? Math.min(999, Math.round((totalSpent / totalBudget) * 100)) : 0;
+  const incomeNum = Number(incomeAmount || 0);
+  const savedNum = incomeNum - totalSpent;
 
   async function saveIncome() {
     setIsSavingIncome(true);
-
     try {
       const amount = Number(incomeAmount || 0);
       const { error } = await supabase.from("monthly_incomes").upsert(
-        {
-          month_id: monthId,
-          amount,
-        },
+        { month_id: monthId, amount },
         { onConflict: "user_id,month_id" },
       );
-
-      if (error) {
-        throw error;
-      }
-
-      setUnallocated(amount - allocatedTotal);
+      if (error) throw error;
       showToast({ tone: "success", message: "本月收入已儲存。" });
+      setIsEditingIncome(false);
+      reload();
     } catch {
       showToast({ tone: "error", message: "儲存本月收入失敗，請稍後再試。" });
     } finally {
@@ -227,417 +177,320 @@ export default function DashboardPage() {
     }
   }
 
-  async function saveBudget(budgetId: string, value: number) {
-    const previous = budgetRows.find((row) => row.budgetId === budgetId);
-    setPendingBudgetId(budgetId);
-
-    try {
-      const { error } = await supabase.from("budgets").update({ allocated: value }).eq("id", budgetId);
-
-      if (error) {
-        throw error;
-      }
-
-      if (previous) {
-        const diff = value - previous.allocated;
-
-        setBudgetRows((current) =>
-          current.map((row) => (row.budgetId === budgetId ? { ...row, allocated: value } : row)),
-        );
-        setUnallocated((current) => current - diff);
-      }
-
-      showToast({ tone: "success", message: "分類預算已儲存。" });
-      return true;
-    } catch {
-      showToast({ tone: "error", message: "儲存分類預算失敗，請稍後再試。" });
-      return false;
-    } finally {
-      setPendingBudgetId(null);
-    }
-  }
-
-  async function saveTransaction(input: {
-    id: string;
-    amount: number;
-    date: string;
-    categoryId: string;
-    paymentMethodId: string;
-    note: string;
-  }) {
-    setPendingTransactionId(input.id);
-
-    try {
-      const { error } = await supabase
-        .from("transactions")
-        .update({
-          amount: input.amount,
-          date: input.date,
-          category_id: input.categoryId,
-          payment_method_id: input.paymentMethodId,
-          note: input.note,
-        })
-        .eq("id", input.id);
-
-      if (error) {
-        throw error;
-      }
-
-      showToast({ tone: "success", message: "交易已更新。" });
-      reload();
-      router.refresh();
-      return true;
-    } catch {
-      showToast({ tone: "error", message: "更新交易失敗，請稍後再試。" });
-      return false;
-    } finally {
-      setPendingTransactionId(null);
-    }
-  }
-
-  async function deleteTransaction(id: string) {
-    setPendingTransactionId(id);
-
-    try {
-      const { error } = await supabase.from("transactions").delete().eq("id", id);
-
-      if (error) {
-        throw error;
-      }
-
-      showToast({ tone: "success", message: "已刪除交易" });
-      reload();
-      router.refresh();
-      return true;
-    } catch {
-      showToast({ tone: "error", message: "刪除交易失敗，請稍後再試。" });
-      return false;
-    } finally {
-      setPendingTransactionId(null);
-    }
-  }
-
-  async function submitExpense(categoryId: string) {
-    if (!expenseAmount || Number(expenseAmount) <= 0) {
-      showToast({ tone: "info", message: "請輸入大於 0 的金額" });
-      return;
-    }
-
-    if (!selectedExpensePaymentMethodId) {
-      showToast({ tone: "info", message: "請先選擇支付方式。" });
-      return;
-    }
-
-    setSubmittingExpenseCategoryId(categoryId);
-
-    try {
-      const nextAmount = Number(expenseAmount);
-      const category = categories.find((item) => item.id === categoryId);
-      const { error } = await supabase.from("transactions").insert({
-        amount: nextAmount,
-        date: expenseDate,
-        category_id: categoryId,
-        payment_method_id: selectedExpensePaymentMethodId,
-        note: expenseNote.trim(),
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      showToast({
-        tone: "success",
-        message: `已記帳 ${formatCurrency(nextAmount)} 至 ${category?.name ?? "未命名分類"}`,
-      });
-      setIsExpenseModalOpen(false);
-      setExpenseAmount("");
-      setExpenseNote("");
-      reload();
-      router.refresh();
-    } catch {
-      showToast({ tone: "error", message: "記帳失敗，請稍後再試。" });
-    } finally {
-      setSubmittingExpenseCategoryId(null);
-    }
-  }
-
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 pb-[88px] pt-3 font-chrome-body text-chrome-base text-chrome-900">
+    <main className="min-h-screen bg-background font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
-      <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">Lite YNAB</h1>
+      <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-4 pb-[88px]">
+        {/* Top bar: month switcher */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-label-md text-on-surface-variant">主控臺</p>
+            <p className="text-headline-sm">{formatMonthLabel(monthId)}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMonthId((v) => shiftMonth(v, -1))}
+              aria-label="上個月"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthId((v) => shiftMonth(v, 1))}
+              aria-label="下個月"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
           </div>
         </div>
-
-        <MonthSwitcher
-          monthId={monthId}
-          onPrevious={() => setMonthId((value) => shiftMonth(value, -1))}
-          onNext={() => setMonthId((value) => shiftMonth(value, 1))}
-        />
 
         {loading ? (
           <LoadingCard label="正在載入主控臺..." />
         ) : loadError ? (
-          <StateCard title="載入主控臺失敗" description={loadError} tone="error" actionLabel="重試" onAction={reload} />
+          <StateCard
+            title="載入主控臺失敗"
+            description={loadError}
+            tone="error"
+            actionLabel="重試"
+            onAction={reload}
+          />
         ) : (
           <>
-            <section className="chrome-window p-[6px]">
-              <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
-                <label className="chrome-led-panel block px-chrome-md py-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">本月收入</p>
-                  <input
-                    inputMode="numeric"
-                    value={incomeAmount}
-                    onChange={(event) => setIncomeAmount(event.target.value.replace(/[^\d]/g, ""))}
-                    className="mt-3 w-full bg-transparent text-center font-display text-3xl text-paper outline-none"
-                  />
-                </label>
-                <div className="chrome-led-panel px-chrome-md py-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">尚可分配</p>
-                  <p className="mt-3 font-display text-3xl text-mint">{formatCurrency(unallocated)}</p>
+            {/* Hero balance card */}
+            <div className="rounded-md bg-primary-container p-6 shadow-elev-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-body-sm text-primary-on-container/80">
+                    本月剩餘預算
+                  </p>
+                  <div className="mt-1">
+                    <MoneyText
+                      value={remainBudget}
+                      type={remainBudget < 0 ? "warn" : "remain"}
+                      size="hero"
+                      prefix={false}
+                      className="!text-primary-on-container"
+                    />
+                  </div>
+                  <p className="mt-2 text-body-sm text-primary-on-container/70">
+                    預算{" "}
+                    <MoneyText
+                      value={totalBudget}
+                      prefix={false}
+                      className="!text-primary-on-container"
+                      size="caption"
+                    />{" "}
+                    · 已用 <span className="font-mono tabular-nums">{usagePct}%</span>
+                  </p>
                 </div>
+                <Link href="/quick-entry" aria-label="記一筆">
+                  <M3Button
+                    variant="filled"
+                    className="!bg-primary-on-container !text-primary-container shrink-0"
+                    startIcon={<Plus className="h-[18px] w-[18px]" />}
+                  >
+                    記一筆
+                  </M3Button>
+                </Link>
               </div>
-
-              <div className="px-chrome-md pb-chrome-md">
-                <button
-                  type="button"
-                  onClick={() => void saveIncome()}
-                  disabled={isSavingIncome}
-                  className="chrome-btn min-h-11 w-full px-chrome-md py-chrome-md font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide disabled:cursor-not-allowed"
-                >
-                  {isSavingIncome ? "儲存中" : "儲存收入"}
-                </button>
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <div className="chrome-window p-[6px]">
-                <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-                  <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
-                    預算分配
-                  </h2>
-                </div>
-              </div>
-              <BudgetList items={budgetRows} onSave={saveBudget} pendingBudgetId={pendingBudgetId} />
-            </section>
-
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
-                  最近交易
-                </h2>
-              </div>
-              <div className="px-chrome-md py-chrome-md">
-                <TransactionList
-                  categories={categories}
-                  paymentMethods={paymentMethods}
-                  items={recentTransactions}
-                  pendingTransactionId={pendingTransactionId}
-                  onSave={saveTransaction}
-                  onDelete={deleteTransaction}
+              <div className="mt-5">
+                <Progress
+                  value={usagePct}
+                  variant={usagePct >= 100 ? "expense" : "primary"}
+                  ariaLabel="本月預算使用率"
                 />
               </div>
+            </div>
+
+            {/* Income / Expense / Save tonal cards */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditingIncome(true)}
+                className="rounded-md bg-money-income-container p-3 text-left transition-colors duration-m3-short hover:brightness-95 active:brightness-90"
+                aria-label="編輯本月收入"
+              >
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-label-sm text-on-surface-variant">收入</span>
+                  <ArrowDownToLine className="h-3.5 w-3.5 text-on-surface-variant" />
+                </div>
+                <MoneyText value={incomeNum} type="income" size="title" prefix={false} />
+              </button>
+              <div className="rounded-md bg-money-expense-container p-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-label-sm text-on-surface-variant">支出</span>
+                  <ArrowUpFromLine className="h-3.5 w-3.5 text-on-surface-variant" />
+                </div>
+                <MoneyText
+                  value={totalSpent}
+                  type="expense"
+                  size="title"
+                  prefix={false}
+                />
+              </div>
+              <div className="rounded-md bg-money-remain-container p-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-label-sm text-on-surface-variant">結餘</span>
+                  <Wallet className="h-3.5 w-3.5 text-on-surface-variant" />
+                </div>
+                <MoneyText
+                  value={savedNum}
+                  type={savedNum < 0 ? "warn" : "remain"}
+                  size="title"
+                  prefix={false}
+                />
+              </div>
+            </div>
+
+            {/* Categories grid */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-title-md">分類預算</h2>
+                <Link
+                  href="/budget-allocation"
+                  className="text-label-md text-primary hover:underline"
+                >
+                  編輯 →
+                </Link>
+              </div>
+              {budgetRows.length === 0 ? (
+                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                  本月尚未設定預算分配
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {budgetRows.map((row) => {
+                    const style = getCategoryStyle(row.categoryName);
+                    const Icon = ICON_COMPONENTS[style.icon];
+                    const pct =
+                      row.allocated > 0
+                        ? Math.min(100, Math.round((row.spent / row.allocated) * 100))
+                        : 0;
+                    const over = row.allocated > 0 && row.spent > row.allocated;
+                    return (
+                      <div
+                        key={row.budgetId}
+                        className="rounded-md border border-outline bg-surface p-4"
+                      >
+                        <div className="mb-3 flex items-center gap-2.5">
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 items-center justify-center rounded-sm",
+                              `${CAT_BG_CLASS[style.color]}/15`,
+                              CAT_TEXT_CLASS[style.color],
+                            )}
+                          >
+                            <Icon className="h-[18px] w-[18px]" />
+                          </div>
+                          <span className="flex-1 truncate text-body-md font-medium">
+                            {row.categoryName}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-label-sm font-medium",
+                              over ? "text-money-expense" : "text-on-surface-variant",
+                            )}
+                          >
+                            {pct}%
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <MoneyText
+                            value={row.spent}
+                            type={over ? "expense" : "neutral"}
+                            size="title"
+                            prefix={false}
+                          />
+                          <MoneyText
+                            value={row.allocated}
+                            size="caption"
+                            prefix="/ "
+                            className="text-on-surface-variant"
+                          />
+                        </div>
+                        <Progress
+                          value={pct}
+                          variant={over ? "expense" : "primary"}
+                          className="mt-2.5"
+                          ariaLabel={`${row.categoryName} 預算使用`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Recent transactions */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-title-md">最近交易</h2>
+                <Link
+                  href="/transactions"
+                  className="flex items-center gap-1 text-label-md text-primary hover:underline"
+                >
+                  查看全部 <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              {recentTransactions.length === 0 ? (
+                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                  本月尚無交易
+                </p>
+              ) : (
+                <div className="rounded-md border border-outline bg-surface">
+                  {recentTransactions.slice(0, 5).map((tx, i) => {
+                    const style = getCategoryStyle(tx.categoryName);
+                    const Icon = ICON_COMPONENTS[style.icon];
+                    return (
+                      <div
+                        key={tx.id}
+                        className={cn(
+                          "flex items-center gap-3 px-5 py-3.5",
+                          i > 0 && "border-t border-outline",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-full",
+                            `${CAT_BG_CLASS[style.color]}/15`,
+                            CAT_TEXT_CLASS[style.color],
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-body-md font-medium">
+                            {tx.note || tx.categoryName}
+                          </p>
+                          <p className="truncate text-body-sm text-on-surface-variant">
+                            {tx.categoryName} · {tx.paymentMethodName} · {tx.date}
+                          </p>
+                        </div>
+                        <MoneyText
+                          value={tx.amount}
+                          type="expense"
+                          size="body"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </>
         )}
-      </section>
-
-      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[999]">
-        <div className="mx-auto flex w-full max-w-md justify-end px-3">
-          <button
-            type="button"
-            onClick={openExpenseModal}
-            className="pointer-events-auto chrome-btn chrome-btn--success flex min-h-12 items-center gap-2 px-4 py-3 text-sm font-bold tracking-[0.08em] shadow-[0_8px_18px_rgba(0,0,0,0.4)]"
-            aria-label="打開記帳視窗"
-          >
-            <Plus className="h-4 w-4" />
-            <span>記帳</span>
-          </button>
-        </div>
       </div>
 
-      {isExpenseModalOpen ? (
-        <div className="fixed inset-0 z-[1100]">
-          <button
-            type="button"
-            aria-label="關閉記帳視窗"
-            onClick={closeExpenseModal}
-            className="absolute inset-0 bg-black/40"
-          />
-
-          <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-md px-4 pb-4">
-            <div role="dialog" aria-modal="true" aria-label="新增支出" className="chrome-window max-h-[92vh] overflow-y-auto p-[6px]">
-              <div className="chrome-titlebar mb-chrome-md flex items-center justify-between gap-3 px-chrome-md py-chrome-sm">
-                <div>
-                  <p className="font-chrome-heading text-chrome-xs font-bold tracking-chrome-wide text-chrome-800">
-                    快速記帳
-                  </p>
-                  <p className="font-chrome-heading text-chrome-lg font-bold tracking-chrome-wide text-chrome-900">
-                    新增支出
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeExpenseModal}
-                  disabled={submittingExpenseCategoryId !== null}
-                  className="chrome-btn flex h-9 w-9 items-center justify-center disabled:cursor-not-allowed"
-                  aria-label="關閉記帳視窗"
+      {/* Income edit dialog */}
+      {isEditingIncome ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="編輯本月收入"
+          onClick={() => !isSavingIncome && setIsEditingIncome(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[320px] rounded-md bg-surface shadow-elev-3"
+          >
+            <div className="px-5 pt-5 pb-3">
+              <p className="text-title-md text-on-surface">本月收入</p>
+              <p className="mt-1 text-body-sm text-on-surface-variant">
+                {formatMonthLabel(monthId)}
+              </p>
+            </div>
+            <div className="px-5 pb-5">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={incomeAmount}
+                onChange={(e) =>
+                  setIncomeAmount(e.target.value.replace(/[^\d]/g, ""))
+                }
+                aria-label="本月收入金額"
+                className="h-12 w-full rounded-xs border border-outline-variant bg-surface px-4 text-center font-mono text-body-lg text-on-surface tabular-nums outline-none focus:border-primary focus:border-2 focus:px-[15px]"
+              />
+              <div className="mt-4 flex justify-end gap-2">
+                <M3Button
+                  variant="text"
+                  onClick={() => setIsEditingIncome(false)}
+                  disabled={isSavingIncome}
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-chrome-md px-chrome-md pb-chrome-md">
-                <section className="chrome-led-panel relative px-chrome-lg py-chrome-xl">
-                  <div className="flex flex-col items-center justify-center text-center">
-                    <p className="chrome-led-label text-chrome-sm uppercase">金額</p>
-                    <p className="chrome-led-value mt-2 text-[2.35rem] leading-none">
-                      {expenseAmount ? formatCurrency(Number(expenseAmount)) : formatCurrency(0)}
-                    </p>
-                  </div>
-
-                  <div className="mt-chrome-lg grid grid-cols-3 gap-chrome-md">
-                    {keypad.map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => handleExpenseKeyPress(key)}
-                        className="chrome-btn flex min-h-11 items-center justify-center px-chrome-md py-chrome-lg font-chrome-heading text-chrome-xl font-bold tracking-chrome-wide"
-                      >
-                        {key === "del" ? <Delete className="h-4 w-4" /> : key}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="chrome-window p-chrome-md">
-                  <div className="space-y-chrome-md">
-                    <label className="block">
-                      <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                        <CalendarDays className="h-4 w-4" />
-                        日期
-                      </span>
-                      <input
-                        type="date"
-                        value={expenseDate}
-                        onChange={(event) => setExpenseDate(event.target.value)}
-                        className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                      />
-                    </label>
-
-                    <div>
-                      <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                        <CreditCard className="h-4 w-4" />
-                        支付方式
-                      </span>
-                      <div className="grid grid-cols-2 gap-chrome-sm">
-                        {paymentMethods.map((paymentMethod) => (
-                          <button
-                            key={paymentMethod.id}
-                            type="button"
-                            onClick={() => setSelectedExpensePaymentMethodId(paymentMethod.id)}
-                            className={cn(
-                              "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                              selectedExpensePaymentMethodId === paymentMethod.id && "chrome-btn--success text-white",
-                            )}
-                          >
-                            {paymentMethod.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <label className="block">
-                      <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                        <Tag className="h-4 w-4" />
-                        備註
-                      </span>
-                      <input
-                        value={expenseNote}
-                        onChange={(event) => setExpenseNote(event.target.value)}
-                        className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                        placeholder="例如：午餐、買菜、交通"
-                      />
-                    </label>
-                  </div>
-                </section>
-
-                <section className="chrome-window p-chrome-md">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="grid grid-cols-2 gap-chrome-sm">
-                      <button
-                        type="button"
-                        onClick={() => setExpenseCategoryMode("quick")}
-                        className={cn(
-                          "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                          expenseCategoryMode === "quick" && "chrome-btn--success text-white",
-                        )}
-                      >
-                        快速
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExpenseCategoryMode("all")}
-                        className={cn(
-                          "chrome-btn min-h-11 px-chrome-md py-chrome-md text-chrome-sm font-bold tracking-chrome-wide",
-                          expenseCategoryMode === "all" && "chrome-btn--success text-white",
-                        )}
-                      >
-                        全部分類
-                      </button>
-                    </div>
-                  </div>
-
-                  <label className="mt-chrome-md block">
-                    <span className="mb-2 flex items-center gap-2 font-chrome-heading text-chrome-sm font-bold tracking-chrome-wide text-chrome-800">
-                      <Search className="h-4 w-4" />
-                      搜尋分類
-                    </span>
-                    <input
-                      value={expenseCategoryQuery}
-                      onChange={(event) => setExpenseCategoryQuery(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
-                      placeholder="搜尋分類名稱或群組"
-                    />
-                  </label>
-
-                  <div className="mt-chrome-md max-h-[340px] space-y-chrome-sm overflow-y-auto pr-1">
-                    {visibleExpenseCategories.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        disabled={submittingExpenseCategoryId !== null}
-                        onClick={() => void submitExpense(category.id)}
-                        className={cn(
-                          "chrome-btn flex min-h-[88px] w-full items-stretch justify-between overflow-hidden p-0 text-left",
-                          submittingExpenseCategoryId === category.id && "chrome-btn--success text-white",
-                        )}
-                      >
-                        <div className="flex min-w-0 flex-1 items-center justify-center px-chrome-md py-chrome-md">
-                          <div className="min-w-0 text-center">
-                            <p className="font-chrome-heading text-chrome-sm font-bold text-chrome-700">
-                              {category.groupName}
-                            </p>
-                            <p className="mt-2 truncate font-chrome-heading text-chrome-lg font-bold text-chrome-900">
-                              {category.name}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="chrome-led-panel flex min-w-[120px] shrink-0 self-stretch flex-col items-center justify-center px-chrome-sm py-[6px] text-center">
-                          <p className="chrome-led-label text-chrome-xs uppercase">
-                            {submittingExpenseCategoryId === category.id ? "儲存中" : "送出"}
-                          </p>
-                          <p className="chrome-led-value text-chrome-lg">
-                            {expenseAmount ? formatCurrency(Number(expenseAmount)) : formatCurrency(0)}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </section>
+                  取消
+                </M3Button>
+                <M3Button
+                  variant="filled"
+                  onClick={() => void saveIncome()}
+                  disabled={isSavingIncome}
+                  startIcon={<Pencil className="h-[18px] w-[18px]" />}
+                >
+                  {isSavingIncome ? "儲存中" : "儲存"}
+                </M3Button>
               </div>
             </div>
           </div>

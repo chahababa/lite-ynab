@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [v2.0 Step 3.2] - 2026-05-08 — `/` Dashboard 套 Material 3
+
+### Changed
+
+- **`src/app/page.tsx` 重寫為 M3 DashboardA 風格**：
+  - 頂部：簡化 month switcher（標題 + 月份標籤 + 上下月按鈕，去掉 Lite YNAB 標題列）
+  - **Hero balance card**（`bg-primary-container`）：本月剩餘預算（hero size MoneyText）+ 預算總額 / 已用百分比 + Progress bar + 「記一筆」連結到 `/quick-entry`
+  - **3 個 tonal 卡**：收入（綠 container）/ 支出（紅 container）/ 結餘（藍 container），收入卡可點擊開編輯 dialog
+  - **分類預算 grid**（2 cols）：每張卡片用 M3 cat icon + 名稱 + 百分比 + 已支出/預算 + Progress bar；右上「編輯 →」連結到 `/budget-allocation`
+  - **最近交易**：read-only 列表 5 筆，「查看全部 →」連結到 `/transactions`
+  - **新增收入編輯 dialog**：點收入卡開啟，inline 改金額然後 upsert `monthly_incomes`
+
+### Removed
+
+- 從 dashboard 移除「FAB → 內嵌 expense modal」流程：原本的快速記帳彈窗在 v2.0 統一到 `/quick-entry` 頁面，dashboard hero card 的「記一筆」按鈕直接連去
+- 從 dashboard 移除 inline budget 編輯（`BudgetList` 元件不再被使用，標記為待清理；budget 編輯一律去 `/budget-allocation`）
+- 從 dashboard 移除 inline transaction 編輯（`TransactionList` 仍由 `/transactions` 使用，dashboard 改用簡化的 read-only 列表）
+
+### Added
+
+- 用到的 M3 元件：`MoneyText`、`Progress`、`Button`，加上 `categoryStyle.ts` 對 cat color/icon 的對應
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（17 test files / 61 tests 全綠，dashboard 測試重寫為 4 個 case：hero + tonal cards、categories + recent、記一筆 link、收入 dialog upsert）
+- `npm run build`（14 routes，`/` 7.06 kB / 188 kB First Load JS）
+
+### UX 變更 vs v1.0
+
+- ⚠️ **Dashboard 變只讀為主**：要編輯 budget / 交易需要點到專門頁。Single-page YNAB 體驗變成更典型的「總覽 + 分散」。對連續操作的使用者多 1-2 個 click。
+- ⚠️ **`BudgetList` 元件變孤兒**：等所有 v2.0 頁面遷移完成後，在 cleanup phase 移除（連同 chrome legacy tokens）
+
+### Notes
+
+- 對應 HANDOFF.md Step 3.2。
+
 ## [v2.0 Step 3.1] - 2026-05-08 — `/quick-entry` 套 Material 3
 
 ### Changed

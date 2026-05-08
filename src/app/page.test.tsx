@@ -13,14 +13,12 @@ const {
   fetchDashboardData,
   mockOnAuthStateChange,
   mockUpsert,
-  mockInsert,
 } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
   mockRefresh: vi.fn(),
   fetchDashboardData: vi.fn(),
   mockOnAuthStateChange: vi.fn(),
   mockUpsert: vi.fn(),
-  mockInsert: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -41,24 +39,9 @@ vi.mock("@/lib/data", () => ({
 
 vi.mock("@/lib/supabaseClient", () => ({
   getSupabaseBrowserClient: () => ({
-    auth: {
-      onAuthStateChange: mockOnAuthStateChange,
-    },
+    auth: { onAuthStateChange: mockOnAuthStateChange },
     from: (table: string) => {
-      if (table === "monthly_incomes") {
-        return {
-          upsert: mockUpsert,
-        };
-      }
-
-      if (table === "transactions") {
-        return {
-          insert: mockInsert,
-          update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-          delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        };
-      }
-
+      if (table === "monthly_incomes") return { upsert: mockUpsert };
       return {
         update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
         delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
@@ -67,22 +50,15 @@ vi.mock("@/lib/supabaseClient", () => ({
   }),
 }));
 
-describe("DashboardPage", () => {
-  afterEach(() => {
-    cleanup();
-  });
+describe("DashboardPage (M3 v2.0)", () => {
+  afterEach(() => cleanup());
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockOnAuthStateChange.mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
+      data: { subscription: { unsubscribe: vi.fn() } },
     });
     mockUpsert.mockResolvedValue({ error: null });
-    mockInsert.mockResolvedValue({ error: null });
 
     fetchDashboardData.mockResolvedValue({
       user: { email: "demo@example.com" },
@@ -96,16 +72,6 @@ describe("DashboardPage", () => {
           isAuto: false,
           autoAmount: 0,
           sortOrder: 10,
-        },
-        {
-          id: "cat-rent",
-          groupId: "group-home",
-          groupName: "家庭",
-          name: "房租",
-          isQuick: false,
-          isAuto: true,
-          autoAmount: 12000,
-          sortOrder: 20,
         },
       ],
       paymentMethods: [{ id: "pm-cash", name: "現金", sortOrder: 10 }],
@@ -139,12 +105,7 @@ describe("DashboardPage", () => {
           paymentMethodName: "現金",
         },
       ],
-      income: {
-        id: "income-1",
-        user_id: "user-1",
-        month_id: "2026-04",
-        amount: 50000,
-      },
+      income: { id: "income-1", user_id: "user-1", month_id: "2026-04", amount: 50000 },
       unallocated: 20000,
       quickCategories: [
         {
@@ -161,42 +122,58 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("renders dashboard data shell", async () => {
+  it("renders M3 dashboard with hero balance + tonal summary cards", async () => {
     render(createElement(DashboardPage));
+    expect(await screen.findByText("主控臺")).toBeInTheDocument();
 
+    // remain budget = 8000 - 1200 = 6800 → $6,800 in hero
     await waitFor(() => {
-      expect(screen.getByDisplayValue("50000")).toBeInTheDocument();
+      expect(screen.getByText("$6,800")).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText("$20,000").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("$120").length).toBeGreaterThan(0);
+    // tonal cards: 收入 / 支出 / 結餘
+    expect(screen.getByText("收入")).toBeInTheDocument();
+    expect(screen.getByText("支出")).toBeInTheDocument();
+    expect(screen.getByText("結餘")).toBeInTheDocument();
+    // income 50000, expense 1200, save 50000-1200=48800
+    expect(screen.getByText("$50,000")).toBeInTheDocument();
+    expect(screen.getAllByText("$1,200").length).toBeGreaterThan(0);
+    expect(screen.getByText("$48,800")).toBeInTheDocument();
+  });
+
+  it("renders categories grid with progress and recent transactions", async () => {
+    render(createElement(DashboardPage));
+    await screen.findByText("主控臺");
+
+    expect(await screen.findByText("分類預算")).toBeInTheDocument();
+    expect(screen.getByText("飲食")).toBeInTheDocument();
     expect(screen.getByText("最近交易")).toBeInTheDocument();
+    // recent tx amount 120 with expense minus
+    expect(screen.getByText("−$120")).toBeInTheDocument();
   });
 
-  it("opens the expense popup from the dashboard", async () => {
+  it("「記一筆」 button links to /quick-entry", async () => {
     render(createElement(DashboardPage));
+    await screen.findByText("主控臺");
+    const link = screen.getByLabelText("記一筆");
+    expect(link.getAttribute("href")).toBe("/quick-entry");
+  });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "打開記帳視窗" })[0]);
+  it("opens income edit dialog and saves new income value", async () => {
+    render(createElement(DashboardPage));
+    await screen.findByText("主控臺");
+    fireEvent.click(screen.getByLabelText("編輯本月收入"));
+
+    const input = await screen.findByLabelText("本月收入金額");
+    fireEvent.change(input, { target: { value: "60000" } });
+    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("搜尋分類名稱或群組")).toBeInTheDocument();
+      expect(mockUpsert).toHaveBeenCalled();
     });
-  });
-
-  it("shows zero-amount validation in the dashboard quick-entry modal", async () => {
-    render(createElement(DashboardPage));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "打開記帳視窗" })[0]);
-    await screen.findByRole("dialog");
-    fireEvent.click(
-      screen
-        .getAllByText("飲食")
-        .find((element) => element.closest("button"))
-        ?.closest("button") as HTMLElement,
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 60000 }),
+      expect.anything(),
     );
-
-    expect(await screen.findByText("請輸入大於 0 的金額")).toBeInTheDocument();
-    expect(mockInsert).not.toHaveBeenCalled();
   });
 });
