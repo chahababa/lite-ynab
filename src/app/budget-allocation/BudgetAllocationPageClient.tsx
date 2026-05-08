@@ -12,7 +12,7 @@ import { fetchBudgetAllocationData, fetchBudgetReferenceData } from "@/lib/data"
 import { getGroupTone } from "@/lib/groupTone";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetRow, PaymentMethodOption, ToastState } from "@/lib/types";
-import { cn, formatCurrency, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
+import { cn, formatCurrency, formatMonthLabel, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
 
 type CompactGroup = {
   groupId: string;
@@ -690,13 +690,17 @@ export default function BudgetAllocationCompactPage() {
   }
 
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    // [v2.0 Step 3.4 partial M3]：page wrapper + top summary 已 M3 化；
+    // 內部 groupedRows 表格與 admin 功能 (rename / delete / reorder) 暫留 chrome 樣式，
+    // 等 v2.1 再完整重寫。
+    <main className="box-border min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">預算分配中心</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-label-md text-on-surface-variant">預算分配</p>
+            <p className="text-headline-sm">{formatMonthLabel(monthId)}</p>
           </div>
         </div>
 
@@ -706,49 +710,58 @@ export default function BudgetAllocationCompactPage() {
           onNext={() => setMonthId((value) => shiftMonth(value, 1))}
         />
 
-        {loading ? <LoadingCard label="正在載入表格式預算分配頁..." /> : null}
+        {loading ? <LoadingCard label="正在載入預算分配頁..." /> : null}
         {!loading && loadError ? (
           <StateCard title="載入失敗" description={loadError} tone="error" actionLabel="重試" onAction={() => void reload()} />
         ) : null}
 
         {!loading && !loadError ? (
           <>
-            <section className="sticky top-3 z-20 chrome-window p-[6px]">
-              <div className="grid grid-cols-3 gap-3 px-chrome-md py-chrome-md">
-                <label className="col-span-3">
-                  <span className="mb-2 block text-sm text-chrome-800">本月收入</span>
-                  <div className="flex items-end gap-3">
-                    <input
-                      inputMode="numeric"
-                      value={incomeAmount}
-                      onChange={(event) => setIncomeAmount(event.target.value.replace(/[^\d]/g, ""))}
-                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md text-xl"
-                    />
-                    <button
-                      type="button"
-                      className="chrome-btn min-h-11 px-chrome-md py-chrome-md"
-                      onClick={() => void saveIncome()}
-                      disabled={pendingKey === "income"}
-                    >
-                      {pendingKey === "income" ? "儲存中" : "儲存"}
-                    </button>
-                  </div>
-                </label>
-
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">已分配</p>
-                  <p className="mt-2 font-display text-chrome-2xl text-paper">{formatCurrency(allocatedTotal)}</p>
+            {/* M3 sticky top summary (本月收入 + 已分配 + 剩餘可分配) */}
+            <section className="sticky top-3 z-20 rounded-md border border-outline bg-surface p-4 shadow-elev-1">
+              <label className="block">
+                <span className="mb-2 block text-label-md text-on-surface-variant">本月收入</span>
+                <div className="flex items-end gap-2">
+                  <input
+                    inputMode="numeric"
+                    value={incomeAmount}
+                    onChange={(event) => setIncomeAmount(event.target.value.replace(/[^\d]/g, ""))}
+                    className="h-12 w-full rounded-xs border border-outline-variant bg-surface px-4 text-center font-mono text-body-lg text-on-surface tabular-nums outline-none focus:border-primary focus:border-2 focus:px-[15px]"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
+                    onClick={() => void saveIncome()}
+                    disabled={pendingKey === "income"}
+                  >
+                    {pendingKey === "income" ? "儲存中" : "儲存"}
+                  </button>
                 </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">剩餘可分配</p>
-                  <p className={cn("mt-2 font-display text-chrome-2xl", unallocated < 0 ? "text-coral" : "text-mint")}>
-                    {formatCurrency(unallocated)}
+              </label>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-money-remain-container p-3">
+                  <p className="text-label-sm text-on-surface-variant">已分配</p>
+                  <p className="mt-1 font-mono text-num-title font-medium text-money-remain tabular-nums">
+                    ${allocatedTotal.toLocaleString("en-US")}
                   </p>
                 </div>
-                <div className="rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-md text-chrome-sm text-chrome-900 shadow-chrome-sm">
-                  <p className="font-chrome-heading font-bold">表格式試作版</p>
-                  <p className="mt-1 leading-relaxed text-chrome-800">
-                    輸入本月預算後會自動儲存，讓你一次看到更多小項並快速完成分配。
+                <div
+                  className={cn(
+                    "rounded-md p-3",
+                    unallocated < 0
+                      ? "bg-money-expense-container"
+                      : "bg-surface-container",
+                  )}
+                >
+                  <p className="text-label-sm text-on-surface-variant">剩餘可分配</p>
+                  <p
+                    className={cn(
+                      "mt-1 font-mono text-num-title font-medium tabular-nums",
+                      unallocated < 0 ? "text-money-expense" : "text-on-surface",
+                    )}
+                  >
+                    ${unallocated.toLocaleString("en-US")}
                   </p>
                 </div>
               </div>

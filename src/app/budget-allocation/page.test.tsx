@@ -123,7 +123,7 @@ describe("BudgetAllocationPage", () => {
   it("renders summary and monthly planning actions", async () => {
     render(createElement(BudgetAllocationPage));
 
-    expect(await screen.findByText("預算分配中心")).toBeInTheDocument();
+    expect(await screen.findByText("預算分配")).toBeInTheDocument();
     expect(screen.getByDisplayValue("5000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "複製上月預算" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批次套用固定預算" })).toBeInTheDocument();
