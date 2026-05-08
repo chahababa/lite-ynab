@@ -9,15 +9,13 @@ import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
 import { fetchBudgetAllocationData, fetchBudgetReferenceData } from "@/lib/data";
-import { getGroupTone } from "@/lib/groupTone";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetRow, PaymentMethodOption, ToastState } from "@/lib/types";
-import { cn, formatCurrency, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
+import { cn, formatCurrency, formatMonthLabel, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
 
 type CompactGroup = {
   groupId: string;
   groupName: string;
-  tone: ReturnType<typeof getGroupTone>;
   rows: BudgetRow[];
 };
 
@@ -157,7 +155,6 @@ export default function BudgetAllocationCompactPage() {
       grouped.set(row.categoryGroupId, {
         groupId: row.categoryGroupId,
         groupName: row.categoryGroupName,
-        tone: getGroupTone(row.categoryGroupName, grouped.size),
         rows: [row],
       });
     });
@@ -690,13 +687,14 @@ export default function BudgetAllocationCompactPage() {
   }
 
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="chrome-window p-[6px]">
-          <div className="chrome-titlebar--info px-chrome-md py-chrome-sm text-center">
-            <h1 className="font-chrome-heading text-[1.5rem] font-bold text-white">預算分配中心</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-label-md text-on-surface-variant">預算分配</p>
+            <p className="text-headline-sm">{formatMonthLabel(monthId)}</p>
           </div>
         </div>
 
@@ -706,66 +704,69 @@ export default function BudgetAllocationCompactPage() {
           onNext={() => setMonthId((value) => shiftMonth(value, 1))}
         />
 
-        {loading ? <LoadingCard label="正在載入表格式預算分配頁..." /> : null}
+        {loading ? <LoadingCard label="正在載入預算分配頁..." /> : null}
         {!loading && loadError ? (
           <StateCard title="載入失敗" description={loadError} tone="error" actionLabel="重試" onAction={() => void reload()} />
         ) : null}
 
         {!loading && !loadError ? (
           <>
-            <section className="sticky top-3 z-20 chrome-window p-[6px]">
-              <div className="grid grid-cols-3 gap-3 px-chrome-md py-chrome-md">
-                <label className="col-span-3">
-                  <span className="mb-2 block text-sm text-chrome-800">本月收入</span>
-                  <div className="flex items-end gap-3">
-                    <input
-                      inputMode="numeric"
-                      value={incomeAmount}
-                      onChange={(event) => setIncomeAmount(event.target.value.replace(/[^\d]/g, ""))}
-                      className="chrome-field chrome-field--numeric min-h-11 w-full px-chrome-md py-chrome-md text-xl"
-                    />
-                    <button
-                      type="button"
-                      className="chrome-btn min-h-11 px-chrome-md py-chrome-md"
-                      onClick={() => void saveIncome()}
-                      disabled={pendingKey === "income"}
-                    >
-                      {pendingKey === "income" ? "儲存中" : "儲存"}
-                    </button>
-                  </div>
-                </label>
-
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">已分配</p>
-                  <p className="mt-2 font-display text-chrome-2xl text-paper">{formatCurrency(allocatedTotal)}</p>
+            {/* M3 sticky top summary (本月收入 + 已分配 + 剩餘可分配) */}
+            <section className="sticky top-3 z-20 rounded-md border border-outline bg-surface p-4 shadow-elev-1">
+              <label className="block">
+                <span className="mb-2 block text-label-md text-on-surface-variant">本月收入</span>
+                <div className="flex items-end gap-2">
+                  <input
+                    inputMode="numeric"
+                    value={incomeAmount}
+                    onChange={(event) => setIncomeAmount(event.target.value.replace(/[^\d]/g, ""))}
+                    className="h-12 w-full rounded-xs border border-outline-variant bg-surface px-4 text-center font-mono text-body-lg text-on-surface tabular-nums outline-none focus:border-primary focus:border-2 focus:px-[15px]"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
+                    onClick={() => void saveIncome()}
+                    disabled={pendingKey === "income"}
+                  >
+                    {pendingKey === "income" ? "儲存中" : "儲存"}
+                  </button>
                 </div>
-                <div className="chrome-led-panel p-chrome-md text-center">
-                  <p className="text-sm uppercase tracking-[0.22em] text-paper/60">剩餘可分配</p>
-                  <p className={cn("mt-2 font-display text-chrome-2xl", unallocated < 0 ? "text-coral" : "text-mint")}>
-                    {formatCurrency(unallocated)}
+              </label>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-money-remain-container p-3">
+                  <p className="text-label-sm text-on-surface-variant">已分配</p>
+                  <p className="mt-1 font-mono text-num-title font-medium text-money-remain tabular-nums">
+                    ${allocatedTotal.toLocaleString("en-US")}
                   </p>
                 </div>
-                <div className="rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-md text-chrome-sm text-chrome-900 shadow-chrome-sm">
-                  <p className="font-chrome-heading font-bold">表格式試作版</p>
-                  <p className="mt-1 leading-relaxed text-chrome-800">
-                    輸入本月預算後會自動儲存，讓你一次看到更多小項並快速完成分配。
+                <div
+                  className={cn(
+                    "rounded-md p-3",
+                    unallocated < 0
+                      ? "bg-money-expense-container"
+                      : "bg-surface-container",
+                  )}
+                >
+                  <p className="text-label-sm text-on-surface-variant">剩餘可分配</p>
+                  <p
+                    className={cn(
+                      "mt-1 font-mono text-num-title font-medium tabular-nums",
+                      unallocated < 0 ? "text-money-expense" : "text-on-surface",
+                    )}
+                  >
+                    ${unallocated.toLocaleString("en-US")}
                   </p>
                 </div>
               </div>
             </section>
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">
-                  月初規劃捷徑
-                </h2>
-                <p className="text-chrome-sm text-chrome-800">試作版也可直接操作</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 px-chrome-md py-chrome-md">
+            <section className="rounded-md border border-outline bg-surface p-4">
+              <h2 className="mb-3 text-title-md">月初規劃捷徑</h2>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  className="chrome-btn min-h-11 px-chrome-md py-chrome-md"
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-outline-variant bg-transparent px-4 text-body-md font-medium text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:opacity-40"
                   onClick={() => void copyPreviousMonthBudgets()}
                   disabled={pendingKey === "copy"}
                 >
@@ -773,7 +774,7 @@ export default function BudgetAllocationCompactPage() {
                 </button>
                 <button
                   type="button"
-                  className="chrome-btn chrome-btn--success min-h-11 px-chrome-md py-chrome-md"
+                  className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
                   onClick={() => void applyAutoBudgets()}
                   disabled={pendingKey === "auto-all"}
                 >
@@ -783,38 +784,40 @@ export default function BudgetAllocationCompactPage() {
             </section>
 
             {groupedRows.map((group) => (
-              <section key={group.groupId} className="chrome-window p-[6px]">
-                <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
-                  <div className="flex items-center gap-3">
+              <section key={group.groupId} className="rounded-md border border-outline bg-surface">
+                <div className="flex items-center justify-between gap-2 border-b border-outline px-4 py-3">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className="chrome-btn flex min-h-8 min-w-8 items-center justify-center px-2 py-1 text-chrome-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
                       aria-label={`${group.groupName} ${collapsedGroups[group.groupId] ? "展開" : "收合"}`}
                       onClick={() => toggleGroup(group.groupId)}
                     >
                       {collapsedGroups[group.groupId] ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
-                    <span className={cn("chrome-chip", group.tone.badge)}>{group.groupName}</span>
-                    <p className="text-chrome-sm text-chrome-800">{group.rows.length} 個小項</p>
+                    <span className="text-title-sm">{group.groupName}</span>
+                    <span className="rounded-full bg-secondary-container px-2 py-0.5 text-label-sm text-secondary-on-container">
+                      {group.rows.length}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-chrome-sm text-chrome-800">
-                      本組已分配 {formatCurrency(group.rows.reduce((sum, row) => sum + row.allocated, 0))}
+                    <p className="hidden font-mono text-body-sm tabular-nums text-on-surface-variant sm:block">
+                      ${group.rows.reduce((sum, row) => sum + row.allocated, 0).toLocaleString("en-US")}
                     </p>
                     <div className="relative">
                       <button
                         type="button"
-                        className="chrome-btn flex min-h-9 min-w-9 items-center justify-center px-2 py-2 text-chrome-sm"
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
                         aria-label={`${group.groupName} 設定`}
                         onClick={() => setOpenGroupMenuId((current) => (current === group.groupId ? null : group.groupId))}
                       >
                         <Settings className="h-4 w-4" />
                       </button>
                       {openGroupMenuId === group.groupId ? (
-                        <div className="absolute right-0 z-20 mt-2 w-44 rounded-chrome-card border border-chrome-700 bg-chrome-100 p-2 shadow-chrome-md">
+                        <div className="absolute right-0 z-20 mt-2 w-44 rounded-md border border-outline bg-surface p-1 shadow-elev-2">
                           <button
                             type="button"
-                            className="chrome-btn mb-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
+                            className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 disabled:opacity-40"
                             onClick={() => void reorderGroups(group.groupId, -1)}
                             disabled={pendingKey === `group-sort-${group.groupId}`}
                           >
@@ -822,7 +825,7 @@ export default function BudgetAllocationCompactPage() {
                           </button>
                           <button
                             type="button"
-                            className="chrome-btn mb-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
+                            className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 disabled:opacity-40"
                             onClick={() => void reorderGroups(group.groupId, 1)}
                             disabled={pendingKey === `group-sort-${group.groupId}`}
                           >
@@ -830,7 +833,7 @@ export default function BudgetAllocationCompactPage() {
                           </button>
                           <button
                             type="button"
-                            className="chrome-btn mb-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
+                            className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 disabled:opacity-40"
                             onClick={() => void renameGroup(group)}
                             disabled={pendingKey === `group-rename-${group.groupId}`}
                           >
@@ -838,7 +841,7 @@ export default function BudgetAllocationCompactPage() {
                           </button>
                           <button
                             type="button"
-                            className="chrome-btn chrome-btn--success mb-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
+                            className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-primary hover:bg-primary/5 disabled:opacity-40"
                             onClick={() => void addCategoryToGroup(group)}
                             disabled={pendingKey === `add-${group.groupId}`}
                           >
@@ -846,7 +849,7 @@ export default function BudgetAllocationCompactPage() {
                           </button>
                           <button
                             type="button"
-                            className="chrome-btn chrome-btn--danger w-full px-chrome-sm py-chrome-sm text-chrome-sm"
+                            className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-money-expense hover:bg-money-expense/5 disabled:opacity-40"
                             onClick={() => void deleteGroup(group)}
                             disabled={pendingKey === `group-delete-${group.groupId}`}
                           >
@@ -859,160 +862,165 @@ export default function BudgetAllocationCompactPage() {
                 </div>
 
                 {!collapsedGroups[group.groupId] ? (
-                <div className="px-chrome-md py-chrome-md">
-                  <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-chrome-700 pb-2 text-sm font-bold uppercase tracking-[0.14em] text-chrome-800">
-                    <p className="pl-2">小項</p>
-                    <p className="text-center">上月分配</p>
-                    <p className="text-center">上月支出</p>
-                    <p className="text-center">固定預算</p>
-                    <p className="text-center">本月預算</p>
-                  </div>
+                  <div className="p-3">
+                    <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-outline pb-2 text-label-sm uppercase tracking-wider text-on-surface-variant">
+                      <p className="pl-2">小項</p>
+                      <p className="text-center">上月分配</p>
+                      <p className="text-center">上月支出</p>
+                      <p className="text-center">固定預算</p>
+                      <p className="text-center">本月預算</p>
+                    </div>
 
-                  <div className="space-y-2 pt-2">
-                    {group.rows.map((row) => {
-                      const previous = previousReferenceMap[row.categoryId] ?? {
-                        allocated: 0,
-                        spent: 0,
-                      };
-
-                      return (
-                        <div
-                          key={row.budgetId}
-                          className={cn(
-                            "grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] items-center gap-2 rounded-chrome-card border border-chrome-700 bg-chrome-100 px-2 py-2 shadow-chrome-sm",
-                            group.tone.item,
-                          )}
-                        >
-                          <div className="min-w-0 pl-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="min-w-0 break-words font-chrome-heading text-chrome-base font-bold text-chrome-900">
-                                {row.categoryName}
-                              </p>
-                              <div className="relative shrink-0">
-                                <button
-                                  type="button"
-                                  className="chrome-btn flex min-h-7 min-w-7 items-center justify-center px-1.5 py-1 text-chrome-sm"
-                                  aria-label={`${row.categoryName} 設定`}
-                                  onClick={() => setOpenMenuId((current) => (current === row.categoryId ? null : row.categoryId))}
-                                >
-                                  <Settings className="h-3.5 w-3.5" />
-                                </button>
-                                {openMenuId === row.categoryId ? (
-                                  <div className="absolute right-0 z-20 mt-2 w-40 rounded-chrome-card border border-chrome-700 bg-chrome-100 p-2 shadow-chrome-md">
-                                    <button
-                                      type="button"
-                                      className="chrome-btn mb-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
-                                      onClick={() => void toggleQuickEntry(row)}
-                                      disabled={pendingKey === `quick-${row.categoryId}`}
-                                    >
-                                      {row.isQuick ? "移出快速記帳" : "加入快速記帳"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="chrome-btn w-full px-chrome-sm py-chrome-sm text-chrome-sm"
-                                      onClick={() => void renameCategory(row)}
-                                      disabled={pendingKey === `rename-${row.categoryId}`}
-                                    >
-                                      重新命名
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="chrome-btn chrome-btn--danger mt-2 w-full px-chrome-sm py-chrome-sm text-chrome-sm"
-                                      onClick={() => void deleteCategory(row)}
-                                      disabled={pendingKey === `delete-${row.categoryId}`}
-                                    >
-                                      {pendingKey === `delete-${row.categoryId}` ? "刪除中" : "刪除該項目"}
-                                    </button>
-                                  </div>
-                                ) : null}
+                    <div className="space-y-2 pt-2">
+                      {group.rows.map((row) => {
+                        const previous = previousReferenceMap[row.categoryId] ?? {
+                          allocated: 0,
+                          spent: 0,
+                        };
+                        return (
+                          <div
+                            key={row.budgetId}
+                            className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] items-center gap-2 rounded-sm bg-surface-container-low px-2 py-2"
+                          >
+                            <div className="min-w-0 pl-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="min-w-0 break-words text-body-md font-medium text-on-surface">
+                                  {row.categoryName}
+                                </p>
+                                <div className="relative shrink-0">
+                                  <button
+                                    type="button"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-on-surface-variant hover:bg-on-surface/5 active:bg-on-surface/10"
+                                    aria-label={`${row.categoryName} 設定`}
+                                    onClick={() => setOpenMenuId((current) => (current === row.categoryId ? null : row.categoryId))}
+                                  >
+                                    <Settings className="h-3.5 w-3.5" />
+                                  </button>
+                                  {openMenuId === row.categoryId ? (
+                                    <div className="absolute right-0 z-20 mt-2 w-40 rounded-md border border-outline bg-surface p-1 shadow-elev-2">
+                                      <button
+                                        type="button"
+                                        className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 disabled:opacity-40"
+                                        onClick={() => void toggleQuickEntry(row)}
+                                        disabled={pendingKey === `quick-${row.categoryId}`}
+                                      >
+                                        {row.isQuick ? "移出快速記帳" : "加入快速記帳"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-on-surface hover:bg-on-surface/5 disabled:opacity-40"
+                                        onClick={() => void renameCategory(row)}
+                                        disabled={pendingKey === `rename-${row.categoryId}`}
+                                      >
+                                        重新命名
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="block w-full rounded-sm px-3 py-2 text-left text-body-sm text-money-expense hover:bg-money-expense/5 disabled:opacity-40"
+                                        onClick={() => void deleteCategory(row)}
+                                        disabled={pendingKey === `delete-${row.categoryId}`}
+                                      >
+                                        {pendingKey === `delete-${row.categoryId}` ? "刪除中" : "刪除該項目"}
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
+                              <p className="text-label-sm text-on-surface-variant">
+                                已支出 ${row.spent.toLocaleString("en-US")}
+                              </p>
+                              {pendingKey === row.budgetId ? (
+                                <p className="text-label-sm text-primary">自動儲存中...</p>
+                              ) : null}
+                              {pendingKey === `quick-${row.categoryId}` ? (
+                                <p className="text-label-sm text-primary">更新快速記帳中...</p>
+                              ) : null}
+                              {pendingKey === `auto-${row.categoryId}` ? (
+                                <p className="text-label-sm text-primary">儲存固定預算中...</p>
+                              ) : null}
+                              {pendingKey === `delete-${row.categoryId}` ? (
+                                <p className="text-label-sm text-money-expense">刪除中...</p>
+                              ) : null}
                             </div>
-                            <p className="text-sm text-chrome-800">已支出 {formatCurrency(row.spent)}</p>
-                            {pendingKey === row.budgetId ? (
-                              <p className="text-sm text-chrome-800">自動儲存中...</p>
-                            ) : null}
-                            {pendingKey === `quick-${row.categoryId}` ? (
-                              <p className="text-sm text-chrome-800">正在更新快速記帳...</p>
-                            ) : null}
-                            {pendingKey === `auto-${row.categoryId}` ? (
-                              <p className="text-sm text-chrome-800">正在儲存固定預算...</p>
-                            ) : null}
-                            {pendingKey === `delete-${row.categoryId}` ? (
-                              <p className="text-sm text-chrome-800">正在刪除小項...</p>
-                            ) : null}
+
+                            <div className="text-center font-mono text-body-sm tabular-nums text-on-surface-variant">
+                              ${previous.allocated.toLocaleString("en-US")}
+                            </div>
+                            <div className="text-center font-mono text-body-sm tabular-nums text-on-surface-variant">
+                              ${previous.spent.toLocaleString("en-US")}
+                            </div>
+
+                            <input
+                              inputMode="numeric"
+                              value={String(row.autoAmount)}
+                              onChange={(event) => {
+                                const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
+                                setRows((current) =>
+                                  current.map((item) =>
+                                    item.categoryId === row.categoryId
+                                      ? { ...item, autoAmount: nextValue, isAuto: nextValue > 0 }
+                                      : item,
+                                  ),
+                                );
+                                scheduleAutoBudgetSave(row.categoryId, row.categoryName, nextValue);
+                              }}
+                              className="h-9 w-full rounded-xs border border-outline-variant bg-surface px-2 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2"
+                            />
+
+                            <input
+                              inputMode="numeric"
+                              value={String(row.allocated)}
+                              onChange={(event) => {
+                                const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
+                                setRows((current) =>
+                                  current.map((item) =>
+                                    item.budgetId === row.budgetId
+                                      ? {
+                                          ...item,
+                                          allocated: nextValue,
+                                          remaining: nextValue - item.spent,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                                scheduleBudgetSave(row.budgetId, row.categoryName, nextValue);
+                              }}
+                              className="h-9 w-full rounded-xs border border-outline-variant bg-surface px-2 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2"
+                            />
                           </div>
-
-                          <div className="text-center text-chrome-sm text-chrome-900">{formatCurrency(previous.allocated)}</div>
-
-                          <div className="text-center text-chrome-sm text-chrome-900">{formatCurrency(previous.spent)}</div>
-
-                          <input
-                            inputMode="numeric"
-                            value={String(row.autoAmount)}
-                            onChange={(event) => {
-                              const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
-                              setRows((current) =>
-                                current.map((item) =>
-                                  item.categoryId === row.categoryId
-                                    ? { ...item, autoAmount: nextValue, isAuto: nextValue > 0 }
-                                    : item,
-                                ),
-                              );
-                              scheduleAutoBudgetSave(row.categoryId, row.categoryName, nextValue);
-                            }}
-                            className="chrome-field chrome-field--numeric min-h-10 w-full px-chrome-sm py-chrome-sm text-chrome-base"
-                          />
-
-                          <input
-                            inputMode="numeric"
-                            value={String(row.allocated)}
-                            onChange={(event) => {
-                              const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
-                              setRows((current) =>
-                                current.map((item) =>
-                                  item.budgetId === row.budgetId
-                                    ? {
-                                        ...item,
-                                        allocated: nextValue,
-                                        remaining: nextValue - item.spent,
-                                      }
-                                    : item,
-                                ),
-                              );
-                              scheduleBudgetSave(row.budgetId, row.categoryName, nextValue);
-                            }}
-                            className="chrome-field chrome-field--numeric min-h-10 w-full px-chrome-sm py-chrome-sm text-chrome-base"
-                          />
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
                 ) : (
-                  <div className="px-chrome-md py-chrome-md text-chrome-sm text-chrome-800">
+                  <p className="px-5 py-3 text-body-sm text-on-surface-variant">
                     已收合，點左側箭頭可展開查看小項與預算欄位。
-                  </div>
+                  </p>
                 )}
               </section>
             ))}
 
-            <section className="chrome-window p-[6px]">
-              <div className="chrome-titlebar flex items-center justify-between px-chrome-md py-chrome-sm">
-                <h2 className="font-chrome-heading text-chrome-xl font-bold text-chrome-900">支付方式管理</h2>
-                <p className="text-chrome-sm text-chrome-800">{paymentMethods.length} 個支付方式</p>
+            <section className="rounded-md border border-outline bg-surface">
+              <div className="flex items-center justify-between gap-2 border-b border-outline px-4 py-3">
+                <h2 className="text-title-md">支付方式管理</h2>
+                <p className="text-body-sm text-on-surface-variant">
+                  {paymentMethods.length} 個
+                </p>
               </div>
 
-              <div className="space-y-3 px-chrome-md py-chrome-md">
+              <div className="space-y-2 p-3">
                 {paymentMethods.map((method) => (
                   <div
                     key={method.id}
-                    className="flex items-center justify-between gap-3 rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-md shadow-chrome-sm"
+                    className="flex items-center justify-between gap-3 rounded-sm bg-surface-container-low px-3 py-2"
                   >
-                    <p className="font-chrome-heading text-chrome-base font-bold text-chrome-900">{method.name}</p>
-                    <div className="flex items-center gap-2">
+                    <p className="text-body-md font-medium text-on-surface">
+                      {method.name}
+                    </p>
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        className="chrome-btn px-chrome-sm py-chrome-sm text-chrome-sm"
+                        className="inline-flex h-8 items-center rounded-full px-3 text-body-sm text-primary hover:bg-primary/5 active:bg-primary/10 disabled:opacity-40"
                         onClick={() => void renamePaymentMethod(method)}
                         disabled={pendingKey === `payment-rename-${method.id}`}
                       >
@@ -1020,7 +1028,7 @@ export default function BudgetAllocationCompactPage() {
                       </button>
                       <button
                         type="button"
-                        className="chrome-btn chrome-btn--danger px-chrome-sm py-chrome-sm text-chrome-sm"
+                        className="inline-flex h-8 items-center rounded-full px-3 text-body-sm text-money-expense hover:bg-money-expense/5 active:bg-money-expense/10 disabled:opacity-40"
                         onClick={() => void deletePaymentMethod(method)}
                         disabled={pendingKey === `payment-delete-${method.id}`}
                       >
@@ -1030,19 +1038,21 @@ export default function BudgetAllocationCompactPage() {
                   </div>
                 ))}
 
-                <div className="flex items-end gap-3 rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-md shadow-chrome-sm">
+                <div className="flex items-end gap-2 rounded-sm bg-surface-container-low px-3 py-2">
                   <label className="flex-1">
-                    <span className="mb-2 block text-sm text-chrome-800">新增支付方式</span>
+                    <span className="mb-1 block text-label-md text-on-surface-variant">
+                      新增支付方式
+                    </span>
                     <input
                       value={newPaymentMethodName}
                       onChange={(event) => setNewPaymentMethodName(event.target.value)}
-                      className="chrome-field min-h-11 w-full px-chrome-md py-chrome-md"
+                      className="h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
                       placeholder="例如：現金、信用卡 A"
                     />
                   </label>
                   <button
                     type="button"
-                    className="chrome-btn chrome-btn--success min-h-11 px-chrome-md py-chrome-md"
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-body-md font-medium text-primary-on transition-colors duration-m3-short hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
                     onClick={() => void addPaymentMethod()}
                     disabled={pendingKey === "payment-add"}
                   >

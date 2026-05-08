@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>Lite YNAB · Material 3 Designs</title>
+<meta name="viewport" content="width=1440, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  #root { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="dashboard.jsx"></script>
+<script type="text/babel" src="quick-entry.jsx"></script>
+<script type="text/babel" src="budget-alloc.jsx"></script>
+<script type="text/babel" src="budget-usage.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+const { DesignCanvas, DCSection, DCArtboard } = window;
+const { TweaksPanel, useTweaks, TweakSection, TweakColor, TweakRadio, TweakSlider } = window;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "blue",
+  "mode": "light",
+  "font": "roboto",
+  "numScale": 0.95
+}/*EDITMODE-END*/;
+
+// Phone frame wrapper
+const Phone = ({ children, h = 780 }) => (
+  <div style={{
+    width: 390, height: h, background: 'var(--md-surface)',
+    borderRadius: 36, border: '8px solid #1a1c1e',
+    overflow: 'hidden', position: 'relative',
+    boxShadow: '0 30px 60px rgba(0,0,0,0.15)'
+  }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+      {children}
+    </div>
+  </div>
+);
+
+// Desktop browser frame
+const Desktop = ({ children, w = 1280, h = 820 }) => (
+  <div style={{ width: w, height: h, background: 'var(--md-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--md-outline)', boxShadow: '0 20px 40px rgba(0,0,0,0.10)' }}>
+    <div style={{ height: 36, background: 'var(--md-surface-container)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6, borderBottom: '1px solid var(--md-outline)' }}>
+      <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#FF5F57' }}></div>
+      <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#FEBC2E' }}></div>
+      <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28C840' }}></div>
+      <div style={{ marginLeft: 16, fontSize: 12, color: 'var(--md-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>lite-ynab.zeabur.app</div>
+    </div>
+    <div style={{ height: 'calc(100% - 36px)', overflow: 'auto' }}>{children}</div>
+  </div>
+);
+
+const App = () => {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', t.theme);
+    root.setAttribute('data-mode', t.mode);
+    root.setAttribute('data-font', t.font);
+    root.style.setProperty('--num-hero', (56 * t.numScale) + 'px');
+    root.style.setProperty('--num-display', (36 * t.numScale) + 'px');
+    root.style.setProperty('--num-title', (24 * t.numScale) + 'px');
+  }, [t]);
+
+  const sections = [
+    { id: 'dashboard', title: '主控臺 Dashboard', subtitle: '本月概況一目了然', boards: [
+      { id: 'da-m', label: 'A · Hero + Tonal Cards (mobile)', w: 410, h: 800, c: <Phone><window.DashboardA /></Phone>, frame: false },
+      { id: 'da-d', label: 'A · Hero + Tonal Cards (desktop)', w: 1300, h: 840, c: <Desktop><window.DashboardA /></Desktop>, frame: false },
+      { id: 'db-m', label: 'B · Donut + Trend (mobile)', w: 410, h: 800, c: <Phone><window.DashboardB /></Phone>, frame: false },
+      { id: 'db-d', label: 'B · Donut + Trend (desktop)', w: 1300, h: 840, c: <Desktop><window.DashboardB /></Desktop>, frame: false },
+      { id: 'dc-m', label: 'C · Heatmap + Big Number (mobile)', w: 410, h: 800, c: <Phone><window.DashboardC /></Phone>, frame: false },
+      { id: 'dc-d', label: 'C · Heatmap + Big Number (desktop)', w: 1300, h: 840, c: <Desktop><window.DashboardC /></Desktop>, frame: false },
+    ]},
+    { id: 'quick', title: '快速記帳 Quick Entry', subtitle: '單手就能完成的記帳體驗', boards: [
+      { id: 'qa', label: 'A · Number Pad', w: 410, h: 800, c: <Phone><window.QuickEntryA /></Phone> },
+      { id: 'qb', label: 'B · Inline Form', w: 410, h: 800, c: <Phone><window.QuickEntryB /></Phone> },
+      { id: 'qc', label: 'C · Shortcut Cards', w: 410, h: 800, c: <Phone><window.QuickEntryC /></Phone> },
+    ]},
+    { id: 'alloc', title: '預算分配 Budget Allocation', subtitle: '月初一次分配完所有預算', boards: [
+      { id: 'aa', label: 'A · Table', w: 1300, h: 720, c: <Desktop h={720}><window.BudgetAllocA /></Desktop> },
+      { id: 'ab', label: 'B · Slider Bars', w: 1300, h: 820, c: <Desktop><window.BudgetAllocB /></Desktop> },
+      { id: 'ac', label: 'C · Envelopes', w: 1300, h: 820, c: <Desktop><window.BudgetAllocC /></Desktop> },
+    ]},
+    { id: 'usage', title: '預算使用儀表板 Budget Usage', subtitle: '隨時看你還能花多少', boards: [
+      { id: 'ua', label: 'A · Progress List', w: 1300, h: 920, c: <Desktop h={920}><window.BudgetUsageA /></Desktop> },
+      { id: 'ub', label: 'B · Gauge Cards', w: 1300, h: 820, c: <Desktop><window.BudgetUsageB /></Desktop> },
+      { id: 'uc', label: 'C · Burndown Chart', w: 1300, h: 820, c: <Desktop><window.BudgetUsageC /></Desktop> },
+    ]},
+  ];
+
+  return (
+    <>
+      <DesignCanvas title="Lite YNAB × Material 3" subtitle="淺色明亮 · 數字鮮明 · 3 種變化 / 頁">
+        {sections.map(s => (
+          <DCSection key={s.id} id={s.id} title={s.title} subtitle={s.subtitle}>
+            {s.boards.map(b => (
+              <DCArtboard key={b.id} id={b.id} label={b.label} width={b.w} height={b.h}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--md-background)' }}>
+                  {b.c}
+                </div>
+              </DCArtboard>
+            ))}
+          </DCSection>
+        ))}
+      </DesignCanvas>
+
+      <TweaksPanel>
+        <TweakSection label="主色調">
+          <TweakColor label="Primary"
+            value={({blue:'#1a73e8',green:'#1b873f',purple:'#7c4dff',orange:'#e8590c'})[t.theme]}
+            options={['#1a73e8', '#1b873f', '#7c4dff', '#e8590c']}
+            onChange={v => setTweak('theme', ({'#1a73e8':'blue','#1b873f':'green','#7c4dff':'purple','#e8590c':'orange'})[v])} />
+        </TweakSection>
+        <TweakSection label="外觀">
+          <TweakRadio label="模式" value={t.mode} options={['light', 'dark']} onChange={v => setTweak('mode', v)} />
+          <TweakRadio label="字型" value={t.font} options={['roboto', 'inter']} onChange={v => setTweak('font', v)} />
+        </TweakSection>
+        <TweakSection label="數字">
+          <TweakSlider label="字級縮放" value={t.numScale} min={0.8} max={1.4} step={0.05} unit="x" onChange={v => setTweak('numScale', v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+};
+
+const tryMount = () => {
+  if (!window.DesignCanvas || !window.TweaksPanel || !window.DashboardA || !window.QuickEntryA || !window.BudgetAllocA || !window.BudgetUsageA) {
+    return setTimeout(tryMount, 50);
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+};
+tryMount();
+</script>
+</body>
+</html>

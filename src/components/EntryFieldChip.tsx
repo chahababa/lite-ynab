@@ -24,9 +24,9 @@ export function EntryFieldChip({
       disabled={disabled}
       aria-label={ariaLabel ?? label}
       className={cn(
-        "inline-flex items-center gap-1 rounded-chrome-pill border border-chrome-700 bg-chrome-100 px-3 py-1 font-chrome-body text-chrome-sm text-chrome-900 transition-colors duration-fast ease-click",
-        "hover:bg-chrome-50 active:bg-chrome-200",
-        "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
+        "inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface px-3 py-1 font-sans text-body-sm text-on-surface transition-colors duration-m3-short ease-m3-standard",
+        "hover:bg-on-surface/5 active:bg-on-surface/10",
+        "disabled:cursor-not-allowed disabled:bg-surface-container disabled:text-on-surface-variant disabled:opacity-60",
         className,
       )}
     >

@@ -3,21 +3,57 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Delete, Plus, Settings as SettingsIcon, X } from "lucide-react";
+import {
+  Car,
+  Check,
+  Coffee,
+  CreditCard,
+  Delete,
+  Heart,
+  Home,
+  Music,
+  Plane,
+  Settings as SettingsIcon,
+  ShoppingBag,
+  Tag,
+  Utensils,
+  X,
+} from "lucide-react";
 
 import { CategoryPickerModal } from "@/components/CategoryPickerModal";
-import { EntryFieldChip } from "@/components/EntryFieldChip";
 import { PaymentMethodModal } from "@/components/PaymentMethodModal";
 import { Toast } from "@/components/Toast";
+import { Button as M3Button } from "@/components/m3/Button";
+import { Chip as M3Chip } from "@/components/m3/Chip";
+import { MoneyText } from "@/components/m3/MoneyText";
+import {
+  CAT_BORDER_CLASS,
+  CAT_TEXT_CLASS,
+  type M3CatIcon,
+  getCategoryStyle,
+} from "@/lib/categoryStyle";
 import { fetchQuickEntryData } from "@/lib/data";
-import { getGroupTone } from "@/lib/groupTone";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { CategoryOption, PaymentMethodOption, ToastState } from "@/lib/types";
-import { cn, formatCurrency, getTodayInTaipei, toMonthId } from "@/lib/utils";
+import { cn, getTodayInTaipei, toMonthId } from "@/lib/utils";
 
-const KEYPAD_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "del"] as const;
-const QUICK_GRID_SIZE = 8;
+type EntryType = "expense" | "income" | "transfer";
+const KEYPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"] as const;
+const QUICK_GRID_SIZE = 6;
+
+const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
+  Utensils,
+  Coffee,
+  Car,
+  ShoppingBag,
+  Home,
+  Heart,
+  Music,
+  Plane,
+  CreditCard,
+  Tag,
+};
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -40,10 +76,12 @@ export default function QuickEntryPage() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
     useLastPaymentMethod(paymentMethods);
 
+  const [entryType, setEntryType] = useState<EntryType>("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(getTodayInTaipei());
   const [hasUserModifiedDate, setHasUserModifiedDate] = useState(false);
   const [note, setNote] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -88,7 +126,6 @@ export default function QuickEntryPage() {
     return () => {
       active = false;
     };
-    // router & supabase are stable refs in production; excluded to avoid mock-induced re-fetch loops in tests
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonthId]);
 
@@ -103,8 +140,8 @@ export default function QuickEntryPage() {
   );
 
   const noPaymentMethods = !loading && paymentMethods.length === 0;
-  const noQuickCategories = !loading && !loadError && quickCategories.length === 0;
 
+  const amountValue = amount ? Number(amount) : 0;
 
   function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
@@ -114,8 +151,15 @@ export default function QuickEntryPage() {
     setAmount((v) => `${v}${key}`.replace(/^0+(?=\d)/, ""));
   }
 
+  function handleEntryTypeChange(t: EntryType) {
+    if (t === "expense") {
+      setEntryType("expense");
+      return;
+    }
+    setToast({ tone: "info", message: "v2.1 即將支援收入 / 轉帳記帳" });
+  }
+
   function handleDateChipClick() {
-    // Sprint 2 placeholder: 用瀏覽器原生 prompt 取日期，Sprint 3+ 之後可用 input[type=date]
     const next = window.prompt("輸入日期 (YYYY-MM-DD)，留空恢復今天", date);
     if (next === null) return;
     if (next === "") {
@@ -131,25 +175,22 @@ export default function QuickEntryPage() {
     setHasUserModifiedDate(true);
   }
 
-  function handlePaymentMethodChipClick() {
-    if (paymentMethods.length === 0) return;
-    setIsPaymentModalOpen(true);
-  }
-
-  function handleOpenMoreCategories() {
-    setIsCategoryModalOpen(true);
-  }
-
   function resetAfterSubmit() {
     setAmount("");
     setNote("");
+    setSelectedCategoryId("");
     setDate(getTodayInTaipei());
     setHasUserModifiedDate(false);
   }
 
-  async function submitTransaction(categoryId: string) {
+  async function submitTransaction(categoryIdOverride?: string) {
+    const categoryId = categoryIdOverride ?? selectedCategoryId;
     if (!amount || Number(amount) <= 0) {
       setToast({ tone: "info", message: "請先輸入金額" });
+      return;
+    }
+    if (!categoryId) {
+      setToast({ tone: "info", message: "請先選擇分類" });
       return;
     }
     if (paymentMethods.length === 0) {
@@ -180,7 +221,7 @@ export default function QuickEntryPage() {
 
       setToast({
         tone: "success",
-        message: `已記帳 ${formatCurrency(nextAmount)} 至 ${category?.name ?? "未命名分類"}`,
+        message: `已記帳 $${nextAmount.toLocaleString("en-US")} 至 ${category?.name ?? "未命名分類"}`,
       });
       resetAfterSubmit();
       router.refresh();
@@ -191,166 +232,217 @@ export default function QuickEntryPage() {
     }
   }
 
-  const amountDisplay = amount ? formatCurrency(Number(amount)) : formatCurrency(0);
-
   return (
-    <main className="box-border min-h-screen bg-chrome-400 px-3 py-3 pb-[88px] font-chrome-body text-chrome-base text-chrome-900">
+    <main className="min-h-screen bg-background font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
-      <div className="mx-auto w-full max-w-md chrome-window p-[6px]">
-        {/* Header */}
-        <div className="chrome-titlebar flex items-center justify-between gap-2 px-chrome-md py-chrome-sm">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-3 pb-[88px]">
+        {/* Top bar */}
+        <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => router.push("/")}
             aria-label="關閉"
-            className="flex h-8 w-8 items-center justify-center rounded-chrome-btn border border-chrome-700 bg-chrome-100 text-chrome-900 hover:bg-chrome-50 active:bg-chrome-200"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
-          <p className="font-chrome-heading text-chrome-sm font-bold tracking-chrome-wider text-chrome-900">
-            記一筆
-          </p>
+          <p className="text-title-md">記一筆</p>
           <Link
             href="/settings"
             aria-label="設定"
-            className="flex h-8 w-8 items-center justify-center rounded-chrome-btn border border-chrome-700 bg-chrome-100 text-chrome-900 hover:bg-chrome-50 active:bg-chrome-200"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
           >
-            <SettingsIcon className="h-4 w-4" />
+            <SettingsIcon className="h-5 w-5" />
           </Link>
         </div>
 
-        {/* Banner: 沒有支付方式時引導到 /settings */}
+        {/* Type segmented toggle */}
+        <div className="flex rounded-full bg-surface-container p-[3px]">
+          {(
+            [
+              { key: "expense", label: "支出", color: "text-money-expense" },
+              { key: "income", label: "收入", color: "text-money-income" },
+              { key: "transfer", label: "轉帳", color: "text-on-surface" },
+            ] as const
+          ).map((t) => {
+            const active = entryType === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => handleEntryTypeChange(t.key)}
+                className={cn(
+                  "flex-1 h-8 rounded-full text-body-md font-medium transition-colors duration-m3-short",
+                  active
+                    ? cn("bg-surface shadow-elev-1", t.color)
+                    : "bg-transparent text-on-surface-variant",
+                )}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Banner: 沒有支付方式 */}
         {noPaymentMethods ? (
-          <div className="mt-chrome-sm rounded-chrome-card border border-warning-light bg-warning/10 px-chrome-md py-chrome-sm text-chrome-sm text-warning-dark">
+          <div className="rounded-md bg-money-warn-container px-4 py-2 text-body-sm text-money-warn">
             尚未建立支付方式，請先到{" "}
-            <Link href="/settings" className="font-bold underline">
+            <Link href="/settings" className="font-medium underline">
               設定
             </Link>{" "}
-            建立後再記帳。
+            建立。
           </div>
         ) : null}
 
-        {/* Amount + chips row */}
-        <section className="mt-chrome-sm flex items-center justify-between gap-chrome-sm rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm">
-          <p
-            className={cn(
-              "font-chrome-mono text-[20px] font-bold leading-none",
-              amount ? "text-danger-dark" : "text-chrome-700",
-            )}
-          >
-            −{amountDisplay}
-          </p>
-          <div className="flex items-center gap-chrome-sm">
-            <EntryFieldChip
-              label={formatDateChipLabel(date)}
-              ariaLabel={`日期 ${formatDateChipLabel(date)}`}
-              onClick={handleDateChipClick}
-            />
-            <EntryFieldChip
-              label={selectedPaymentMethod?.name ?? "未設定"}
-              ariaLabel={`支付方式 ${selectedPaymentMethod?.name ?? "未設定"}`}
-              onClick={handlePaymentMethodChipClick}
-              disabled={paymentMethods.length === 0}
-            />
+        {/* Amount card */}
+        <div className="flex items-baseline justify-between rounded-md bg-primary-container px-4 py-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-label-sm uppercase text-primary-on-container/70">
+              金額
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDateChipClick}
+                aria-label={`日期 ${formatDateChipLabel(date)}`}
+                className="text-label-md text-primary-on-container/70 hover:underline"
+              >
+                {formatDateChipLabel(date)}
+              </button>
+              <span className="text-label-md text-primary-on-container/40">·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (paymentMethods.length === 0) return;
+                  setIsPaymentModalOpen(true);
+                }}
+                disabled={paymentMethods.length === 0}
+                aria-label={`支付方式 ${selectedPaymentMethod?.name ?? "未設定"}`}
+                className="text-label-md text-primary-on-container/70 hover:underline disabled:opacity-40 disabled:no-underline"
+              >
+                {selectedPaymentMethod?.name ?? "未設定"}
+              </button>
+            </div>
           </div>
-        </section>
+          <MoneyText
+            value={amountValue}
+            type={entryType === "income" ? "income" : "expense"}
+            size="display"
+          />
+        </div>
 
-        {/* Quick category 3x3 grid */}
-        <section className="mt-chrome-sm">
+        {/* Category 1×6 grid */}
+        <section>
           {loading ? (
-            <div className="grid grid-cols-3 gap-chrome-sm">
-              {Array.from({ length: 9 }).map((_, i) => (
+            <div className="grid grid-cols-6 gap-1">
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="aspect-square animate-pulse rounded-chrome-card border border-chrome-700 bg-chrome-200"
+                  className="aspect-[3/4] animate-pulse rounded-sm bg-surface-container"
                 />
               ))}
             </div>
           ) : loadError ? (
-            <div className="rounded-chrome-card border border-danger-light bg-chrome-100 px-chrome-md py-chrome-md text-chrome-sm text-danger-dark">
+            <div className="rounded-md border border-money-expense bg-money-expense-container px-4 py-3 text-body-sm text-money-expense">
               {loadError}
             </div>
+          ) : visibleQuickCategories.length === 0 ? (
+            <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+              尚未標記常用分類，點下方「更多分類」選擇
+            </p>
           ) : (
-            <>
-              {noQuickCategories ? (
-                <p className="mb-chrome-sm rounded-chrome-card border border-chrome-700 bg-chrome-100 px-chrome-md py-chrome-sm text-chrome-sm text-chrome-800">
-                  尚未標記常用分類，點「+ 更多」選擇分類
-                </p>
-              ) : null}
-              <div className="grid grid-cols-3 gap-chrome-sm">
+            <div className="grid grid-cols-6 gap-1">
               {visibleQuickCategories.map((category) => {
-                const tone = getGroupTone(category.groupName);
+                const style = getCategoryStyle(category.name);
+                const Icon = ICON_COMPONENTS[style.icon];
+                const isSelected = selectedCategoryId === category.id;
                 return (
                   <button
                     key={category.id}
                     type="button"
-                    disabled={isSubmitting}
-                    onClick={() => void submitTransaction(category.id)}
-                    aria-label={`${category.groupName} ${category.name}`}
+                    onClick={() => setSelectedCategoryId(category.id)}
+                    aria-label={category.name}
+                    aria-pressed={isSelected}
                     className={cn(
-                      "relative flex aspect-square flex-col items-center justify-center rounded-chrome-card border border-chrome-700 bg-chrome-100 px-1 py-2 text-center transition-colors duration-fast hover:bg-chrome-50 active:bg-chrome-200",
-                      "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
+                      "flex flex-col items-center gap-1 px-1 py-2 rounded-[10px] transition-colors duration-m3-short",
+                      isSelected
+                        ? cn(
+                            "border-[1.5px]",
+                            CAT_BORDER_CLASS[style.color],
+                            CAT_TEXT_CLASS[style.color],
+                            "bg-on-surface/[0.04]",
+                          )
+                        : "border border-outline text-on-surface-variant hover:bg-on-surface/[0.03]",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "absolute left-1 top-1 inline-block h-1.5 w-1.5 rounded-full",
-                        tone.dot,
-                      )}
-                      aria-hidden
-                    />
-                    <span className="font-chrome-heading text-chrome-base font-bold leading-tight text-chrome-900">
+                    <Icon className="h-[18px] w-[18px]" />
+                    <span className="text-[10px] font-medium leading-tight">
                       {category.name}
                     </span>
                   </button>
                 );
               })}
-
-              {/* 「+ 更多」永遠在最後一格 */}
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleOpenMoreCategories}
-                aria-label="更多分類"
-                className={cn(
-                  "flex aspect-square flex-col items-center justify-center rounded-chrome-card border border-dashed border-chrome-700 bg-chrome-100 px-1 py-2 text-chrome-800 transition-colors duration-fast hover:bg-chrome-50 active:bg-chrome-200",
-                  "disabled:cursor-not-allowed disabled:bg-chrome-200 disabled:text-chrome-600",
-                )}
-              >
-                <Plus className="h-5 w-5" />
-                <span className="mt-1 font-chrome-heading text-chrome-sm font-bold">更多</span>
-              </button>
-              </div>
-            </>
+            </div>
           )}
+          <button
+            type="button"
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="mt-1 w-full text-label-md text-on-surface-variant hover:text-on-surface"
+          >
+            更多分類 →
+          </button>
         </section>
 
-        {/* Note (compact) */}
-        <section className="mt-chrome-sm">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="備註（可留空）"
-            aria-label="備註"
-            className="chrome-field min-h-9 w-full px-chrome-md py-chrome-sm text-chrome-sm"
-          />
-        </section>
+        {/* Payment method chips */}
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {paymentMethods.map((pm) => (
+            <M3Chip
+              key={pm.id}
+              selected={pm.id === selectedPaymentMethodId}
+              onClick={() => setSelectedPaymentMethodId(pm.id)}
+              className="h-7 px-3 text-body-sm flex-shrink-0"
+            >
+              {pm.name}
+            </M3Chip>
+          ))}
+        </div>
 
-        {/* Keypad 4x3 */}
-        <section className="mt-chrome-sm grid grid-cols-3 gap-chrome-sm">
+        {/* Note */}
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="備註（可留空）"
+          aria-label="備註"
+          className="h-10 px-4 rounded-xs border border-outline-variant bg-surface text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[15px]"
+        />
+
+        {/* Number pad */}
+        <div className="grid grid-cols-3 gap-1.5">
           {KEYPAD_KEYS.map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => handleKeypad(key)}
               aria-label={key === "del" ? "刪除" : key}
-              className="chrome-btn flex min-h-9 items-center justify-center px-1 py-2 font-chrome-heading text-chrome-base font-bold tracking-chrome-wide"
+              className="h-11 rounded-md bg-surface-container text-on-surface font-mono text-num-title font-medium hover:bg-surface-container-high active:bg-surface-container-highest"
             >
-              {key === "del" ? <Delete className="h-4 w-4" /> : key}
+              {key === "del" ? <Delete className="mx-auto h-5 w-5" /> : key}
             </button>
           ))}
-        </section>
+        </div>
+
+        {/* Save button (sticky bottom feel via mt-auto + page padding) */}
+        <M3Button
+          variant="filled"
+          onClick={() => void submitTransaction()}
+          disabled={isSubmitting}
+          className="h-12 text-body-lg"
+          startIcon={<Check className="h-[18px] w-[18px]" />}
+        >
+          儲存
+        </M3Button>
       </div>
 
       <PaymentMethodModal
@@ -365,7 +457,9 @@ export default function QuickEntryPage() {
         open={isCategoryModalOpen}
         allCategories={allCategories}
         disabled={isSubmitting}
-        onSelect={(categoryId) => void submitTransaction(categoryId)}
+        onSelect={(categoryId) => {
+          setSelectedCategoryId(categoryId);
+        }}
         onClose={() => setIsCategoryModalOpen(false)}
       />
     </main>
