@@ -102,6 +102,8 @@ export type ReportSummary = {
 export type ReportBreakdownItem = {
   id: string;
   name: string;
+  /** 只有 category-level row 會有；group-level row 不需要。 */
+  groupName?: string;
   allocated: number;
   spent: number;
   remaining: number;

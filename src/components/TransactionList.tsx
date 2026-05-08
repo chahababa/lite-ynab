@@ -20,6 +20,10 @@ import {
 import { Button as M3Button } from "@/components/m3/Button";
 import { MoneyText } from "@/components/m3/MoneyText";
 import {
+  getAmbiguousCategoryNames,
+  getCategoryDisplay,
+} from "@/lib/categoryDisplay";
+import {
   CAT_BG_CLASS,
   CAT_TEXT_CLASS,
   type M3CatIcon,
@@ -186,6 +190,10 @@ export function TransactionList({
     );
   }
 
+  const ambiguousNames = getAmbiguousCategoryNames(
+    items.map((it) => ({ name: it.categoryName })),
+  );
+
   return (
     <>
       <ul>
@@ -193,6 +201,13 @@ export function TransactionList({
           const isPending = pendingTransactionId === item.id;
           const style = getCategoryStyle(item.categoryName);
           const Icon = ICON_COMPONENTS[style.icon];
+          const display = getCategoryDisplay(
+            { name: item.categoryName, groupName: item.categoryGroupName },
+            ambiguousNames,
+          );
+          const fullName = display.secondary
+            ? `${display.secondary} / ${display.primary}`
+            : display.primary;
           return (
             <li
               key={item.id}
@@ -212,11 +227,10 @@ export function TransactionList({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-body-md font-medium">
-                  {item.note || item.categoryName}
+                  {item.note || fullName}
                 </p>
                 <p className="truncate text-body-sm text-on-surface-variant">
-                  {item.categoryGroupName} · {item.categoryName} ·{" "}
-                  {item.paymentMethodName} · {item.date}
+                  {fullName} · {item.paymentMethodName} · {item.date}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -402,7 +416,10 @@ export function TransactionList({
                 確定要刪除這筆交易嗎？
               </p>
               <p className="mt-2 text-body-sm text-on-surface-variant">
-                {confirmDeleteItem.categoryName} ·{" "}
+                {ambiguousNames.has(confirmDeleteItem.categoryName)
+                  ? `${confirmDeleteItem.categoryGroupName} / ${confirmDeleteItem.categoryName}`
+                  : confirmDeleteItem.categoryName}{" "}
+                ·{" "}
                 <span className="font-mono tabular-nums">
                   ${confirmDeleteItem.amount.toLocaleString("en-US")}
                 </span>{" "}

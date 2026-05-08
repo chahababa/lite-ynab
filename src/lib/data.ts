@@ -613,37 +613,32 @@ export function computeReportData(
     );
   }
 
-  const categoryRows = Array.from(allocatedByCategory.entries())
-    .map(([categoryId, allocated]) => {
+  const categoryRows = Array.from(allocatedByCategory.entries()).flatMap(
+    ([categoryId, allocated]) => {
       const category = categoryMap.get(categoryId);
-
-      if (!category) {
-        return null;
-      }
+      if (!category) return [];
 
       const spent = spentByCategory.get(category.id) ?? 0;
       const previousSpent = previousSpentByCategory.get(category.id) ?? 0;
       const transactionCount = countByCategory.get(category.id) ?? 0;
 
-      return {
-        id: category.id,
-        name: category.name,
-        allocated,
-        spent,
-        remaining: allocated - spent,
-        transactionCount,
-        previousSpent,
-        deltaSpent: spent - previousSpent,
-        groupId: category.category_group_id,
-      };
-    })
-    .filter(
-      (
-        row,
-      ): row is ReportBreakdownItem & {
-        groupId: string;
-      } => row !== null,
-    );
+      const group = groups.find((g) => g.id === category.category_group_id);
+      return [
+        {
+          id: category.id,
+          name: category.name,
+          groupName: group?.name,
+          allocated,
+          spent,
+          remaining: allocated - spent,
+          transactionCount,
+          previousSpent,
+          deltaSpent: spent - previousSpent,
+          groupId: category.category_group_id,
+        },
+      ];
+    },
+  );
 
   const groupRows = groups
     .map((group) => {

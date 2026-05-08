@@ -30,6 +30,10 @@ import {
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
+import {
+  getAmbiguousCategoryNames,
+  getCategoryDisplay,
+} from "@/lib/categoryDisplay";
 import { fetchBudgetUsageData } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetUsageData, BudgetUsageScope, ToastState } from "@/lib/types";
@@ -125,6 +129,11 @@ export default function BudgetUsagePage() {
   const totalAllocated = useMemo(
     () => (data ? data.groups.reduce((s, g) => s + g.allocated, 0) : 0),
     [data],
+  );
+
+  const ambiguousNames = useMemo(
+    () => getAmbiguousCategoryNames(allItems),
+    [allItems],
   );
 
   return (
@@ -263,6 +272,7 @@ export default function BudgetUsagePage() {
                             Math.round((item.spent / item.allocated) * 100),
                           )
                         : 0;
+                    const display = getCategoryDisplay(item, ambiguousNames);
                     return (
                       <div
                         key={item.id}
@@ -283,7 +293,12 @@ export default function BudgetUsagePage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-body-md font-medium text-on-surface">
-                              {item.name}
+                              {display.secondary ? (
+                                <span className="text-label-sm font-normal text-on-surface-variant">
+                                  {display.secondary} ·{" "}
+                                </span>
+                              ) : null}
+                              {display.primary}
                             </p>
                             <p className="text-label-sm text-on-surface-variant">
                               {item.isOverspent

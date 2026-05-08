@@ -26,6 +26,10 @@ import {
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
+import {
+  getAmbiguousCategoryNames,
+  getCategoryDisplay,
+} from "@/lib/categoryDisplay";
 import { fetchDashboardData } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type {
@@ -151,6 +155,21 @@ export default function DashboardPage() {
   const totalSpent = useMemo(
     () => budgetRows.reduce((s, r) => s + r.spent, 0),
     [budgetRows],
+  );
+  // 偵測同名分類（例如「個人/飲食」+「家庭/飲食」）以便顯示時加群組前綴
+  const ambiguousBudgetNames = useMemo(
+    () =>
+      getAmbiguousCategoryNames(
+        budgetRows.map((r) => ({ name: r.categoryName })),
+      ),
+    [budgetRows],
+  );
+  const ambiguousTxNames = useMemo(
+    () =>
+      getAmbiguousCategoryNames(
+        recentTransactions.map((t) => ({ name: t.categoryName })),
+      ),
+    [recentTransactions],
   );
   const remainBudget = totalBudget - totalSpent;
   const usagePct =
@@ -331,6 +350,10 @@ export default function DashboardPage() {
                         ? Math.min(100, Math.round((row.spent / row.allocated) * 100))
                         : 0;
                     const over = row.allocated > 0 && row.spent > row.allocated;
+                    const display = getCategoryDisplay(
+                      { name: row.categoryName, groupName: row.categoryGroupName },
+                      ambiguousBudgetNames,
+                    );
                     return (
                       <div
                         key={row.budgetId}
@@ -346,9 +369,16 @@ export default function DashboardPage() {
                           >
                             <Icon className="h-[18px] w-[18px]" />
                           </div>
-                          <span className="flex-1 truncate text-body-md font-medium">
-                            {row.categoryName}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            {display.secondary ? (
+                              <p className="truncate text-label-sm leading-none text-on-surface-variant">
+                                {display.secondary}
+                              </p>
+                            ) : null}
+                            <p className="truncate text-body-md font-medium">
+                              {display.primary}
+                            </p>
+                          </div>
                           <span
                             className={cn(
                               "text-label-sm font-medium",
@@ -405,6 +435,13 @@ export default function DashboardPage() {
                   {recentTransactions.slice(0, 5).map((tx, i) => {
                     const style = getCategoryStyle(tx.categoryName);
                     const Icon = ICON_COMPONENTS[style.icon];
+                    const display = getCategoryDisplay(
+                      { name: tx.categoryName, groupName: tx.categoryGroupName },
+                      ambiguousTxNames,
+                    );
+                    const fullName = display.secondary
+                      ? `${display.secondary} / ${display.primary}`
+                      : display.primary;
                     return (
                       <div
                         key={tx.id}
@@ -424,10 +461,10 @@ export default function DashboardPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-body-md font-medium">
-                            {tx.note || tx.categoryName}
+                            {tx.note || fullName}
                           </p>
                           <p className="truncate text-body-sm text-on-surface-variant">
-                            {tx.categoryName} · {tx.paymentMethodName} · {tx.date}
+                            {fullName} · {tx.paymentMethodName} · {tx.date}
                           </p>
                         </div>
                         <MoneyText

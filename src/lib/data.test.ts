@@ -332,6 +332,7 @@ describe("computeReportData", () => {
     expect(result.categories[0]).toEqual({
       id: "cat-rent",
       name: "房租",
+      groupName: "家庭",
       allocated: 12000,
       spent: 12000,
       remaining: 0,

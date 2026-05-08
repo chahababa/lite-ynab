@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BarChart3, Download, FileSpreadsheet } from "lucide-react";
 
+import {
+  getAmbiguousCategoryNames,
+  getCategoryDisplay,
+} from "@/lib/categoryDisplay";
 import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
@@ -156,6 +160,11 @@ export default function ReportsPage() {
     setRefreshTick((value) => value + 1);
   }
 
+  const ambiguousReportNames = useMemo(
+    () => getAmbiguousCategoryNames(data?.categories ?? []),
+    [data],
+  );
+
   function exportCsv() {
     if (!data) return;
     downloadBlob(createCsvContent(data), `reports-${monthId}.csv`, "text/csv;charset=utf-8;");
@@ -266,26 +275,36 @@ export default function ReportsPage() {
                 </p>
               ) : (
                 <div className="rounded-md border border-outline bg-surface">
-                  {data.categories.map((item, i) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "flex items-center justify-between gap-3 px-5 py-4",
-                        i > 0 && "border-t border-outline",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <p className="text-body-md font-medium">{item.name}</p>
-                        <p className="text-body-sm text-on-surface-variant">
-                          交易 {item.transactionCount} 筆 · 預算{" "}
-                          {formatCurrency(item.allocated)}
+                  {data.categories.map((item, i) => {
+                    const display = getCategoryDisplay(item, ambiguousReportNames);
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 px-5 py-4",
+                          i > 0 && "border-t border-outline",
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-body-md font-medium">
+                            {display.secondary ? (
+                              <span className="text-label-sm font-normal text-on-surface-variant">
+                                {display.secondary} ·{" "}
+                              </span>
+                            ) : null}
+                            {display.primary}
+                          </p>
+                          <p className="text-body-sm text-on-surface-variant">
+                            交易 {item.transactionCount} 筆 · 預算{" "}
+                            {formatCurrency(item.allocated)}
+                          </p>
+                        </div>
+                        <p className="font-mono text-title-md font-medium tabular-nums">
+                          {formatCurrency(item.spent)}
                         </p>
                       </div>
-                      <p className="font-mono text-title-md font-medium tabular-nums">
-                        {formatCurrency(item.spent)}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
