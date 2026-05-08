@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## [v2.1.1] - 2026-05-08 — Hotfix：刪支付方式錯誤訊息 + 同名分類分群顯示
+
+PR #6（merge commit `2c86783`）。三個小 bug 一起：
+
+### Fixed — `/budget-allocation` 刪支付方式錯誤訊息被吞
+
+- **問題**：當支付方式仍有歷史交易時，DB 因 `on delete restrict` 拒絕，但 Supabase `PostgrestError` 不是 `Error` instance，被 `getErrorMessage` 走 fallback 顯示「發生未預期的錯誤」，使用者看不到真正原因
+- **修法**：
+  - `getErrorMessage` 加 PostgrestError 處理（讀 `.message` / `.code` / `.hint`）
+  - `deletePaymentMethod` 改成先用 `count(*)` 跨月份查還有幾筆交易，給出具體訊息「還有 N 筆交易（含過去月份），請先到 /transactions 跨月份刪除或改成其他支付方式後再刪」
+- 這同時解決了 user 困惑「`/transactions` 看不到交易但還是刪不掉」的問題（`/transactions` 只看當月，YNAB 匯入的歷史月份交易看不見）
+
+### Fixed — 同名分類在所有列表都加群組前綴
+
+- **問題**：lite-ynab 大項分類允許同名小項（例：「個人/飲食」+「家庭/飲食」），但 `/quick-entry` 1×6 grid、`/budget-usage` 列表、`/reports` 細項、Dashboard 分類預算 grid、Dashboard 最近交易、`/transactions` 列表，都只顯示 `category.name` 看不出是哪個
+- **修法**：
+  - 新增 `src/lib/categoryDisplay.ts` 工具：`getAmbiguousCategoryNames()` 偵測同名 + `getCategoryDisplay()` 計算顯示文字
+  - **只在偵測到同名衝突時** 才顯示群組前綴；不衝突的維持原本乾淨樣式
+  - 不同 layout 用不同寫法：`/quick-entry` 用 stacked（icon→群組名小字→分類名）、列表用 inline `·` 或 `/` 前綴
+  - aria-label 一律改為 `{groupName} {name}`，無障礙更明確
+  - 5 個新 util 單元測試 + 既有 data.test.ts 對應預期值更新
+
+### Changed — Data layer
+
+- `types.ts`：`ReportBreakdownItem` 加 optional `groupName?: string`
+- `data.ts`：`fetchReportsData` 計算 categoryRows 時帶上 group name；用 `flatMap` 取代 map+filter type predicate
+
+### Verified
+
+- `npm run typecheck`（0 errors）
+- `npm run test`（18 test files / 69 tests 全綠，淨增 5 個 categoryDisplay 測試）
+- `npm run build`（14 routes 全部編譯成功）
+
 ## [v2.1] - 2026-05-08 — Material 3 全站完整化 + Legacy 清理
 
 ### Changed — 完整 M3
