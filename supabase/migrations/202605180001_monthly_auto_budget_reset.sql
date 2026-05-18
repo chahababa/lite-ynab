@@ -154,4 +154,6 @@ begin
 end;
 $$;
 
+revoke execute on function public.record_budget_auto_manual_adjustment() from public, anon, authenticated;
+revoke execute on function public.reset_monthly_auto_budgets(text) from public, anon, authenticated;
 grant execute on function public.reset_monthly_auto_budgets(text) to service_role;
