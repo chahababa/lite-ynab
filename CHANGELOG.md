@@ -13,6 +13,10 @@
   - Optional query：`?monthId=YYYY-MM`
   - 不帶 `monthId` 時，以 Asia/Taipei 計算「上個月」
 
+### Fixed
+
+- 修正 production cron endpoint 呼叫 `src/lib/data.ts` client module export 導致 500 的問題；將報表純計算 helper 拆到 `src/lib/reportData.ts`，供 client/server 共用。
+
 ### Deployment notes
 
 - 月報正式排程：每月 1 號 00:10（Asia/Taipei），避開 v3.0 00:01 固定預算自動回復 cron。

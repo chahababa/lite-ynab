@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { buildMonthlyExpenseReport, getPreviousMonthIdInTaipei, type MonthlyExpenseReport } from "./monthlyExpenseReport";
-import { computeReportData, getReportRangeBounds } from "./data";
+import { computeReportData, getReportRangeBounds } from "./reportData";
 import type { Budget, Category, CategoryGroup, MonthlyIncome, PaymentMethod, Transaction } from "./types";
 import { listMonthIds, shiftMonth } from "./utils";
 
