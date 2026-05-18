@@ -116,6 +116,7 @@ npm run test
 - `bootstrap_default_categories()`
 - `bootstrap_default_payment_methods()`
 - `initialize_monthly_budget(text)`
+- `reset_monthly_auto_budgets(text)`
 
 ## 報表頁目前支援
 

@@ -35,14 +35,22 @@ Lite YNAB 目前部署於 `Zeabur`，資料庫與登入服務使用 `Supabase`�
 
 ## 二、正式環境需要的資料
 
-正式部署至少需要這兩個環境變數：
+正式部署至少需要這些環境變數：
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-它們會來自你的正式 Supabase 專案。
+若要啟用 v3.0「月初固定預算自動回復」排程，還需要：
+
+```env
+SUPABASE_SERVICE_ROLE_KEY=
+CRON_SECRET=
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` 只能放在伺服器端環境變數，不可提交、不可以 `NEXT_PUBLIC_` 開頭。
+`CRON_SECRET` 是外部排程呼叫 `/api/cron/monthly-budget-reset` 時使用的 Bearer token。
 
 ## 三、Supabase 正式環境準備
 
@@ -56,6 +64,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 202604030003_translate_default_categories_to_zh_hant.sql
 202604030004_add_budget_planning_groups_and_payment_methods.sql
 202604030005_stop_recreating_deleted_default_categories.sql
+202604110001_merge_duplicate_english_categories.sql
+202605180001_monthly_auto_budget_reset.sql
 ```
 
 3. 確認以下資料表與 RPC 已存在：
@@ -67,12 +77,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - `monthly_incomes`
 - `budgets`
 - `transactions`
+- `budget_auto_adjustment_stats`
 
 RPC：
 - `bootstrap_default_category_groups()`
 - `bootstrap_default_categories()`
 - `bootstrap_default_payment_methods()`
 - `initialize_monthly_budget(text)`
+- `reset_monthly_auto_budgets(text)`
 
 4. 在 Supabase 專案設定中取得：
 - `Project URL`
@@ -93,6 +105,8 @@ lite-ynab
 ```env
 NEXT_PUBLIC_SUPABASE_URL=你的正式 Supabase URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=你的正式 Supabase anon key
+SUPABASE_SERVICE_ROLE_KEY=你的 Supabase service role key（只放伺服器端）
+CRON_SECRET=外部排程使用的長隨機字串
 ```
 
 5. 觸發第一次部署
@@ -128,6 +142,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的正式 Supabase anon key
 - 本月收入可儲存
 - 預算分配頁可修改本月預算
 - 固定預算可修改
+- 若已設定外部排程，可用以下方式測試月初固定預算重設 endpoint：
+
+```bash
+curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-budget-reset?monthId=2026-05" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+回傳應包含 `ok: true` 與 `changedBudgets` / `trackedAutoCategories`。正式排程建議設定為每月 1 號 00:01（台北時間）呼叫同一 endpoint。
 - 複製上月預算可執行
 - 批次套用固定預算可執行
 - 大項 / 小項設定可操作
