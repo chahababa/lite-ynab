@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## [v3.1] - 2026-05-18 — 月報自動分析 + Notion/Telegram 通知
+
+### Added
+
+- 新增純 helper `src/lib/monthlyExpenseReport.ts` 與單元測試，彙整上月總支出、總預算、剩餘 / 超支、交易筆數、大項 / 小項支出佔比、Top 5 支出、超支與 80% 預算使用提醒。
+- 新增 server-side 月報資料讀取 `src/lib/monthlyExpenseReportServer.ts`，使用 `SUPABASE_SERVICE_ROLE_KEY` 供排程讀取上月資料；可選用 `LITEYNAB_USER_ID` 限定單一使用者。
+- 新增 Notion 存檔 helper `src/lib/notionMonthlyReports.ts`，寫入「LiteYNAB 月報資料庫」。
+- 新增 Telegram 通知 helper `src/lib/telegramNotify.ts`，傳送月報文字摘要。
+- 新增受保護排程 endpoint：`GET/POST /api/cron/monthly-expense-report`
+  - Header：`Authorization: Bearer ***`
+  - Optional query：`?monthId=YYYY-MM`
+  - 不帶 `monthId` 時，以 Asia/Taipei 計算「上個月」
+
+### Deployment notes
+
+- 月報正式排程：每月 1 號 00:10（Asia/Taipei），避開 v3.0 00:01 固定預算自動回復 cron。
+- 需要 Zeabur env：`SUPABASE_SERVICE_ROLE_KEY`、`CRON_SECRET`、`NOTION_API_KEY`、`NOTION_MONTHLY_REPORT_DATABASE_ID`、`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`。
+- `TELEGRAM_CHAT_ID` 需由 Matt 先對 bot 傳訊息後，再用 Telegram `getUpdates` 取得；不要把 bot token 或 chat id 寫入 repo / Notion。
+
+### Verified
+
+- `npm run typecheck`
+- `npm run test`（20 files / 75 tests）
+- `npm run build`
+- `git diff --check`
+
 ## [v3.0] - 2026-05-18 — 月初固定預算自動回復 + 學習提醒
 
 ### Added

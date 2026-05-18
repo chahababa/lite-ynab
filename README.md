@@ -11,6 +11,7 @@
 - 預算使用儀表板
 - 完整交易查詢
 - 報表分析
+- 每月 1 號自動產生上月支出月報，存入 Notion 並透過 Telegram 摘要通知
 
 ## 目前功能
 
@@ -24,6 +25,7 @@
 - 大項 / 小項分類管理
 - 支付方式管理
 - 固定預算設定
+- 月報自動分析與通知（Notion 存檔 + Telegram 摘要）
 - 基本測試與型別檢查
 
 ## UI 設計風格
@@ -117,6 +119,16 @@ npm run test
 - `bootstrap_default_payment_methods()`
 - `initialize_monthly_budget(text)`
 - `reset_monthly_auto_budgets(text)`
+
+## 月報自動分析
+
+受保護 endpoint：`GET/POST /api/cron/monthly-expense-report`
+
+- Header：`Authorization: Bearer <CRON_SECRET>`
+- Optional query：`?monthId=YYYY-MM`（不帶時會以 Asia/Taipei 計算「上個月」）
+- 建議排程：每月 1 號 00:10（Asia/Taipei）
+- 輸出：上月總支出、總預算、剩餘 / 超支、交易筆數、大項 / 小項佔比、Top 5 支出、超支提醒、80% 預算使用提醒
+- 通知：先傳 Telegram 摘要，再寫入 Notion「LiteYNAB 月報資料庫」
 
 ## 報表頁目前支援
 
