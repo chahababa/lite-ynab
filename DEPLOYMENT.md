@@ -46,11 +46,24 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 ```env
 SUPABASE_SERVICE_ROLE_KEY=
-CRON_SECRET=
+CRON_SECRET=***
 ```
 
+若要啟用 v3.1「月報自動分析 + Notion/Telegram 通知」，還需要：
+
+```env
+NOTION_API_KEY=***
+NOTION_MONTHLY_REPORT_DATABASE_ID=3646f483-1a61-8191-8280-c2ab8ca8fa0c
+TELEGRAM_BOT_TOKEN=***
+TELEGRAM_CHAT_ID=***
+# 選用；若未設定，service role 會彙總目前可讀取的資料。單使用者正式環境可省略。
+LITEYNAB_USER_ID=
+```
+
+
 `SUPABASE_SERVICE_ROLE_KEY` 只能放在伺服器端環境變數，不可提交、不可以 `NEXT_PUBLIC_` 開頭。
-`CRON_SECRET` 是外部排程呼叫 `/api/cron/monthly-budget-reset` 時使用的 Bearer token。
+`CRON_SECRET` 是外部排程呼叫 `/api/cron/monthly-budget-reset` 與 `/api/cron/monthly-expense-report` 時使用的 Bearer token。
+`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`、`NOTION_API_KEY` 不可提交到 repo、不可寫入 Notion 文件。
 
 ## 三、Supabase 正式環境準備
 
@@ -106,7 +119,13 @@ lite-ynab
 NEXT_PUBLIC_SUPABASE_URL=你的正式 Supabase URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=你的正式 Supabase anon key
 SUPABASE_SERVICE_ROLE_KEY=你的 Supabase service role key（只放伺服器端）
-CRON_SECRET=外部排程使用的長隨機字串
+CRON_SECRET=***
+NOTION_API_KEY=***
+NOTION_MONTHLY_REPORT_DATABASE_ID=3646f483-1a61-8191-8280-c2ab8ca8fa0c
+TELEGRAM_BOT_TOKEN=***
+TELEGRAM_CHAT_ID=***
+# 選用
+LITEYNAB_USER_ID=
 ```
 
 5. 觸發第一次部署
@@ -146,7 +165,7 @@ CRON_SECRET=外部排程使用的長隨機字串
 
 ```bash
 curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-budget-reset?monthId=2026-05" \
-  -H "Authorization: Bearer $CRON_SECRET"
+  -H "Authorization: Bearer ***"
 ```
 
 回傳應包含 `ok: true` 與 `changedBudgets` / `trackedAutoCategories`。正式排程建議設定為每月 1 號 00:01（台北時間）呼叫同一 endpoint。
@@ -167,6 +186,14 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-budget-reset?mont
 - 可載入報表頁
 - 圖表與數字正常顯示
 - 預算使用頁儀表板正常顯示
+- 若已設定 Notion / Telegram env，可用以下方式測試月報 endpoint：
+
+```bash
+curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report?monthId=2026-04" \
+  -H "Authorization: Bearer ***"
+```
+
+回傳應包含 `ok: true`、`notionPageId`，且 Telegram 會收到摘要。正式排程設定為每月 1 號 00:10（Asia/Taipei），用來分析上個月。
 
 ## 六、目前不建議先做的事
 
