@@ -8,6 +8,7 @@ import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
+import { buildAutoBudgetAdjustmentReminder } from "@/lib/autoBudgetLearning";
 import { fetchBudgetAllocationData, fetchBudgetReferenceData } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetRow, PaymentMethodOption, ToastState } from "@/lib/types";
@@ -201,17 +202,27 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function saveBudgetValue(budgetId: string, categoryName: string, allocated: number) {
-    setPendingKey(budgetId);
+  async function saveBudgetValue(row: BudgetRow, allocated: number) {
+    setPendingKey(row.budgetId);
 
     try {
-      const { error } = await supabase.from("budgets").update({ allocated }).eq("id", budgetId);
+      const { error } = await supabase.from("budgets").update({ allocated }).eq("id", row.budgetId);
 
       if (error) {
         throw error;
       }
 
-      setToast({ tone: "success", message: `${categoryName} 的本月預算已自動儲存。` });
+      const reminder = buildAutoBudgetAdjustmentReminder({
+        categoryName: row.categoryName,
+        isAuto: row.isAuto,
+        autoAmount: row.autoAmount,
+        allocated,
+      });
+
+      setToast({
+        tone: reminder ? "info" : "success",
+        message: reminder ?? `${row.categoryName} 的本月預算已自動儲存。`,
+      });
     } catch (error) {
       setToast({ tone: "error", message: `儲存預算失敗：${getErrorMessage(error)}` });
     } finally {
@@ -219,15 +230,15 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  function scheduleBudgetSave(budgetId: string, categoryName: string, allocated: number) {
-    const currentTimer = saveTimersRef.current[budgetId];
+  function scheduleBudgetSave(row: BudgetRow, allocated: number) {
+    const currentTimer = saveTimersRef.current[row.budgetId];
     if (currentTimer) {
       window.clearTimeout(currentTimer);
     }
 
-    saveTimersRef.current[budgetId] = setTimeout(() => {
-      void saveBudgetValue(budgetId, categoryName, allocated);
-      delete saveTimersRef.current[budgetId];
+    saveTimersRef.current[row.budgetId] = setTimeout(() => {
+      void saveBudgetValue(row, allocated);
+      delete saveTimersRef.current[row.budgetId];
     }, 500);
   }
 
@@ -1005,7 +1016,7 @@ export default function BudgetAllocationCompactPage() {
                                       : item,
                                   ),
                                 );
-                                scheduleBudgetSave(row.budgetId, row.categoryName, nextValue);
+                                scheduleBudgetSave(row, nextValue);
                               }}
                               className="h-9 w-full rounded-xs border border-outline-variant bg-surface px-2 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2"
                             />

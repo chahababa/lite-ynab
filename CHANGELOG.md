@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [v3.0] - 2026-05-18 — 月初固定預算自動回復 + 學習提醒
+
+### Added
+
+- 新增 Supabase migration `202605180001_monthly_auto_budget_reset.sql`
+  - `reset_monthly_auto_budgets(month_id)` RPC：可由排程在每月 1 號把啟用固定預算的小項，強制回寫成該小項的 `auto_amount`
+  - `budget_auto_adjustment_stats`：記錄固定預算小項在單月被手動調整的次數、最近調整金額與固定金額
+  - `record_budget_auto_manual_adjustment` trigger：使用者手動改動本月預算且偏離固定預算時，自動累加調整次數；系統月初重設不會被計入
+- 新增受保護排程 endpoint：`GET/POST /api/cron/monthly-budget-reset`
+  - Header：`Authorization: Bearer <CRON_SECRET>`
+  - Optional query：`?monthId=YYYY-MM`
+  - 需要環境變數：`CRON_SECRET`、`SUPABASE_SERVICE_ROLE_KEY`
+- 預算分配頁在固定預算小項被手動改成不同金額時，會提示「系統會記錄這次手動調整；如果常常調整，建議更新固定預算」。
+
+### Verified
+
+- `npm run typecheck`
+- `npm run test`（19 files / 72 tests）
+- `npm run build`
+- `git diff --check`
+- `supabase db lint --local` 嘗試執行但本機 Supabase DB 未啟動（127.0.0.1:54322 refused），SQL migration 尚需在 Supabase 環境套用時再驗證。
+
 ## [v2.1.1] - 2026-05-08 — Hotfix：刪支付方式錯誤訊息 + 同名分類分群顯示
 
 PR #6（merge commit `2c86783`）。三個小 bug 一起：
