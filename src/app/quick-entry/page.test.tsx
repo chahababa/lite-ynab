@@ -176,6 +176,10 @@ describe("QuickEntryPage (M3 v2.0)", () => {
         category_id: "cat-food",
         payment_method_id: "pm-cash",
         note: "",
+        source: "manual",
+        source_text: null,
+        source_id: null,
+        metadata: { entrypoint: "quick-entry" },
       }),
     );
     expect(await screen.findByText("已記帳 $123 至 飲食")).toBeInTheDocument();

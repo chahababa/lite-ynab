@@ -65,6 +65,10 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
     category_id: "category-default",
     payment_method_id: "payment-default",
     note: "",
+    source: "manual",
+    source_text: null,
+    source_id: null,
+    metadata: {},
     created_at: "2026-04-01T08:00:00.000Z",
     ...overrides,
   };

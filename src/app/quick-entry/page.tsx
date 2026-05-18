@@ -227,6 +227,10 @@ export default function QuickEntryPage() {
         category_id: categoryId,
         payment_method_id: selectedPaymentMethodId,
         note: note.trim(),
+        source: "manual",
+        source_text: null,
+        source_id: null,
+        metadata: { entrypoint: "quick-entry" },
       });
       if (error) throw error;
 
