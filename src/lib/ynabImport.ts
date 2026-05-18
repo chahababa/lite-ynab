@@ -469,7 +469,7 @@ export async function importYnabPreviewToLiteYnab(
 
   const existingTransactionsResult = await supabase
     .from("transactions")
-    .select("date,amount,category_id,payment_method_id,note")
+    .select("date,amount,category_id,payment_method_id,note,source,source_id")
     .gte("date", preview.startDate ?? "1970-01-01")
     .lte("date", preview.endDate ?? "2999-12-31");
 
@@ -477,11 +477,19 @@ export async function importYnabPreviewToLiteYnab(
     throw existingTransactionsResult.error;
   }
 
+  const existingTransactions = (existingTransactionsResult.data ?? []) as Pick<
+    Transaction,
+    "date" | "amount" | "category_id" | "payment_method_id" | "note" | "source" | "source_id"
+  >[];
+
+  const existingYnabSourceIds = new Set(
+    existingTransactions
+      .filter((transaction) => transaction.source === "ynab_import" && transaction.source_id)
+      .map((transaction) => transaction.source_id as string),
+  );
+
   const existingTransactionSignatures = new Set(
-    ((existingTransactionsResult.data ?? []) as Pick<
-      Transaction,
-      "date" | "amount" | "category_id" | "payment_method_id" | "note"
-    >[]).map((transaction) =>
+    existingTransactions.map((transaction) =>
       buildTransactionSignature({
         date: transaction.date,
         amount: transaction.amount,
@@ -507,12 +515,29 @@ export async function importYnabPreviewToLiteYnab(
         return null;
       }
 
+      if (existingYnabSourceIds.has(transaction.sourceId)) {
+        return null;
+      }
+
       const nextTransaction = {
         date: transaction.date,
         amount: transaction.amount,
         category_id: category.id,
         payment_method_id: paymentMethod.id,
         note: transaction.note,
+        source: "ynab_import",
+        source_text: `YNAB import: ${preview.planName}`,
+        source_id: transaction.sourceId,
+        metadata: {
+          ynab: {
+            planId: preview.planId,
+            planName: preview.planName,
+            sourceId: transaction.sourceId,
+            accountName: transaction.accountName,
+            categoryGroupName: transaction.categoryGroupName,
+            categoryName: transaction.categoryName,
+          },
+        },
       };
 
       const signature = buildTransactionSignature({
@@ -528,6 +553,7 @@ export async function importYnabPreviewToLiteYnab(
       }
 
       existingTransactionSignatures.add(signature);
+      existingYnabSourceIds.add(transaction.sourceId);
       return nextTransaction;
     })
     .filter((value): value is NonNullable<typeof value> => value !== null);

@@ -38,6 +38,8 @@ export type Budget = {
   allocated: number;
 };
 
+export type TransactionSource = "legacy" | "manual" | "ynab_import" | "hermes";
+
 export type Transaction = {
   id: string;
   user_id: string;
@@ -46,6 +48,10 @@ export type Transaction = {
   category_id: string;
   payment_method_id: string;
   note: string;
+  source: TransactionSource;
+  source_text: string | null;
+  source_id: string | null;
+  metadata: Record<string, unknown>;
   created_at?: string;
 };
 
