@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## [v3.2] - 2026-05-19 — Hermes 文字記帳入口
+
+### Added
+
+- 新增 `src/lib/hermesTransaction.ts`：解析 Hermes/Telegram 文字記帳內容，支援金額、今天/昨天/ISO 日期、分類名稱、支付方式名稱與 note 萃取。
+- 新增受保護 endpoint：`POST /api/hermes/transactions`
+  - Header：`Authorization: Bearer <HERMES_WEBHOOK_SECRET>`
+  - 寫入 `transactions.source = 'hermes'`
+  - `source_text` 保存原始訊息，`source_id` 支援 Telegram/Hermes 訊息 dedupe
+  - `metadata.hermes` 保存 parser version、confidence、warnings、matched category/payment method 與 context
+- 新增 route/helper 單元測試，覆蓋授權、解析、寫入 payload 與 duplicate source id。
+
+### Deployment notes
+
+- 新增 Zeabur env：`HERMES_WEBHOOK_SECRET`。
+- 建議設定 `LITEYNAB_USER_ID`，讓 Hermes webhook 固定寫入單一 Lite YNAB 使用者；若未設定，request body 必須提供 `userId`。
+- 正式 DB 已修復 Supabase migration history；`supabase db push --dry-run` 顯示 remote database up to date。
+
+### Verified
+
+- `npm run test -- src/lib/hermesTransaction.test.ts src/app/api/hermes/transactions/route.test.ts`
+- `npm run typecheck`
+- `npm run test`（22 files / 85 tests）
+- `npm run build`
+- `git diff --check`
+
 ## [v3.1] - 2026-05-18 — 月報自動分析 + Notion/Telegram 通知
 
 ### Added
