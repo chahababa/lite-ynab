@@ -56,7 +56,9 @@ NOTION_API_KEY=***
 NOTION_MONTHLY_REPORT_DATABASE_ID=3646f483-1a61-8191-8280-c2ab8ca8fa0c
 TELEGRAM_BOT_TOKEN=***
 TELEGRAM_CHAT_ID=***
-# 選用；若未設定，service role 會彙總目前可讀取的資料。單使用者正式環境可省略。
+# Hermes 文字記帳 webhook
+HERMES_WEBHOOK_SECRET=***
+# 選用；若未設定，月報 service role 會彙總目前可讀取的資料；Hermes endpoint 則需 request body 傳 userId。
 LITEYNAB_USER_ID=
 ```
 
@@ -124,6 +126,7 @@ NOTION_API_KEY=***
 NOTION_MONTHLY_REPORT_DATABASE_ID=3646f483-1a61-8191-8280-c2ab8ca8fa0c
 TELEGRAM_BOT_TOKEN=***
 TELEGRAM_CHAT_ID=***
+HERMES_WEBHOOK_SECRET=***
 # 選用
 LITEYNAB_USER_ID=
 ```
@@ -194,6 +197,23 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report?mo
 ```
 
 回傳應包含 `ok: true`、`notionPageId`，且 Telegram 會收到摘要。正式排程設定為每月 1 號 00:10（Asia/Taipei），用來分析上個月。
+
+### Hermes 文字記帳 webhook
+
+受保護 endpoint：`POST /api/hermes/transactions`
+
+- Header：`Authorization: Bearer <HERMES_WEBHOOK_SECRET>`
+- Body：
+
+```json
+{
+  "text": "早餐 85 現金 蛋餅",
+  "sourceId": "telegram:chat_id:message_id",
+  "context": { "platform": "telegram", "chatId": "chat_id", "messageId": "message_id" }
+}
+```
+
+成功時會新增 `transactions`：`source = 'hermes'`、`source_text` 保存原始文字、`source_id` 用於 dedupe、`metadata.hermes` 保存解析信心分數與來源 context。若未設定 `LITEYNAB_USER_ID`，request body 必須傳 `userId`。
 
 ## 六、目前不建議先做的事
 
