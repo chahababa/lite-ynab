@@ -1,9 +1,9 @@
 ﻿// @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BudgetAllocationPage from "@/app/budget-allocation/page";
 
@@ -54,6 +54,10 @@ vi.mock("@/lib/supabaseClient", () => ({
 }));
 
 describe("BudgetAllocationPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     fetchBudgetAllocationData.mockResolvedValue({
@@ -129,6 +133,16 @@ describe("BudgetAllocationPage", () => {
     expect(screen.getByRole("button", { name: "批次套用固定預算" })).toBeInTheDocument();
     expect(screen.getByText("飲食")).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("1200").length).toBeGreaterThan(0);
+  });
+
+  it("renders a desktop-first workspace with side summary and dense category table", async () => {
+    render(createElement(BudgetAllocationPage));
+
+    const workspace = await screen.findByTestId("budget-allocation-desktop-workspace");
+    expect(workspace).toHaveClass("lg:grid-cols-[360px_minmax(0,1fr)]");
+    expect(screen.getByText(/桌機版把收入、批次動作與分類明細分欄呈現/)).toBeInTheDocument();
+    expect(screen.getByText("本月預算")).toBeInTheDocument();
+    expect(screen.getByText("固定預算")).toBeInTheDocument();
   });
 
   it("renders category and payment management sections", async () => {

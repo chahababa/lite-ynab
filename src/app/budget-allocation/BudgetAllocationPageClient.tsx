@@ -720,22 +720,24 @@ export default function BudgetAllocationCompactPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
+    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface sm:px-6 lg:px-8">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
-      <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="mx-auto w-full max-w-7xl space-y-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
           <div>
             <p className="text-label-md text-on-surface-variant">預算分配</p>
             <p className="text-headline-sm">{formatMonthLabel(monthId)}</p>
+            <p className="mt-1 max-w-2xl text-body-sm text-on-surface-variant lg:text-body-md">
+              桌機版把收入、批次動作與分類明細分欄呈現，減少上下捲動，滑鼠可直接點選本月預算與固定預算欄位。
+            </p>
           </div>
+          <MonthSwitcher
+            monthId={monthId}
+            onPrevious={() => setMonthId((value) => shiftMonth(value, -1))}
+            onNext={() => setMonthId((value) => shiftMonth(value, 1))}
+          />
         </div>
-
-        <MonthSwitcher
-          monthId={monthId}
-          onPrevious={() => setMonthId((value) => shiftMonth(value, -1))}
-          onNext={() => setMonthId((value) => shiftMonth(value, 1))}
-        />
 
         {loading ? <LoadingCard label="正在載入預算分配頁..." /> : null}
         {!loading && loadError ? (
@@ -743,10 +745,14 @@ export default function BudgetAllocationCompactPage() {
         ) : null}
 
         {!loading && !loadError ? (
-          <>
-            {/* M3 sticky top summary (本月收入 + 已分配 + 剩餘可分配) */}
-            <section className="sticky top-3 z-20 rounded-md border border-outline bg-surface p-4 shadow-elev-1">
-              <label className="block">
+          <div
+            data-testid="budget-allocation-desktop-workspace"
+            className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start xl:grid-cols-[380px_minmax(0,1fr)]"
+          >
+            <aside className="space-y-4 lg:sticky lg:top-4">
+              {/* M3 sticky top summary (本月收入 + 已分配 + 剩餘可分配) */}
+              <section className="sticky top-3 z-20 rounded-md border border-outline bg-surface p-4 shadow-elev-1 lg:static">
+                <label className="block">
                 <span className="mb-2 block text-label-md text-on-surface-variant">本月收入</span>
                 <div className="flex items-end gap-2">
                   <input
@@ -814,10 +820,12 @@ export default function BudgetAllocationCompactPage() {
                   {pendingKey === "auto-all" ? "套用中" : "批次套用固定預算"}
                 </button>
               </div>
-            </section>
+              </section>
+            </aside>
 
-            {groupedRows.map((group) => (
-              <section key={group.groupId} className="rounded-md border border-outline bg-surface">
+            <div className="min-w-0 space-y-4">
+              {groupedRows.map((group) => (
+                <section key={group.groupId} className="rounded-md border border-outline bg-surface">
                 <div className="flex items-center justify-between gap-2 border-b border-outline px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button
@@ -895,8 +903,9 @@ export default function BudgetAllocationCompactPage() {
                 </div>
 
                 {!collapsedGroups[group.groupId] ? (
-                  <div className="p-3">
-                    <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-outline pb-2 text-label-sm uppercase tracking-wider text-on-surface-variant">
+                  <div className="overflow-x-auto p-3">
+                    <div className="min-w-[760px] lg:min-w-0">
+                      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.82fr)_minmax(0,0.82fr)] gap-2 border-b border-outline pb-2 text-label-sm uppercase tracking-wider text-on-surface-variant">
                       <p className="pl-2">小項</p>
                       <p className="text-center">上月分配</p>
                       <p className="text-center">上月支出</p>
@@ -1024,6 +1033,7 @@ export default function BudgetAllocationCompactPage() {
                         );
                       })}
                     </div>
+                    </div>
                   </div>
                 ) : (
                   <p className="px-5 py-3 text-body-sm text-on-surface-variant">
@@ -1094,7 +1104,8 @@ export default function BudgetAllocationCompactPage() {
                 </div>
               </div>
             </section>
-          </>
+            </div>
+          </div>
         ) : null}
       </section>
     </main>
