@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildHermesTransactionInsert, parseHermesTransactionText } from "@/lib/hermesTransaction";
 
 const categories = [
-  { id: "cat-food", name: "飲食" },
-  { id: "cat-breakfast", name: "早餐" },
-  { id: "cat-daily", name: "日常用品" },
+  { id: "cat-food", name: "飲食", groupName: "個人" },
+  { id: "cat-breakfast", name: "早餐", groupName: "個人" },
+  { id: "cat-daily", name: "日常用品", groupName: "家庭" },
 ];
 
 const paymentMethods = [
@@ -58,6 +58,56 @@ describe("parseHermesTransactionText", () => {
       categoryId: "cat-food",
       paymentMethodId: "pm-cash",
     });
+  });
+
+  it("refuses ambiguous bare category names when duplicate groups exist", () => {
+    const parsed = parseHermesTransactionText("房租 12000 現金", {
+      categories: [
+        { id: "cat-home-rent", name: "房租", groupName: "家庭" },
+        { id: "cat-other-rent", name: "房租", groupName: "其他" },
+      ],
+      paymentMethods,
+      baseDate: "2026-05-18",
+    });
+
+    expect(parsed.categoryId).toBeNull();
+    expect(parsed.categoryName).toBeNull();
+    expect(parsed.note).toBe("");
+    expect(parsed.warnings).toContain("分類「房租」同時存在於多個大項，請指定大項（例如：家庭 房租）");
+  });
+
+  it("uses group-qualified category names to resolve duplicates", () => {
+    const parsed = parseHermesTransactionText("家庭 房租 12000 現金 五月", {
+      categories: [
+        { id: "cat-home-rent", name: "房租", groupName: "家庭" },
+        { id: "cat-other-rent", name: "房租", groupName: "其他" },
+      ],
+      paymentMethods,
+      baseDate: "2026-05-18",
+    });
+
+    expect(parsed).toMatchObject({
+      amount: 12000,
+      categoryId: "cat-home-rent",
+      categoryName: "房租",
+      paymentMethodId: "pm-cash",
+      note: "五月",
+      warnings: [],
+    });
+  });
+
+  it("supports slash-separated group-qualified category names", () => {
+    const parsed = parseHermesTransactionText("其他/房租 12000 現金", {
+      categories: [
+        { id: "cat-home-rent", name: "房租", groupName: "家庭" },
+        { id: "cat-other-rent", name: "房租", groupName: "其他" },
+      ],
+      paymentMethods,
+      baseDate: "2026-05-18",
+    });
+
+    expect(parsed.categoryId).toBe("cat-other-rent");
+    expect(parsed.note).toBe("");
   });
 
   it("returns actionable warnings when required fields cannot be inferred", () => {

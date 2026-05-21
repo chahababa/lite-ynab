@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { buildHermesTransactionInsert, parseHermesTransactionText } from "@/lib/hermesTransaction";
-import type { Category, PaymentMethod } from "@/lib/types";
+import type { PaymentMethod } from "@/lib/types";
 import { getTodayInTaipei } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -14,6 +14,23 @@ type HermesTransactionRequest = {
   context?: Record<string, unknown>;
   baseDate?: string;
 };
+
+type HermesCategoryRow = {
+  id: string;
+  name: string;
+  category_groups?: { name: string | null } | { name: string | null }[] | null;
+};
+
+function normalizeHermesCategories(rows: HermesCategoryRow[]) {
+  return rows.map((row) => {
+    const group = Array.isArray(row.category_groups) ? row.category_groups[0] : row.category_groups;
+    return {
+      id: row.id,
+      name: row.name,
+      groupName: group?.name ?? null,
+    };
+  });
+}
 
 function isAuthorized(request: Request) {
   const secret = process.env.HERMES_WEBHOOK_SECRET;
@@ -87,7 +104,11 @@ export async function POST(request: Request) {
     }
 
     const [categoriesResult, paymentMethodsResult] = await Promise.all([
-      supabase.from("categories").select("id,name").eq("user_id", userId).order("sort_order", { ascending: true }),
+      supabase
+        .from("categories")
+        .select("id,name,category_groups(name)")
+        .eq("user_id", userId)
+        .order("sort_order", { ascending: true }),
       supabase.from("payment_methods").select("id,name").eq("user_id", userId).order("sort_order", { ascending: true }),
     ]);
 
@@ -95,7 +116,7 @@ export async function POST(request: Request) {
     if (paymentMethodsResult.error) throw paymentMethodsResult.error;
 
     const parsed = parseHermesTransactionText(text, {
-      categories: (categoriesResult.data ?? []) as Pick<Category, "id" | "name">[],
+      categories: normalizeHermesCategories((categoriesResult.data ?? []) as HermesCategoryRow[]),
       paymentMethods: (paymentMethodsResult.data ?? []) as Pick<PaymentMethod, "id" | "name">[],
       baseDate: body.baseDate || getTodayInTaipei(),
     });
