@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => {
     createClient: vi.fn(),
     insert: vi.fn(),
     duplicateMaybeSingle: vi.fn(),
+    categoryRows: [] as Array<{ id: string; name: string; category_groups?: { name: string } | null }>,
   };
 });
 
@@ -20,10 +21,7 @@ function createMockSupabase() {
           select: () => ({
             eq: () => ({
               order: async () => ({
-                data: [
-                  { id: "cat-breakfast", name: "早餐" },
-                  { id: "cat-food", name: "飲食" },
-                ],
+                data: mocks.categoryRows,
                 error: null,
               }),
             }),
@@ -73,6 +71,10 @@ describe("POST /api/hermes/transactions", () => {
     process.env.HERMES_WEBHOOK_SECRET = "secret";
     process.env.LITEYNAB_USER_ID = "user-1";
     mocks.createClient.mockReturnValue(createMockSupabase());
+    mocks.categoryRows = [
+      { id: "cat-breakfast", name: "早餐", category_groups: { name: "個人" } },
+      { id: "cat-food", name: "飲食", category_groups: { name: "個人" } },
+    ];
     mocks.duplicateMaybeSingle.mockResolvedValue({ data: null, error: null });
     mocks.insert.mockReturnValue({
       select: () => ({
@@ -144,6 +146,64 @@ describe("POST /api/hermes/transactions", () => {
         },
       },
     });
+  });
+
+  it("rejects ambiguous bare duplicate category names without inserting", async () => {
+    mocks.categoryRows = [
+      { id: "cat-home-rent", name: "房租", category_groups: { name: "家庭" } },
+      { id: "cat-other-rent", name: "房租", category_groups: { name: "其他" } },
+    ];
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({ text: "房租 12000 現金", sourceId: "telegram:123:789", baseDate: "2026-05-18" }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    const payload = await response.json();
+    expect(payload).toMatchObject({
+      ok: false,
+      error: "無法完整解析記帳文字",
+      parsed: {
+        amount: 12000,
+        categoryId: null,
+        paymentMethodId: "pm-cash",
+      },
+    });
+    expect(payload.parsed.warnings).toContain("分類「房租」同時存在於多個大項，請指定大項（例如：家庭 房租）");
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it("accepts group-qualified duplicate category names", async () => {
+    mocks.categoryRows = [
+      { id: "cat-home-rent", name: "房租", category_groups: { name: "家庭" } },
+      { id: "cat-other-rent", name: "房租", category_groups: { name: "其他" } },
+    ];
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({ text: "家庭 房租 12000 現金", sourceId: "telegram:123:790", baseDate: "2026-05-18" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      transactionId: "tx-1",
+      parsed: {
+        amount: 12000,
+        categoryId: "cat-home-rent",
+        paymentMethodId: "pm-cash",
+      },
+    });
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ category_id: "cat-home-rent" }));
   });
 
   it("does not insert duplicate source ids", async () => {

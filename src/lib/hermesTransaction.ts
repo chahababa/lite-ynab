@@ -3,6 +3,7 @@ import { format, parseISO, subDays } from "date-fns";
 type MatchableOption = {
   id: string;
   name: string;
+  groupName?: string | null;
 };
 
 export type HermesTransactionParseOptions = {
@@ -49,6 +50,7 @@ export type HermesTransactionInsert = {
 
 const ISO_DATE_PATTERN = /\b\d{4}-\d{2}-\d{2}\b/;
 const AMOUNT_PATTERN = /(?:^|\s)(\d+(?:,\d{3})*|\d+)(?:\s|$)/;
+const CATEGORY_SEPARATOR_PATTERN = "(?:\\s+|\\s*[\\/／>]\\s*)";
 
 function normalizeSpaces(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -59,11 +61,65 @@ function removeFirst(value: string, target: string) {
   return normalizeSpaces(value.replace(target, " "));
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findFirstMatchToken(text: string, pattern: RegExp) {
+  return text.match(pattern)?.[0] ?? null;
+}
+
+function getDuplicateOptionNames(options: MatchableOption[]) {
+  const counts = new Map<string, number>();
+  for (const option of options) {
+    const key = option.name.toLocaleLowerCase("zh-TW");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function findLongestIncludedOption(text: string, options: MatchableOption[]) {
   const normalizedText = text.toLocaleLowerCase("zh-TW");
   return [...options]
     .sort((a, b) => b.name.length - a.name.length)
     .find((option) => normalizedText.includes(option.name.toLocaleLowerCase("zh-TW"))) ?? null;
+}
+
+function findCategoryOption(text: string, options: MatchableOption[]) {
+  const duplicateNames = getDuplicateOptionNames(options);
+  const sortedOptions = [...options].sort((a, b) => {
+    const aQualifiedLength = `${a.groupName ?? ""}${a.name}`.length;
+    const bQualifiedLength = `${b.groupName ?? ""}${b.name}`.length;
+    return bQualifiedLength - aQualifiedLength;
+  });
+
+  for (const option of sortedOptions) {
+    if (!option.groupName) continue;
+
+    const qualifiedPattern = new RegExp(
+      `${escapeRegExp(option.groupName)}${CATEGORY_SEPARATOR_PATTERN}${escapeRegExp(option.name)}`,
+      "i",
+    );
+    const token = findFirstMatchToken(text, qualifiedPattern);
+    if (token) {
+      return { option, token, ambiguousName: null };
+    }
+  }
+
+  const sortedNames = Array.from(new Set(options.map((option) => option.name))).sort((a, b) => b.length - a.length);
+  for (const name of sortedNames) {
+    const normalizedName = name.toLocaleLowerCase("zh-TW");
+    if (!text.toLocaleLowerCase("zh-TW").includes(normalizedName)) continue;
+
+    const matches = options.filter((option) => option.name.toLocaleLowerCase("zh-TW") === normalizedName);
+    if ((duplicateNames.get(normalizedName) ?? 0) > 1 || matches.length > 1) {
+      return { option: null, token: name, ambiguousName: name };
+    }
+
+    return { option: matches[0] ?? null, token: name, ambiguousName: null };
+  }
+
+  return { option: null, token: null, ambiguousName: null };
 }
 
 function resolveDate(text: string, baseDate: string) {
@@ -92,18 +148,23 @@ export function parseHermesTransactionText(
   const amountMatch = text.match(AMOUNT_PATTERN);
   const amountToken = amountMatch?.[1] ?? null;
   const amount = amountToken ? Number(amountToken.replace(/,/g, "")) : null;
-  const category = findLongestIncludedOption(text, options.categories);
+  const categoryResult = findCategoryOption(text, options.categories);
+  const category = categoryResult.option;
   const paymentMethod = findLongestIncludedOption(text, options.paymentMethods);
 
   let note = text;
   if (dateResult.token) note = removeFirst(note, dateResult.token);
   if (amountToken) note = removeFirst(note, amountToken);
   if (paymentMethod) note = removeFirst(note, paymentMethod.name);
-  if (category) note = removeFirst(note, category.name);
+  if (categoryResult.token) note = removeFirst(note, categoryResult.token);
 
   const warnings: string[] = [];
   if (!amount || amount <= 0) warnings.push("缺少金額");
-  if (!category) warnings.push("找不到分類");
+  if (categoryResult.ambiguousName) {
+    warnings.push(`分類「${categoryResult.ambiguousName}」同時存在於多個大項，請指定大項（例如：家庭 ${categoryResult.ambiguousName}）`);
+  } else if (!category) {
+    warnings.push("找不到分類");
+  }
   if (!paymentMethod) warnings.push("找不到支付方式");
 
   const confidence = Math.max(
