@@ -58,14 +58,19 @@ TELEGRAM_BOT_TOKEN=***
 TELEGRAM_CHAT_ID=***
 # Hermes 文字記帳 webhook
 HERMES_WEBHOOK_SECRET=***
+# Google Sheets 月報匯出
+GOOGLE_SHEET_ID=1bnq9psR6yWNvZv97n1t5zyZkqTf2PMNH8tLwnfoZm28
+GOOGLE_SERVICE_ACCOUNT_EMAIL=***
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
 # 選用；若未設定，月報 service role 會彙總目前可讀取的資料；Hermes endpoint 則需 request body 傳 userId。
 LITEYNAB_USER_ID=
 ```
 
 
 `SUPABASE_SERVICE_ROLE_KEY` 只能放在伺服器端環境變數，不可提交、不可以 `NEXT_PUBLIC_` 開頭。
-`CRON_SECRET` 是外部排程呼叫 `/api/cron/monthly-budget-reset` 與 `/api/cron/monthly-expense-report` 時使用的 Bearer token。
-`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`、`NOTION_API_KEY` 不可提交到 repo、不可寫入 Notion 文件。
+`CRON_SECRET` 是外部排程呼叫 `/api/cron/monthly-budget-reset`、`/api/cron/monthly-expense-report` 與 `/api/cron/monthly-expense-report/sheets` 時使用的 Bearer token。
+`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`、`NOTION_API_KEY`、Google service account private key 不可提交到 repo、不可寫入 Notion 文件。
+Google service account 必須被加入 `Lite YNAB 月報匯出` Google Sheet，且至少要有 Editor 權限。
 
 ## 三、Supabase 正式環境準備
 
@@ -127,6 +132,9 @@ NOTION_MONTHLY_REPORT_DATABASE_ID=3646f483-1a61-8191-8280-c2ab8ca8fa0c
 TELEGRAM_BOT_TOKEN=***
 TELEGRAM_CHAT_ID=***
 HERMES_WEBHOOK_SECRET=***
+GOOGLE_SHEET_ID=1bnq9psR6yWNvZv97n1t5zyZkqTf2PMNH8tLwnfoZm28
+GOOGLE_SERVICE_ACCOUNT_EMAIL=***
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
 # 選用
 LITEYNAB_USER_ID=
 ```
@@ -197,6 +205,22 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report?mo
 ```
 
 回傳應包含 `ok: true`、`notionPageId`，且 Telegram 會收到摘要。正式排程設定為每月 1 號 00:10（Asia/Taipei），用來分析上個月。
+
+若已設定 Google Sheets service account env，先用 dry run 預覽同步內容：
+
+```bash
+curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sheets?monthId=2026-04&dryRun=1&includeTables=1" \
+  -H "Authorization: Bearer ***"
+```
+
+確認 rows 後，再正式寫入 Google Sheet：
+
+```bash
+curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sheets?monthId=2026-04" \
+  -H "Authorization: Bearer ***"
+```
+
+回傳應包含 `ok: true`、`spreadsheetId` 與各 tab 寫入 row count。正式同步排程建議設定為每月 1 號 00:20（Asia/Taipei），排在 Notion/Telegram 月報之後。
 
 ### Hermes 文字記帳 webhook
 
