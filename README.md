@@ -11,7 +11,7 @@
 - 預算使用儀表板
 - 完整交易查詢
 - 報表分析
-- 每月 1 號自動產生上月支出月報，存入 Notion 並透過 Telegram 摘要通知
+- 每月 1 號自動產生上月支出月報，存入 Notion、透過 Telegram 摘要通知，並可同步到 Google Sheets
 
 ## 目前功能
 
@@ -25,7 +25,7 @@
 - 大項 / 小項分類管理
 - 支付方式管理
 - 固定預算設定
-- 月報自動分析與通知（Notion 存檔 + Telegram 摘要）
+- 月報自動分析與通知（Notion 存檔 + Telegram 摘要 + Google Sheets 匯出）
 - 基本測試與型別檢查
 
 ## UI 設計風格
@@ -133,6 +133,25 @@ npm run test
 - 輸出：上月總支出、總預算、剩餘 / 超支、交易筆數、大項 / 小項佔比、Top 5 支出、超支提醒、80% 預算使用提醒
 - 通知：先傳 Telegram 摘要，再寫入 Notion「LiteYNAB 月報資料庫」
 
+## Google Sheets 月報匯出
+
+受保護 endpoint：`GET/POST /api/cron/monthly-expense-report/sheets`
+
+- Header：`Authorization: Bearer ***`
+- Optional query：`?monthId=YYYY-MM`（不帶時會以 Asia/Taipei 計算「上個月」）
+- Optional query：
+  - `dryRun=1`：只產生 Google Sheets 預覽資料，不寫入 Sheet
+  - `includeTables=1`：搭配 `dryRun=1` 時，在 response 中附上即將寫入的表格 rows
+- 寫入策略：
+  - `Monthly Summary` / `Category Breakdown` / `Transactions` 會保留其他月份資料，替換同一個 `monthId` 的舊 rows，避免重跑造成重複
+  - `Export Log` 每次同步 append 一列紀錄
+- 需要 Zeabur env：
+  - `GOOGLE_SHEET_ID`
+  - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+  - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+- 目前正式 Sheet：`Lite YNAB 月報匯出`（`1bnq9psR6yWNvZv97n1t5zyZkqTf2PMNH8tLwnfoZm28`）
+- 服務帳號需要被加入該 Google Sheet，且至少要有 Editor 權限
+
 ## 報表頁目前支援
 
 - 月對月比較
@@ -168,5 +187,5 @@ npm run test
 - 建立測試帳號，驗證登入後完敵功能
 - 繽續補強報表頁互動
 - 同步 `package-lock.json` 後將 Dockerfile 改回 `npm ci`
-- 規劃 Google Sheets 同步
+- 設定 Google Sheets service account env、部署後建立正式同步 cron
 - 設定自訂網域（選用）

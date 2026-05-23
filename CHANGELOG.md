@@ -1,23 +1,30 @@
 # CHANGELOG
 
-## [Unreleased] - Google Sheets 月報匯出準備
+## [Unreleased] - Google Sheets 月報匯出
 
 ### Added
 
+- 新增 `src/lib/googleSheetsMonthlyExport.ts`，可把 monthly report 轉成 Google Sheets tabs：`Monthly Summary`、`Category Breakdown`、`Transactions`、`Export Log`。
+- 新增受保護 endpoint：`GET/POST /api/cron/monthly-expense-report/sheets`，會產生指定月份月報並同步到 Google Sheet。
+- Google Sheets 同步會保留其他月份資料，替換同一 `monthId` 的舊 rows，避免重跑同月份 cron 造成重複；`Export Log` 會 append 同步紀錄。
+- `/api/cron/monthly-expense-report/sheets` 支援 `dryRun=1&includeTables=1`，可預覽即將寫入的表格 rows，不寫入 Sheet。
 - `/api/cron/monthly-expense-report` 新增授權後的 `includeReport=1` 選項，可在 response 中回傳完整 monthly report JSON，供 Google Sheets 匯出流程使用。
 - `/api/cron/monthly-expense-report` 新增 `dryRun=1` 選項，可只產生 report，不送 Telegram、不寫 Notion，避免同步 Google Sheets 時造成重複副作用。
-- 新增 monthly expense report route 測試，覆蓋預設 side-effect 行為、`includeReport=1` 與 `dryRun=1&includeReport=1`。
+- 新增 monthly expense report route 與 Google Sheets export helper 測試，覆蓋預設 side-effect 行為、dry-run preview、同月份 rows replacement、Google Sheets rows mapping。
 
 ### Deployment notes
 
-- 不新增 env，不改 DB schema。
-- Endpoint 仍需 `Authorization: Bearer <cron token>`；完整 report JSON 視為敏感資料，不應寫入公開 logs。
+- 新增 env：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_EMAIL`、`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`。
+- Google service account 需被加入 `Lite YNAB 月報匯出` Google Sheet，至少要有 Editor 權限。
+- Endpoint 仍需 `Authorization: Bearer *** token>`；完整 report JSON 與 Google Sheets rows 視為敏感資料，不應寫入公開 logs。
+- 建議正式同步 cron：每月 1 號 00:20（Asia/Taipei），排在 Notion/Telegram 月報之後。
 
 ### Verified
 
-- `npm run test -- src/app/api/cron/monthly-expense-report/route.test.ts`
+- `npm run test -- src/lib/googleSheetsMonthlyExport.test.ts`
+- `npm run test -- src/app/api/cron/monthly-expense-report/sheets/route.test.ts src/lib/googleSheetsMonthlyExport.test.ts`
 - `npm run typecheck`
-- `npm run test`（23 files / 94 tests）
+- `npm run test`（25 files / 99 tests）
 - `git diff --check`
 
 ## [v3.2] - 2026-05-19 — Hermes 文字記帳入口
