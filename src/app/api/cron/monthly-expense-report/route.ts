@@ -9,14 +9,21 @@ export const runtime = "nodejs";
 
 type MonthlyExpenseReportCronResult = {
   monthId: string;
-  notionPageId: string;
+  notionPageId?: string;
   notionUrl?: string;
   telegramMessageId?: number;
+  dryRun?: boolean;
+  report?: Awaited<ReturnType<typeof fetchMonthlyExpenseReport>>;
 };
 
 function getMonthId(request: Request) {
   const url = new URL(request.url);
   return url.searchParams.get("monthId") ?? getPreviousMonthIdInTaipei();
+}
+
+function getBooleanSearchParam(request: Request, name: string) {
+  const value = new URL(request.url).searchParams.get(name);
+  return value === "1" || value === "true";
 }
 
 function isAuthorized(request: Request) {
@@ -37,7 +44,21 @@ async function runMonthlyExpenseReport(request: Request) {
 
   try {
     const monthId = getMonthId(request);
+    const includeReport = getBooleanSearchParam(request, "includeReport");
+    const dryRun = getBooleanSearchParam(request, "dryRun");
     const report = await fetchMonthlyExpenseReport(undefined, monthId);
+
+    if (dryRun) {
+      return NextResponse.json({
+        ok: true,
+        result: {
+          monthId: report.monthId,
+          dryRun: true,
+          ...(includeReport ? { report } : {}),
+        } satisfies MonthlyExpenseReportCronResult,
+      });
+    }
+
     const telegram = await sendMonthlyReportToTelegram(report);
     const notionPage = await saveMonthlyReportToNotion(report, { telegramSent: telegram.ok });
 
@@ -48,6 +69,7 @@ async function runMonthlyExpenseReport(request: Request) {
         notionPageId: notionPage.id,
         notionUrl: notionPage.url,
         telegramMessageId: telegram.result?.message_id,
+        ...(includeReport ? { report } : {}),
       } satisfies MonthlyExpenseReportCronResult,
     });
   } catch (error) {

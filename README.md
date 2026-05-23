@@ -126,6 +126,9 @@ npm run test
 
 - Header：`Authorization: Bearer <CRON_SECRET>`
 - Optional query：`?monthId=YYYY-MM`（不帶時會以 Asia/Taipei 計算「上個月」）
+- Google Sheets 匯出準備用 query：
+  - `includeReport=1`：在授權後 response 中附上完整 monthly report JSON
+  - `dryRun=1`：只產生 report，不送 Telegram、不寫 Notion，避免重跑同步時造成副作用
 - 建議排程：每月 1 號 00:10（Asia/Taipei）
 - 輸出：上月總支出、總預算、剩餘 / 超支、交易筆數、大項 / 小項佔比、Top 5 支出、超支提醒、80% 預算使用提醒
 - 通知：先傳 Telegram 摘要，再寫入 Notion「LiteYNAB 月報資料庫」

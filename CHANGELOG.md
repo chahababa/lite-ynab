@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [Unreleased] - Google Sheets 月報匯出準備
+
+### Added
+
+- `/api/cron/monthly-expense-report` 新增授權後的 `includeReport=1` 選項，可在 response 中回傳完整 monthly report JSON，供 Google Sheets 匯出流程使用。
+- `/api/cron/monthly-expense-report` 新增 `dryRun=1` 選項，可只產生 report，不送 Telegram、不寫 Notion，避免同步 Google Sheets 時造成重複副作用。
+- 新增 monthly expense report route 測試，覆蓋預設 side-effect 行為、`includeReport=1` 與 `dryRun=1&includeReport=1`。
+
+### Deployment notes
+
+- 不新增 env，不改 DB schema。
+- Endpoint 仍需 `Authorization: Bearer <cron token>`；完整 report JSON 視為敏感資料，不應寫入公開 logs。
+
+### Verified
+
+- `npm run test -- src/app/api/cron/monthly-expense-report/route.test.ts`
+- `npm run typecheck`
+- `npm run test`（23 files / 94 tests）
+- `git diff --check`
+
 ## [v3.2] - 2026-05-19 — Hermes 文字記帳入口
 
 ### Added
