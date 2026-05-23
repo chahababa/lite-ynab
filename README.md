@@ -166,6 +166,7 @@ npm run test
 ## 文件
 
 - 開發規則：[AGENTS.md](./AGENTS.md)
+- 使用說明：[USER_GUIDE.md](./USER_GUIDE.md)
 - 設計規格：[design/DESIGN-SPEC.md](./design/DESIGN-SPEC.md)
 - 版本變更：[CHANGELOG.md](./CHANGELOG.md)
 - 專案現況：[STATUS.md](./STATUS.md)

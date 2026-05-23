@@ -120,6 +120,57 @@ Lite YNAB 是一套輕量化的記帳與預算管理工具，適合用來快速�
 - CSV
 - Excel
 
+### 8. 每月自動輸出到 Google Sheets
+
+這個功能的用途是：每個月把 Lite YNAB 裡的上個月花費，自動整理成 Google Sheets。之後你不用每次登入系統看報表，也可以直接在同一份試算表裡回顧每個月的花費。
+
+它會寫進這份 Google Sheet：`Lite YNAB 月報匯出`。
+
+目前會整理成四個分頁：
+
+- `Monthly Summary`
+  - 每個月一列總表，例如總支出、總預算、剩餘或超支、交易筆數。
+- `Category Breakdown`
+  - 依大項與小項分類列出花費，方便看錢主要花在哪裡。
+- `Transactions`
+  - 該月的每一筆交易明細。
+- `Export Log`
+  - 每次同步的紀錄，用來追蹤哪一次有成功寫入。
+
+日常使用時，你通常不需要手動操作。正式排程設定好後，建議每月 1 號凌晨自動跑一次，把上個月資料寫進 Google Sheets。
+
+如果需要手動補跑某個月份，可以請 Hermes 或工程端呼叫受保護的同步 endpoint：
+
+```text
+/api/cron/monthly-expense-report/sheets?monthId=YYYY-MM
+```
+
+例如要補 2026 年 5 月，就指定：
+
+```text
+monthId=2026-05
+```
+
+重跑同一個月份不會把同月資料越疊越多。系統會保留其他月份資料，只替換同一個 `monthId` 的舊 rows；但 `Export Log` 會新增一筆同步紀錄，方便追蹤。
+
+正式寫入前可以先 dry-run：
+
+```text
+/api/cron/monthly-expense-report/sheets?monthId=YYYY-MM&dryRun=1&includeTables=1
+```
+
+dry-run 的意思是「只預覽、不真的寫入 Google Sheets」，適合在第一次設定或修正問題時使用。
+
+要讓這個功能真的能寫入 Google Sheets，部署環境必須設定三個 Google service account 相關環境變數：
+
+- `GOOGLE_SHEET_ID`
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+
+注意：private key 是機密，只能放在 Zeabur / server 的環境變數裡，不可以貼到 Notion、GitHub、README、聊天紀錄或任何公開文件。
+
+另外，Google service account 的 email 必須被加入那份 Google Sheet，而且至少要有 Editor 權限；否則程式會看得到設定，但沒有權限寫入試算表。
+
 ## 初次開發安裝
 
 ### 1. 安裝套件
