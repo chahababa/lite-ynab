@@ -12,6 +12,11 @@
 - `/api/cron/monthly-expense-report` 新增 `dryRun=1` 選項，可只產生 report，不送 Telegram、不寫 Notion，避免同步 Google Sheets 時造成重複副作用。
 - 新增 monthly expense report route 與 Google Sheets export helper 測試，覆蓋預設 side-effect 行為、dry-run preview、同月份 rows replacement、Google Sheets rows mapping。
 
+### Documentation
+
+- 更新 `USER_GUIDE.md`，用白話補上 Google Sheets 月報匯出的用途、四個分頁、手動補跑、dry-run 預覽、重跑同月覆蓋策略與 service account 權限注意事項。
+- 更新 `README.md` 文件清單，加入使用說明入口。
+
 ### Deployment notes
 
 - 新增 env：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_EMAIL`、`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`。
