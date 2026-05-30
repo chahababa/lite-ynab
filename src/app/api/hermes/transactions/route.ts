@@ -247,6 +247,7 @@ async function loadTargetTransaction(
       .from("transactions")
       .select(selectClause)
       .eq("user_id", userId)
+      .eq("source", "hermes")
       .eq("id", target.transactionId)
       .maybeSingle();
     if (error) throw error;
@@ -410,6 +411,7 @@ export async function PATCH(request: Request) {
       .update({ ...updatePayload, metadata: correctionMetadata })
       .eq("id", current.id)
       .eq("user_id", userId)
+      .eq("source", "hermes")
       .eq("amount", current.amount)
       .eq("date", current.date)
       .eq("category_id", current.category_id)

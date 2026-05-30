@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => {
     targetMaybeSingle: vi.fn(),
     latestLimit: vi.fn(),
     updateMaybeSingle: vi.fn(),
+    transactionSelectBuilders: [] as Array<{ eq: ReturnType<typeof vi.fn>; order: ReturnType<typeof vi.fn>; maybeSingle: ReturnType<typeof vi.fn> }>,
+    updateBuilders: [] as Array<{ eq: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn> }>,
     categoryRows: [] as Array<{ id: string; name: string; category_groups?: { name: string } | null }>,
     paymentMethodRows: [] as Array<{ id: string; name: string }>,
   };
@@ -67,6 +69,7 @@ function createMockSupabase() {
               })),
               maybeSingle: mocks.targetMaybeSingle,
             };
+            mocks.transactionSelectBuilders.push(builder);
             return builder;
           },
           insert: mocks.insert,
@@ -86,6 +89,7 @@ function createUpdateBuilder() {
       maybeSingle: mocks.updateMaybeSingle,
     })),
   };
+  mocks.updateBuilders.push(builder);
   return builder;
 }
 
@@ -123,6 +127,8 @@ describe("POST /api/hermes/transactions", () => {
     mocks.targetMaybeSingle.mockReset();
     mocks.latestLimit.mockReset();
     mocks.updateMaybeSingle.mockReset();
+    mocks.transactionSelectBuilders = [];
+    mocks.updateBuilders = [];
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role";
     process.env.HERMES_WEBHOOK_SECRET = "secret";
@@ -324,6 +330,30 @@ describe("POST /api/hermes/transactions", () => {
         metadata: expect.objectContaining({ hermesCorrection: expect.any(Object) }),
       }),
     );
+    expect(mocks.updateBuilders[0].eq).toHaveBeenCalledWith("source", "hermes");
+  });
+
+  it("PATCH by transactionId refuses to target non-Hermes transactions", async () => {
+    mocks.targetMaybeSingle.mockResolvedValue({ data: null, error: null });
+    const { PATCH } = await import("./route");
+
+    const response = await PATCH(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "PATCH",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({
+          target: { transactionId: "manual-tx-1" },
+          updates: { note: "不要修改非 Hermes 交易" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ ok: false, error: "找不到目標交易" });
+    expect(mocks.transactionSelectBuilders[0].eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mocks.transactionSelectBuilders[0].eq).toHaveBeenCalledWith("source", "hermes");
+    expect(mocks.transactionSelectBuilders[0].eq).toHaveBeenCalledWith("id", "manual-tx-1");
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("PATCH refuses when expected guards do not match the current row", async () => {
