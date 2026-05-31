@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchMonthlyExpenseReport } from "@/lib/monthlyExpenseReportServer";
-import { saveMonthlyReportToNotion } from "@/lib/notionMonthlyReports";
+import { saveMonthlyReportToNotion, updateMonthlyReportTelegramStatus } from "@/lib/notionMonthlyReports";
 import { sendMonthlyReportToTelegram } from "@/lib/telegramNotify";
 import { getPreviousMonthIdInTaipei } from "@/lib/monthlyExpenseReport";
 
@@ -12,6 +12,7 @@ type MonthlyExpenseReportCronResult = {
   notionPageId?: string;
   notionUrl?: string;
   telegramMessageId?: number;
+  telegramError?: string;
   dryRun?: boolean;
   report?: Awaited<ReturnType<typeof fetchMonthlyExpenseReport>>;
 };
@@ -37,6 +38,10 @@ function isAuthorized(request: Request) {
   return token === secret;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 async function runMonthlyExpenseReport(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -59,21 +64,38 @@ async function runMonthlyExpenseReport(request: Request) {
       });
     }
 
-    const telegram = await sendMonthlyReportToTelegram(report);
-    const notionPage = await saveMonthlyReportToNotion(report, { telegramSent: telegram.ok });
+    const initialNotionPage = await saveMonthlyReportToNotion(report, { telegramSent: false });
+    let telegram: Awaited<ReturnType<typeof sendMonthlyReportToTelegram>>;
+
+    try {
+      telegram = await sendMonthlyReportToTelegram(report);
+    } catch (telegramError) {
+      return NextResponse.json({
+        ok: true,
+        result: {
+          monthId: report.monthId,
+          notionPageId: initialNotionPage.id,
+          notionUrl: initialNotionPage.url,
+          telegramError: getErrorMessage(telegramError, "Telegram monthly report send failed"),
+          ...(includeReport ? { report } : {}),
+        } satisfies MonthlyExpenseReportCronResult,
+      });
+    }
+
+    const finalNotionPage = await updateMonthlyReportTelegramStatus(initialNotionPage.id, report, telegram.ok);
 
     return NextResponse.json({
       ok: true,
       result: {
         monthId: report.monthId,
-        notionPageId: notionPage.id,
-        notionUrl: notionPage.url,
+        notionPageId: finalNotionPage.id,
+        notionUrl: finalNotionPage.url,
         telegramMessageId: telegram.result?.message_id,
         ...(includeReport ? { report } : {}),
       } satisfies MonthlyExpenseReportCronResult,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Monthly expense report failed";
+    const message = getErrorMessage(error, "Monthly expense report failed");
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

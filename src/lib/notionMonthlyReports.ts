@@ -11,7 +11,7 @@ const RICH_TEXT_LIMIT = 1900;
 type NotionPageResult = { id: string; url?: string };
 type NotionSearchResult = { results?: NotionPageResult[] };
 
-export async function saveMonthlyReportToNotion(report: MonthlyExpenseReport, options?: { telegramSent?: boolean }) {
+function getNotionConfig() {
   const token = process.env.NOTION_API_KEY ?? process.env.NOTION_TOKEN;
   const databaseId = process.env.NOTION_MONTHLY_REPORT_DATABASE_ID ?? DEFAULT_MONTHLY_REPORT_DATABASE_ID;
 
@@ -19,7 +19,11 @@ export async function saveMonthlyReportToNotion(report: MonthlyExpenseReport, op
     throw new Error("Missing NOTION_API_KEY or NOTION_TOKEN");
   }
 
-  const headers = buildNotionHeaders(token);
+  return { databaseId, headers: buildNotionHeaders(token) };
+}
+
+export async function saveMonthlyReportToNotion(report: MonthlyExpenseReport, options?: { telegramSent?: boolean }) {
+  const { databaseId, headers } = getNotionConfig();
   const properties = buildMonthlyReportProperties(report, options);
   const existingPage = await findExistingMonthlyReportPage(databaseId, report.monthId, headers);
 
@@ -51,6 +55,23 @@ export async function saveMonthlyReportToNotion(report: MonthlyExpenseReport, op
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`Notion monthly report save failed: ${response.status} ${body}`);
+  }
+
+  return (await response.json()) as NotionPageResult;
+}
+
+export async function updateMonthlyReportTelegramStatus(pageId: string, report: MonthlyExpenseReport, telegramSent: boolean) {
+  const { headers } = getNotionConfig();
+  const properties = buildMonthlyReportProperties(report, { telegramSent });
+  const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ properties }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Notion monthly report Telegram status update failed: ${response.status} ${body}`);
   }
 
   return (await response.json()) as NotionPageResult;

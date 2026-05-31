@@ -2,6 +2,11 @@
 
 ## [Unreleased] - Google Sheets 月報匯出
 
+### Fixed
+
+- 修正 `/api/cron/monthly-expense-report` 在 Zeabur 無法連線 Telegram API 時會整個回傳 500 的問題：現在會先更新 Notion 月報，再嘗試發 Telegram；若 Telegram timeout / `fetch failed`，endpoint 仍回傳 `ok: true`、`notionUrl` 與 `telegramError`，避免月報存檔被 Telegram 網路問題阻擋。
+- Telegram 成功送出時，會再更新 Notion 月報的「Telegram 已傳送」狀態，維持原有通知狀態欄位語意。
+
 ### Added
 
 - 新增 `src/lib/googleSheetsMonthlyExport.ts`，可把 monthly report 轉成 Google Sheets tabs：`Monthly Summary`、`Category Breakdown`、`Transactions`、`Export Log`。
