@@ -6,6 +6,7 @@
 
 - 修正 `/api/cron/monthly-expense-report` 在 Zeabur 無法連線 Telegram API 時會整個回傳 500 的問題：現在會先更新 Notion 月報，再嘗試發 Telegram；若 Telegram timeout / `fetch failed`，endpoint 仍回傳 `ok: true`、`notionUrl` 與 `telegramError`，避免月報存檔被 Telegram 網路問題阻擋。
 - Telegram 成功送出時，會再更新 Notion 月報的「Telegram 已傳送」狀態，維持原有通知狀態欄位語意。
+- Telegram 月報送出新增 30 秒 timeout 與 transient `fetch failed` / timeout / connection reset 重試，降低 Zeabur 到 Telegram API 偶發網路錯誤造成通知漏送的機率。
 
 ### Added
 
@@ -34,6 +35,7 @@
 - `npm run test -- src/lib/googleSheetsMonthlyExport.test.ts`
 - `npm run test -- src/app/api/cron/monthly-expense-report/sheets/route.test.ts src/lib/googleSheetsMonthlyExport.test.ts`
 - `npm run typecheck`
+- `npm run test -- src/app/api/cron/monthly-expense-report/route.test.ts src/lib/telegramNotify.test.ts`
 - `npm run test`（25 files / 99 tests）
 - `git diff --check`
 
