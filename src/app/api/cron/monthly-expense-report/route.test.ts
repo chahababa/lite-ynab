@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetchMonthlyExpenseReport: vi.fn(),
   saveMonthlyReportToNotion: vi.fn(),
+  updateMonthlyReportTelegramStatus: vi.fn(),
   sendMonthlyReportToTelegram: vi.fn(),
   getPreviousMonthIdInTaipei: vi.fn(),
 }));
@@ -13,6 +14,7 @@ vi.mock("@/lib/monthlyExpenseReportServer", () => ({
 
 vi.mock("@/lib/notionMonthlyReports", () => ({
   saveMonthlyReportToNotion: mocks.saveMonthlyReportToNotion,
+  updateMonthlyReportTelegramStatus: mocks.updateMonthlyReportTelegramStatus,
 }));
 
 vi.mock("@/lib/telegramNotify", () => ({
@@ -44,6 +46,7 @@ describe("GET /api/cron/monthly-expense-report", () => {
     vi.resetModules();
     mocks.fetchMonthlyExpenseReport.mockReset();
     mocks.saveMonthlyReportToNotion.mockReset();
+    mocks.updateMonthlyReportTelegramStatus.mockReset();
     mocks.sendMonthlyReportToTelegram.mockReset();
     mocks.getPreviousMonthIdInTaipei.mockReset();
     process.env.CRON_SECRET = "secret";
@@ -52,6 +55,7 @@ describe("GET /api/cron/monthly-expense-report", () => {
     mocks.fetchMonthlyExpenseReport.mockResolvedValue(sampleReport);
     mocks.sendMonthlyReportToTelegram.mockResolvedValue({ ok: true, result: { message_id: 123 } });
     mocks.saveMonthlyReportToNotion.mockResolvedValue({ id: "notion-page", url: "https://notion.test/page" });
+    mocks.updateMonthlyReportTelegramStatus.mockResolvedValue({ id: "notion-page", url: "https://notion.test/page" });
   });
 
   it("keeps the existing side-effecting response shape by default", async () => {
@@ -73,8 +77,13 @@ describe("GET /api/cron/monthly-expense-report", () => {
         telegramMessageId: 123,
       },
     });
+    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledTimes(1);
+    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: false });
     expect(mocks.sendMonthlyReportToTelegram).toHaveBeenCalledWith(sampleReport);
-    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: true });
+    expect(mocks.updateMonthlyReportTelegramStatus).toHaveBeenCalledWith("notion-page", sampleReport, true);
+    expect(mocks.saveMonthlyReportToNotion.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.sendMonthlyReportToTelegram.mock.invocationCallOrder[0],
+    );
   });
 
   it("returns the report without Telegram or Notion side effects when dryRun and includeReport are enabled", async () => {
@@ -120,7 +129,51 @@ describe("GET /api/cron/monthly-expense-report", () => {
         report: sampleReport,
       },
     });
+    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledTimes(1);
+    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: false });
     expect(mocks.sendMonthlyReportToTelegram).toHaveBeenCalledWith(sampleReport);
-    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: true });
+    expect(mocks.updateMonthlyReportTelegramStatus).toHaveBeenCalledWith("notion-page", sampleReport, true);
+    expect(mocks.saveMonthlyReportToNotion.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.sendMonthlyReportToTelegram.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("still saves the Notion report and returns partial success when Telegram send fails", async () => {
+    mocks.sendMonthlyReportToTelegram.mockRejectedValue(new TypeError("fetch failed"));
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report?monthId=2026-04", {
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      result: {
+        monthId: "2026-04",
+        notionPageId: "notion-page",
+        notionUrl: "https://notion.test/page",
+        telegramError: "fetch failed",
+      },
+    });
+    expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: false });
+    expect(mocks.sendMonthlyReportToTelegram).toHaveBeenCalledWith(sampleReport);
+  });
+
+  it("returns 500 when the post-Telegram Notion status update fails", async () => {
+    mocks.updateMonthlyReportTelegramStatus.mockRejectedValueOnce(new Error("Notion update failed"));
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report?monthId=2026-04", {
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ ok: false, error: "Notion update failed" });
+    expect(mocks.sendMonthlyReportToTelegram).toHaveBeenCalledWith(sampleReport);
   });
 });
