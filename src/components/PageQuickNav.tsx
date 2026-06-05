@@ -80,7 +80,7 @@ export function PageQuickNav() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/quick-entry") {
     return null;
   }
 

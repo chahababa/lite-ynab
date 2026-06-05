@@ -60,6 +60,23 @@ describe("parseHermesTransactionText", () => {
     });
   });
 
+  it("parses common in-app quick text with group/category slash and day-before date", () => {
+    const parsed = parseHermesTransactionText("前天 早餐 80 現金 個人/飲食", {
+      categories,
+      paymentMethods,
+      baseDate: "2026-05-18",
+    });
+
+    expect(parsed).toMatchObject({
+      amount: 80,
+      date: "2026-05-16",
+      categoryId: "cat-food",
+      paymentMethodId: "pm-cash",
+      note: "早餐",
+      warnings: [],
+    });
+  });
+
   it("refuses ambiguous bare category names when duplicate groups exist", () => {
     const parsed = parseHermesTransactionText("房租 12000 現金", {
       categories: [

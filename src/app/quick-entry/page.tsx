@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Car,
+  CalendarDays,
   Check,
   Coffee,
   CreditCard,
@@ -15,6 +17,7 @@ import {
   Plane,
   Settings as SettingsIcon,
   ShoppingBag,
+  Sparkles,
   Tag,
   Utensils,
   X,
@@ -37,14 +40,32 @@ import {
   getCategoryDisplay,
 } from "@/lib/categoryDisplay";
 import { fetchQuickEntryData } from "@/lib/data";
+import { parseHermesTransactionText } from "@/lib/hermesTransaction";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { CategoryOption, PaymentMethodOption, ToastState } from "@/lib/types";
 import { cn, getTodayInTaipei, toMonthId } from "@/lib/utils";
 
 type EntryType = "expense" | "income" | "transfer";
+type QuickTemplate = {
+  id: string;
+  label: string;
+  amount: number;
+  categoryId: string;
+  categoryName: string;
+  paymentMethodId: string;
+  paymentMethodName: string;
+  note: string;
+};
+type LastSavedTransaction = {
+  amount: number;
+  categoryName: string;
+  paymentMethodName: string;
+  note: string;
+};
 const KEYPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"] as const;
 const QUICK_GRID_SIZE = 6;
+const RECENT_TEMPLATE_STORAGE_KEY = "lite-ynab.quick-entry.recent-templates.v1";
 
 const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
   Utensils,
@@ -70,6 +91,28 @@ function formatDateChipLabel(value: string): string {
   return value === getTodayInTaipei() ? "今天" : value;
 }
 
+function shiftTaipeiDate(baseDate: string, daysAgo: number) {
+  const [year, month, day] = baseDate.split("-").map(Number);
+  return format(new Date(year, month - 1, day - daysAgo), "yyyy-MM-dd");
+}
+
+function readRecentTemplates(): QuickTemplate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_TEMPLATE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as QuickTemplate[];
+    return Array.isArray(parsed) ? parsed.slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentTemplates(templates: QuickTemplate[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(RECENT_TEMPLATE_STORAGE_KEY, JSON.stringify(templates.slice(0, 4)));
+}
+
 export default function QuickEntryPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -93,8 +136,17 @@ export default function QuickEntryPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isDateSheetOpen, setIsDateSheetOpen] = useState(false);
+  const [customDateInput, setCustomDateInput] = useState(date);
+  const [textEntry, setTextEntry] = useState("");
+  const [recentTemplates, setRecentTemplates] = useState<QuickTemplate[]>([]);
+  const [lastSaved, setLastSaved] = useState<LastSavedTransaction | null>(null);
 
   const currentMonthId = useMemo(() => toMonthId(date), [date]);
+
+  useEffect(() => {
+    setRecentTemplates(readRecentTemplates());
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -153,6 +205,19 @@ export default function QuickEntryPage() {
   const noPaymentMethods = !loading && paymentMethods.length === 0;
 
   const amountValue = amount ? Number(amount) : 0;
+  const parsedText = useMemo(() => {
+    const raw = textEntry.trim();
+    if (!raw) return null;
+    return parseHermesTransactionText(raw, {
+      categories: allCategories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        groupName: category.groupName,
+      })),
+      paymentMethods,
+      baseDate: date,
+    });
+  }, [allCategories, date, paymentMethods, textEntry]);
 
   function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
@@ -171,19 +236,59 @@ export default function QuickEntryPage() {
   }
 
   function handleDateChipClick() {
-    const next = window.prompt("輸入日期 (YYYY-MM-DD)，留空恢復今天", date);
-    if (next === null) return;
-    if (next === "") {
-      setDate(getTodayInTaipei());
-      setHasUserModifiedDate(false);
-      return;
-    }
+    setCustomDateInput(date);
+    setIsDateSheetOpen(true);
+  }
+
+  function applyDate(nextDate: string, modified: boolean) {
+    setDate(nextDate);
+    setHasUserModifiedDate(modified);
+    setCustomDateInput(nextDate);
+    setIsDateSheetOpen(false);
+  }
+
+  function applyCustomDate() {
+    const next = customDateInput.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) {
       setToast({ tone: "info", message: "日期格式請用 YYYY-MM-DD" });
       return;
     }
-    setDate(next);
-    setHasUserModifiedDate(true);
+    applyDate(next, next !== getTodayInTaipei());
+  }
+
+  function applyTextEntry() {
+    if (!parsedText) {
+      setToast({ tone: "info", message: "請先輸入文字記帳內容" });
+      return;
+    }
+    if (parsedText.amount) setAmount(String(parsedText.amount));
+    if (parsedText.categoryId) setSelectedCategoryId(parsedText.categoryId);
+    if (parsedText.paymentMethodId) setSelectedPaymentMethodId(parsedText.paymentMethodId);
+    setDate(parsedText.date);
+    setHasUserModifiedDate(parsedText.date !== getTodayInTaipei());
+    setNote(parsedText.note);
+    setToast({
+      tone: parsedText.warnings.length > 0 ? "info" : "success",
+      message:
+        parsedText.warnings.length > 0
+          ? `已帶入可辨識欄位，請補：${parsedText.warnings.join("、")}`
+          : "已解析文字記帳，確認後可儲存。",
+    });
+  }
+
+  function applyTemplate(template: QuickTemplate) {
+    setAmount(String(template.amount));
+    setSelectedCategoryId(template.categoryId);
+    setSelectedPaymentMethodId(template.paymentMethodId);
+    setNote(template.note);
+    setToast({ tone: "info", message: `已套用「${template.label}」，確認後可儲存。` });
+  }
+
+  function handleQuickCategoryTap(categoryId: string) {
+    setSelectedCategoryId(categoryId);
+    if (amount && Number(amount) > 0 && selectedPaymentMethodId && !isSubmitting) {
+      void submitTransaction(categoryId);
+    }
   }
 
   function resetAfterSubmit() {
@@ -233,6 +338,29 @@ export default function QuickEntryPage() {
         metadata: { entrypoint: "quick-entry" },
       });
       if (error) throw error;
+
+      const savedInfo: LastSavedTransaction = {
+        amount: nextAmount,
+        categoryName: category?.name ?? "未命名分類",
+        paymentMethodName: selectedPaymentMethod?.name ?? "未設定",
+        note: note.trim(),
+      };
+      setLastSaved(savedInfo);
+      const nextTemplate: QuickTemplate = {
+        id: `${categoryId}-${selectedPaymentMethodId}-${nextAmount}-${note.trim()}`,
+        label: `${category?.name ?? "未命名分類"} $${nextAmount.toLocaleString("en-US")}`,
+        amount: nextAmount,
+        categoryId,
+        categoryName: category?.name ?? "未命名分類",
+        paymentMethodId: selectedPaymentMethodId,
+        paymentMethodName: selectedPaymentMethod?.name ?? "未設定",
+        note: note.trim(),
+      };
+      setRecentTemplates((current) => {
+        const deduped = [nextTemplate, ...current.filter((item) => item.id !== nextTemplate.id)].slice(0, 4);
+        saveRecentTemplates(deduped);
+        return deduped;
+      });
 
       setToast({
         tone: "success",
@@ -311,6 +439,73 @@ export default function QuickEntryPage() {
           </div>
         ) : null}
 
+        {/* Text / Telegram-style entry */}
+        <section className="rounded-md border border-outline bg-surface p-3 shadow-elev-1">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="flex items-center gap-1 text-title-sm">
+                <Sparkles className="h-4 w-4 text-primary" />
+                文字記帳
+              </p>
+              <p className="text-label-sm text-on-surface-variant">例：早餐 80 現金 個人/飲食</p>
+            </div>
+            <button
+              type="button"
+              onClick={applyTextEntry}
+              disabled={!textEntry.trim() || loading}
+              className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-body-sm font-medium text-primary-on hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
+            >
+              解析
+            </button>
+          </div>
+          <textarea
+            value={textEntry}
+            onChange={(event) => setTextEntry(event.target.value)}
+            aria-label="文字記帳內容"
+            placeholder="輸入 Telegram 風格記帳文字"
+            rows={2}
+            className="w-full rounded-xs border border-outline-variant bg-surface px-3 py-2 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
+          />
+          {parsedText ? (
+            <div className="mt-2 rounded-sm bg-surface-container px-3 py-2 text-label-sm text-on-surface-variant">
+              預覽：{parsedText.amount ? `$${parsedText.amount.toLocaleString("en-US")}` : "未辨識金額"} · {parsedText.categoryName ?? "未辨識分類"} · {parsedText.paymentMethodName ?? "未辨識支付方式"}
+              {parsedText.warnings.length > 0 ? `｜${parsedText.warnings.join("、")}` : ""}
+            </div>
+          ) : null}
+        </section>
+
+        {recentTemplates.length > 0 ? (
+          <section className="rounded-md bg-surface-container px-3 py-2">
+            <p className="mb-2 text-label-md text-on-surface-variant">最近常用範本</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {recentTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => applyTemplate(template)}
+                  className="shrink-0 rounded-full border border-outline bg-surface px-3 py-1.5 text-body-sm text-on-surface hover:bg-on-surface/[0.03] active:bg-on-surface/[0.06]"
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {lastSaved ? (
+          <div className="rounded-md border border-primary bg-primary-container px-4 py-3 text-body-sm text-primary-on-container">
+            <div className="flex items-start justify-between gap-3">
+              <p>
+                已儲存 {lastSaved.categoryName} ${lastSaved.amount.toLocaleString("en-US")}（{lastSaved.paymentMethodName}）
+              </p>
+              <Link href="/transactions" className="shrink-0 font-medium underline">
+                編輯 / 復原
+              </Link>
+            </div>
+            <p className="mt-1 text-label-sm opacity-75">為避免誤刪，復原走交易列表確認流程；本頁已保留最近範本可快速重記。</p>
+          </div>
+        ) : null}
+
         {/* Amount card */}
         <div className="flex items-baseline justify-between rounded-md bg-primary-container px-4 py-3">
           <div className="flex flex-col gap-1">
@@ -347,6 +542,11 @@ export default function QuickEntryPage() {
             size="display"
           />
         </div>
+        {!amount ? (
+          <p className="rounded-md bg-surface-container px-4 py-2 text-center text-label-md text-on-surface-variant">
+            先輸入金額，再點常用分類即可快速儲存；儲存後可從交易列表編輯 / 復原。
+          </p>
+        ) : null}
 
         {/* Category 1×6 grid */}
         <section>
@@ -361,12 +561,18 @@ export default function QuickEntryPage() {
             </div>
           ) : loadError ? (
             <div className="rounded-md border border-money-expense bg-money-expense-container px-4 py-3 text-body-sm text-money-expense">
-              {loadError}
+              <p>{loadError}</p>
+              <button type="button" onClick={() => router.refresh()} className="mt-2 font-medium underline">
+                重新整理頁面
+              </button>
             </div>
           ) : visibleQuickCategories.length === 0 ? (
-            <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
-              尚未標記常用分類，點下方「更多分類」選擇
-            </p>
+            <div className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+              <p>尚未標記常用分類，先到預算分配把常用小項加入快速記帳。</p>
+              <Link href="/budget-allocation" className="mt-2 inline-flex font-medium text-primary underline">
+                前往設定快速分類
+              </Link>
+            </div>
           ) : (
             <div className="grid grid-cols-6 gap-1">
               {visibleQuickCategories.map((category) => {
@@ -378,7 +584,7 @@ export default function QuickEntryPage() {
                   <button
                     key={category.id}
                     type="button"
-                    onClick={() => setSelectedCategoryId(category.id)}
+                    onClick={() => handleQuickCategoryTap(category.id)}
                     aria-label={`${category.groupName} ${category.name}`}
                     aria-pressed={isSelected}
                     className={cn(
@@ -462,7 +668,7 @@ export default function QuickEntryPage() {
           className="h-12 text-body-lg"
           startIcon={<Check className="h-[18px] w-[18px]" />}
         >
-          儲存
+          {isSubmitting ? "儲存中..." : amount ? "儲存" : "輸入金額後儲存"}
         </M3Button>
       </div>
 
@@ -483,6 +689,52 @@ export default function QuickEntryPage() {
         }}
         onClose={() => setIsCategoryModalOpen(false)}
       />
+
+      {isDateSheetOpen ? (
+        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-scrim/40 px-3 pb-3" role="presentation">
+          <div role="dialog" aria-modal="true" aria-label="選擇日期" className="w-full max-w-md rounded-t-[28px] bg-surface p-4 shadow-elev-3">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-outline-variant" />
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <h2 className="text-title-md">選擇記帳日期</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "今天", value: getTodayInTaipei(), modified: false },
+                { label: "昨天", value: shiftTaipeiDate(getTodayInTaipei(), 1), modified: true },
+                { label: "前天", value: shiftTaipeiDate(getTodayInTaipei(), 2), modified: true },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => applyDate(option.value, option.modified)}
+                  className="rounded-md border border-outline bg-surface-container px-3 py-3 text-body-md text-on-surface hover:bg-on-surface/[0.03] active:bg-on-surface/[0.06]"
+                >
+                  <span className="block font-medium">{option.label}</span>
+                  <span className="mt-1 block text-label-sm text-on-surface-variant">{option.value}</span>
+                </button>
+              ))}
+            </div>
+            <label className="mt-4 block">
+              <span className="mb-1 block text-label-md text-on-surface-variant">自訂日期</span>
+              <input
+                value={customDateInput}
+                onChange={(event) => setCustomDateInput(event.target.value)}
+                placeholder="YYYY-MM-DD"
+                className="h-11 w-full rounded-xs border border-outline-variant bg-surface px-3 text-center font-mono text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setIsDateSheetOpen(false)} className="h-10 rounded-full px-4 text-body-md font-medium text-primary hover:bg-primary/5 active:bg-primary/10">
+                取消
+              </button>
+              <button type="button" onClick={applyCustomDate} className="h-10 rounded-full bg-primary px-5 text-body-md font-medium text-primary-on hover:bg-primary/90 active:bg-primary/80">
+                套用
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
