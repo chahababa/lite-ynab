@@ -61,11 +61,10 @@ set
   is_auto = mapping.is_auto,
   auto_amount = mapping.auto_amount,
   sort_order = mapping.sort_order
-from mapping
-join public.category_groups target_group
-  on target_group.user_id = target.user_id
- and target_group.name = mapping.group_name
+from mapping, public.category_groups target_group
 where target.name = mapping.zh_name
+  and target_group.user_id = target.user_id
+  and target_group.name = mapping.group_name
   and target.user_id = target_group.user_id;
 
 with mapping(en_name, zh_name, group_name) as (
