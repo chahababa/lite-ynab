@@ -1060,6 +1060,7 @@ export default function BudgetAllocationCompactPage() {
 
                             <input
                               inputMode="numeric"
+                              aria-label={`${row.categoryGroupName} ${row.categoryName} 固定預算`}
                               value={String(row.autoAmount)}
                               onChange={(event) => {
                                 const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
@@ -1077,6 +1078,7 @@ export default function BudgetAllocationCompactPage() {
 
                             <input
                               inputMode="numeric"
+                              aria-label={`${row.categoryGroupName} ${row.categoryName} 本月預算`}
                               value={String(row.allocated)}
                               onChange={(event) => {
                                 const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);

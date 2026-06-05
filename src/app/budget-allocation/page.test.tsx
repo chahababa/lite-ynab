@@ -145,6 +145,13 @@ describe("BudgetAllocationPage", () => {
     expect(screen.getByText("固定預算")).toBeInTheDocument();
   });
 
+  it("labels each budget row numeric input with group, category, and budget type", async () => {
+    render(createElement(BudgetAllocationPage));
+
+    expect(await screen.findByRole("textbox", { name: "個人 飲食 固定預算" })).toHaveValue("1200");
+    expect(screen.getByRole("textbox", { name: "個人 飲食 本月預算" })).toHaveValue("1200");
+  });
+
   it("renders category and payment management sections", async () => {
     render(createElement(BudgetAllocationPage));
 
