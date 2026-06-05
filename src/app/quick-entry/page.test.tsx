@@ -67,6 +67,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -226,6 +227,24 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "支付方式 現金" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("早餐")).toBeInTheDocument();
+  });
+
+  it("keeps relative text-entry dates anchored across repeated parse/apply cycles", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-18T04:00:00.000Z"));
+
+    render(createElement(QuickEntryPage));
+    await screen.findByText("文字記帳");
+
+    fireEvent.change(screen.getByLabelText("文字記帳內容"), {
+      target: { value: "昨天 早餐 80 現金 個人/飲食" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "解析" }));
+    expect(await screen.findByRole("button", { name: "日期 2026-05-17" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "解析" }));
+    expect(screen.getByRole("button", { name: "日期 2026-05-17" })).toBeInTheDocument();
   });
 
   it("opens date bottom sheet instead of window.prompt", async () => {

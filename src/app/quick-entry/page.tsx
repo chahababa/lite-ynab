@@ -126,6 +126,7 @@ export default function QuickEntryPage() {
   const [entryType, setEntryType] = useState<EntryType>("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(getTodayInTaipei());
+  const [textEntryBaseDate] = useState(getTodayInTaipei);
   const [hasUserModifiedDate, setHasUserModifiedDate] = useState(false);
   const [note, setNote] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
@@ -215,9 +216,9 @@ export default function QuickEntryPage() {
         groupName: category.groupName,
       })),
       paymentMethods,
-      baseDate: date,
+      baseDate: textEntryBaseDate,
     });
-  }, [allCategories, date, paymentMethods, textEntry]);
+  }, [allCategories, paymentMethods, textEntry, textEntryBaseDate]);
 
   function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
