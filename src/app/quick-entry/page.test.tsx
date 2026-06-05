@@ -104,6 +104,16 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(screen.getByRole("button", { name: "轉帳" })).toBeInTheDocument();
   });
 
+  it("shows parent group labels on every quick category tile", async () => {
+    render(createElement(QuickEntryPage));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText("#個人")).toHaveLength(QUICK_CATEGORIES.length);
+  });
+
   it("updates amount and note via keypad and input", async () => {
     render(createElement(QuickEntryPage));
     await screen.findByText("記一筆");

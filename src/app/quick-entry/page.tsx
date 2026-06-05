@@ -35,10 +35,6 @@ import {
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
-import {
-  getAmbiguousCategoryNames,
-  getCategoryDisplay,
-} from "@/lib/categoryDisplay";
 import { fetchQuickEntryData } from "@/lib/data";
 import { parseHermesTransactionText } from "@/lib/hermesTransaction";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
@@ -194,13 +190,6 @@ export default function QuickEntryPage() {
   const visibleQuickCategories = useMemo(
     () => quickCategories.slice(0, QUICK_GRID_SIZE),
     [quickCategories],
-  );
-
-  // 偵測 1×6 grid 內是否有同名分類（例如「個人/飲食」+「家庭/飲食」）
-  // 範圍只看「實際在 grid 上顯示的 6 個」，不必管整個 allCategories。
-  const ambiguousNames = useMemo(
-    () => getAmbiguousCategoryNames(visibleQuickCategories),
-    [visibleQuickCategories],
   );
 
   const noPaymentMethods = !loading && paymentMethods.length === 0;
@@ -580,7 +569,6 @@ export default function QuickEntryPage() {
                 const style = getCategoryStyle(category.name);
                 const Icon = ICON_COMPONENTS[style.icon];
                 const isSelected = selectedCategoryId === category.id;
-                const display = getCategoryDisplay(category, ambiguousNames);
                 return (
                   <button
                     key={category.id}
@@ -601,13 +589,11 @@ export default function QuickEntryPage() {
                     )}
                   >
                     <Icon className="h-[18px] w-[18px]" />
-                    {display.secondary ? (
-                      <span className="text-[8px] leading-none opacity-70">
-                        {display.secondary}
-                      </span>
-                    ) : null}
+                    <span className="text-[8px] leading-none opacity-70">
+                      #{category.groupName}
+                    </span>
                     <span className="text-[10px] font-medium leading-tight">
-                      {display.primary}
+                      {category.name}
                     </span>
                   </button>
                 );
