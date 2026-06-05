@@ -67,6 +67,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -155,7 +156,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("submits successfully when amount + category + payment method are set", async () => {
+  it("one-tap submits when amount + payment method are set and a quick category is tapped", async () => {
     render(createElement(QuickEntryPage));
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
@@ -165,7 +166,6 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "3" }));
     fireEvent.click(screen.getByRole("button", { name: "個人 飲食" }));
-    fireEvent.click(screen.getByRole("button", { name: /儲存/ }));
 
     await waitFor(() => {
       expect(mockInsert).toHaveBeenCalledTimes(1);
@@ -183,8 +183,8 @@ describe("QuickEntryPage (M3 v2.0)", () => {
       }),
     );
     expect(await screen.findByText("已記帳 $123 至 飲食")).toBeInTheDocument();
+    expect(screen.getByText("編輯 / 復原")).toBeInTheDocument();
 
-    // amount/category should reset
     await waitFor(() => {
       expect(screen.queryByText("−$0")).toBeInTheDocument();
     });
@@ -209,6 +209,55 @@ describe("QuickEntryPage (M3 v2.0)", () => {
       expect(screen.queryByText("請先到設定建立支付方式")).toBeInTheDocument();
     });
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("parses text entry and fills amount/category/payment candidates", async () => {
+    render(createElement(QuickEntryPage));
+    await screen.findByText("文字記帳");
+
+    fireEvent.change(screen.getByLabelText("文字記帳內容"), {
+      target: { value: "早餐 80 現金 個人/飲食" },
+    });
+    expect(screen.getByText(/預覽：\$80 · 飲食 · 現金/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "解析" }));
+
+    expect(await screen.findByText("已解析文字記帳，確認後可儲存。")).toBeInTheDocument();
+    expect(screen.getByText("−$80")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "支付方式 現金" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("早餐")).toBeInTheDocument();
+  });
+
+  it("keeps relative text-entry dates anchored across repeated parse/apply cycles", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-18T04:00:00.000Z"));
+
+    render(createElement(QuickEntryPage));
+    await screen.findByText("文字記帳");
+
+    fireEvent.change(screen.getByLabelText("文字記帳內容"), {
+      target: { value: "昨天 早餐 80 現金 個人/飲食" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "解析" }));
+    expect(await screen.findByRole("button", { name: "日期 2026-05-17" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "解析" }));
+    expect(screen.getByRole("button", { name: "日期 2026-05-17" })).toBeInTheDocument();
+  });
+
+  it("opens date bottom sheet instead of window.prompt", async () => {
+    const promptSpy = vi.spyOn(window, "prompt");
+    render(createElement(QuickEntryPage));
+    await screen.findByText("記一筆");
+
+    fireEvent.click(screen.getByRole("button", { name: /日期/ }));
+
+    expect(screen.getByRole("dialog", { name: "選擇日期" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /昨天/ })).toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+    promptSpy.mockRestore();
   });
 
   it("opens category picker modal when 「更多分類」 is clicked", async () => {

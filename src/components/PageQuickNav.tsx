@@ -80,7 +80,7 @@ export function PageQuickNav() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/quick-entry") {
     return null;
   }
 
@@ -91,8 +91,15 @@ export function PageQuickNav() {
     router.refresh();
   }
 
+  const isBudgetAllocationPage = pathname === "/budget-allocation";
+
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[999]">
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-5 z-[999]",
+        isBudgetAllocationPage && "lg:hidden",
+      )}
+    >
       <div className="mx-auto w-full max-w-md px-3">
         <div ref={containerRef} className="pointer-events-auto flex justify-start">
           <div className="relative">

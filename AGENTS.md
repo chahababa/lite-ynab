@@ -5,7 +5,8 @@ lite-ynab：輕量化記帳系統。
 技術棧：Next.js + TypeScript + Tailwind CSS + Supabase。
 
 ## 目前 UI 風格
-- 採用 `design/` 內定義的 Winamp 金屬鍍鉻擬物化（Chrome Skeuomorphism）。
+- 採用 `design/` 內定義的 Material 3 Light & Bright 視覺方向（淺色明亮、tonal surfaces、語意化金錢顏色）。
+- 先前 Winamp 金屬鍍鉻擬物化規範已由 `design/DESIGN-SPEC.md` v2.0 淘汰與封存；新 UI 不使用金屬漸層、emboss/inset/outset 效果。
 - 所有 UI 修改前，優先參考：
   - `design/DESIGN-SPEC.md`
   - `design/components.md`

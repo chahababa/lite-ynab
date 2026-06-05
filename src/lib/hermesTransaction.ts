@@ -128,6 +128,12 @@ function resolveDate(text: string, baseDate: string) {
     return { date: isoDate, token: isoDate };
   }
 
+  if (text.includes("前天") || text.includes("大前天")) {
+    const token = text.includes("大前天") ? "大前天" : "前天";
+    const days = token === "大前天" ? 3 : 2;
+    return { date: format(subDays(parseISO(baseDate), days), "yyyy-MM-dd"), token };
+  }
+
   if (text.includes("昨天")) {
     return { date: format(subDays(parseISO(baseDate), 1), "yyyy-MM-dd"), token: "昨天" };
   }

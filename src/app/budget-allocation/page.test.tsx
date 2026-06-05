@@ -1,6 +1,6 @@
 ﻿// @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -145,11 +145,30 @@ describe("BudgetAllocationPage", () => {
     expect(screen.getByText("固定預算")).toBeInTheDocument();
   });
 
+  it("labels each budget row numeric input with group, category, and budget type", async () => {
+    render(createElement(BudgetAllocationPage));
+
+    expect(await screen.findByRole("textbox", { name: "個人 飲食 固定預算" })).toHaveValue("1200");
+    expect(screen.getByRole("textbox", { name: "個人 飲食 本月預算" })).toHaveValue("1200");
+  });
+
   it("renders category and payment management sections", async () => {
     render(createElement(BudgetAllocationPage));
 
     expect(await screen.findByText("支付方式管理")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "個人 設定" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "飲食 設定" }).length).toBeGreaterThan(0);
+  });
+
+  it("uses Material dialogs for batch budget actions instead of window.confirm", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "複製上月預算" }));
+
+    expect(screen.getByRole("dialog", { name: "複製上月預算" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "套用上月預算" })).toBeInTheDocument();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

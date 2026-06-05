@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Plus, Settings } from "lucide-react";
 
@@ -23,6 +24,22 @@ type CompactGroup = {
 type PreviousReference = {
   allocated: number;
   spent: number;
+};
+
+type ConfirmDialogState = {
+  title: string;
+  description: ReactNode;
+  confirmLabel: string;
+  tone?: "danger" | "primary";
+  onConfirm: () => Promise<void> | void;
+};
+
+type TextDialogState = {
+  title: string;
+  label: string;
+  initialValue?: string;
+  confirmLabel: string;
+  onConfirm: (value: string) => Promise<void> | void;
 };
 
 function getErrorMessage(error: unknown) {
@@ -59,6 +76,9 @@ export default function BudgetAllocationCompactPage() {
   const [openGroupMenuId, setOpenGroupMenuId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [newPaymentMethodName, setNewPaymentMethodName] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [textDialog, setTextDialog] = useState<TextDialogState | null>(null);
+  const [textDialogValue, setTextDialogValue] = useState("");
 
   useEffect(() => {
     const timer = toast ? window.setTimeout(() => setToast(null), 2600) : undefined;
@@ -176,6 +196,27 @@ export default function BudgetAllocationCompactPage() {
 
   async function reload() {
     setRefreshTick((value) => value + 1);
+  }
+
+  function openTextDialog(config: TextDialogState) {
+    setTextDialogValue(config.initialValue ?? "");
+    setTextDialog(config);
+  }
+
+  async function submitTextDialog() {
+    if (!textDialog) return;
+    const nextValue = textDialogValue.trim();
+    if (!nextValue) return;
+    await textDialog.onConfirm(nextValue);
+    setTextDialog(null);
+    setTextDialogValue("");
+  }
+
+  async function submitConfirmDialog() {
+    if (!confirmDialog) return;
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   }
 
   async function saveIncome() {
@@ -312,39 +353,41 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function renameCategory(row: BudgetRow) {
-    const nextName = window.prompt("請輸入新的小項名稱", row.categoryName)?.trim();
-    if (!nextName || nextName === row.categoryName) {
-      return;
-    }
-
-    setPendingKey(`rename-${row.categoryId}`);
-
-    try {
-      const { error } = await supabase.from("categories").update({ name: nextName }).eq("id", row.categoryId);
-
-      if (error) {
-        throw error;
-      }
-
-      setRows((current) =>
-        current.map((item) => (item.categoryId === row.categoryId ? { ...item, categoryName: nextName } : item)),
-      );
-      setOpenMenuId(null);
-      setToast({ tone: "success", message: `已將小項名稱更新為「${nextName}」。` });
-    } catch (error) {
-      setToast({ tone: "error", message: `重新命名失敗：${getErrorMessage(error)}` });
-    } finally {
-      setPendingKey(null);
-    }
+  function renameCategory(row: BudgetRow) {
+    openTextDialog({
+      title: "重新命名小項",
+      label: "小項名稱",
+      initialValue: row.categoryName,
+      confirmLabel: "儲存名稱",
+      onConfirm: async (nextName) => {
+        if (nextName === row.categoryName) return;
+        setPendingKey(`rename-${row.categoryId}`);
+        try {
+          const { error } = await supabase.from("categories").update({ name: nextName }).eq("id", row.categoryId);
+          if (error) throw error;
+          setRows((current) =>
+            current.map((item) => (item.categoryId === row.categoryId ? { ...item, categoryName: nextName } : item)),
+          );
+          setOpenMenuId(null);
+          setToast({ tone: "success", message: `已將小項名稱更新為「${nextName}」。` });
+        } catch (error) {
+          setToast({ tone: "error", message: `重新命名失敗：${getErrorMessage(error)}` });
+        } finally {
+          setPendingKey(null);
+        }
+      },
+    });
   }
 
-  async function deleteCategory(row: BudgetRow) {
-    const confirmed = window.confirm(
-      `要刪除「${row.categoryName}」嗎？\n\n這會一起刪除這個小項的本月預算與相關交易紀錄，且無法復原。`,
-    );
-
+  async function deleteCategory(row: BudgetRow, confirmed = false) {
     if (!confirmed) {
+      setConfirmDialog({
+        title: `刪除小項「${row.categoryName}」`,
+        description: "這會一起刪除這個小項的本月預算與相關交易紀錄，且無法復原。",
+        confirmLabel: "確認刪除小項",
+        tone: "danger",
+        onConfirm: () => deleteCategory(row, true),
+      });
       return;
     }
 
@@ -370,71 +413,72 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function addCategoryToGroup(group: CompactGroup) {
-    const nextName = window.prompt(`請輸入要新增到「${group.groupName}」的大項下小項名稱`)?.trim();
-    if (!nextName) {
-      return;
-    }
+  function addCategoryToGroup(group: CompactGroup) {
+    openTextDialog({
+      title: `新增「${group.groupName}」小項`,
+      label: "小項名稱",
+      confirmLabel: "新增小項",
+      onConfirm: async (nextName) => {
+        setPendingKey(`add-${group.groupId}`);
+        try {
+          const nextSortOrder =
+            group.rows.reduce((max, row, index) => Math.max(max, (index + 1) * 10), 0) + 10;
+          const categoryResult = await supabase
+            .from("categories")
+            .insert({
+              category_group_id: group.groupId,
+              name: nextName,
+              is_auto: false,
+              auto_amount: 0,
+              is_quick: false,
+              sort_order: nextSortOrder,
+            })
+            .select("id")
+            .single();
 
-    setPendingKey(`add-${group.groupId}`);
+          if (categoryResult.error || !categoryResult.data) {
+            throw categoryResult.error ?? new Error("新增分類失敗");
+          }
 
-    try {
-      const nextSortOrder =
-        group.rows.reduce((max, row, index) => Math.max(max, (index + 1) * 10), 0) + 10;
-      const categoryResult = await supabase
-        .from("categories")
-        .insert({
-          category_group_id: group.groupId,
-          name: nextName,
-          is_auto: false,
-          auto_amount: 0,
-          is_quick: false,
-          sort_order: nextSortOrder,
-        })
-        .select("id")
-        .single();
+          const budgetResult = await supabase
+            .from("budgets")
+            .insert({
+              month_id: monthId,
+              category_id: categoryResult.data.id,
+              allocated: 0,
+            })
+            .select("id")
+            .single();
 
-      if (categoryResult.error || !categoryResult.data) {
-        throw categoryResult.error ?? new Error("新增分類失敗");
-      }
+          if (budgetResult.error || !budgetResult.data) {
+            throw budgetResult.error ?? new Error("新增預算失敗");
+          }
 
-      const budgetResult = await supabase
-        .from("budgets")
-        .insert({
-          month_id: monthId,
-          category_id: categoryResult.data.id,
-          allocated: 0,
-        })
-        .select("id")
-        .single();
-
-      if (budgetResult.error || !budgetResult.data) {
-        throw budgetResult.error ?? new Error("新增預算失敗");
-      }
-
-      setRows((current) => [
-        ...current,
-        {
-          budgetId: budgetResult.data.id,
-          categoryId: categoryResult.data.id,
-          categoryGroupId: group.groupId,
-          categoryGroupName: group.groupName,
-          categoryName: nextName,
-          allocated: 0,
-          spent: 0,
-          remaining: 0,
-          isQuick: false,
-          isAuto: false,
-          autoAmount: 0,
-          warning: null,
-        },
-      ]);
-      setToast({ tone: "success", message: `已在「${group.groupName}」新增小項「${nextName}」。` });
-    } catch (error) {
-      setToast({ tone: "error", message: `新增小項失敗：${getErrorMessage(error)}` });
-    } finally {
-      setPendingKey(null);
-    }
+          setRows((current) => [
+            ...current,
+            {
+              budgetId: budgetResult.data.id,
+              categoryId: categoryResult.data.id,
+              categoryGroupId: group.groupId,
+              categoryGroupName: group.groupName,
+              categoryName: nextName,
+              allocated: 0,
+              spent: 0,
+              remaining: 0,
+              isQuick: false,
+              isAuto: false,
+              autoAmount: 0,
+              warning: null,
+            },
+          ]);
+          setToast({ tone: "success", message: `已在「${group.groupName}」新增小項「${nextName}」。` });
+        } catch (error) {
+          setToast({ tone: "error", message: `新增小項失敗：${getErrorMessage(error)}` });
+        } finally {
+          setPendingKey(null);
+        }
+      },
+    });
   }
 
   function toggleGroup(groupId: string) {
@@ -444,31 +488,31 @@ export default function BudgetAllocationCompactPage() {
     }));
   }
 
-  async function renameGroup(group: CompactGroup) {
-    const nextName = window.prompt("請輸入新的大項名稱", group.groupName)?.trim();
-    if (!nextName || nextName === group.groupName) {
-      return;
-    }
-
-    setPendingKey(`group-rename-${group.groupId}`);
-
-    try {
-      const { error } = await supabase.from("category_groups").update({ name: nextName }).eq("id", group.groupId);
-      if (error) {
-        throw error;
-      }
-
-      setRows((current) =>
-        current.map((item) =>
-          item.categoryGroupId === group.groupId ? { ...item, categoryGroupName: nextName } : item,
-        ),
-      );
-      setToast({ tone: "success", message: `已將大項更新為「${nextName}」。` });
-    } catch (error) {
-      setToast({ tone: "error", message: `重新命名大項失敗：${getErrorMessage(error)}` });
-    } finally {
-      setPendingKey(null);
-    }
+  function renameGroup(group: CompactGroup) {
+    openTextDialog({
+      title: "重新命名大項",
+      label: "大項名稱",
+      initialValue: group.groupName,
+      confirmLabel: "儲存名稱",
+      onConfirm: async (nextName) => {
+        if (nextName === group.groupName) return;
+        setPendingKey(`group-rename-${group.groupId}`);
+        try {
+          const { error } = await supabase.from("category_groups").update({ name: nextName }).eq("id", group.groupId);
+          if (error) throw error;
+          setRows((current) =>
+            current.map((item) =>
+              item.categoryGroupId === group.groupId ? { ...item, categoryGroupName: nextName } : item,
+            ),
+          );
+          setToast({ tone: "success", message: `已將大項更新為「${nextName}」。` });
+        } catch (error) {
+          setToast({ tone: "error", message: `重新命名大項失敗：${getErrorMessage(error)}` });
+        } finally {
+          setPendingKey(null);
+        }
+      },
+    });
   }
 
   async function reorderGroups(groupId: string, direction: -1 | 1) {
@@ -508,11 +552,15 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function deleteGroup(group: CompactGroup) {
-    const confirmed = window.confirm(
-      `要刪除大項「${group.groupName}」嗎？\n\n這會一起刪除底下 ${group.rows.length} 個小項、相關預算與交易資料，且無法復原。`,
-    );
+  async function deleteGroup(group: CompactGroup, confirmed = false) {
     if (!confirmed) {
+      setConfirmDialog({
+        title: `刪除大項「${group.groupName}」`,
+        description: `這會一起刪除底下 ${group.rows.length} 個小項、相關預算與交易資料，且無法復原。`,
+        confirmLabel: "確認刪除大項",
+        tone: "danger",
+        onConfirm: () => deleteGroup(group, true),
+      });
       return;
     }
 
@@ -577,34 +625,40 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function renamePaymentMethod(method: PaymentMethodOption) {
-    const nextName = window.prompt("請輸入新的支付方式名稱", method.name)?.trim();
-    if (!nextName || nextName === method.name) {
-      return;
-    }
-
-    setPendingKey(`payment-rename-${method.id}`);
-
-    try {
-      const { error } = await supabase.from("payment_methods").update({ name: nextName }).eq("id", method.id);
-      if (error) {
-        throw error;
-      }
-
-      setPaymentMethods((current) =>
-        current.map((item) => (item.id === method.id ? { ...item, name: nextName } : item)),
-      );
-      setToast({ tone: "success", message: `已將支付方式更新為「${nextName}」。` });
-    } catch (error) {
-      setToast({ tone: "error", message: `重新命名支付方式失敗：${getErrorMessage(error)}` });
-    } finally {
-      setPendingKey(null);
-    }
+  function renamePaymentMethod(method: PaymentMethodOption) {
+    openTextDialog({
+      title: "重新命名支付方式",
+      label: "支付方式名稱",
+      initialValue: method.name,
+      confirmLabel: "儲存名稱",
+      onConfirm: async (nextName) => {
+        if (nextName === method.name) return;
+        setPendingKey(`payment-rename-${method.id}`);
+        try {
+          const { error } = await supabase.from("payment_methods").update({ name: nextName }).eq("id", method.id);
+          if (error) throw error;
+          setPaymentMethods((current) =>
+            current.map((item) => (item.id === method.id ? { ...item, name: nextName } : item)),
+          );
+          setToast({ tone: "success", message: `已將支付方式更新為「${nextName}」。` });
+        } catch (error) {
+          setToast({ tone: "error", message: `重新命名支付方式失敗：${getErrorMessage(error)}` });
+        } finally {
+          setPendingKey(null);
+        }
+      },
+    });
   }
 
-  async function deletePaymentMethod(method: PaymentMethodOption) {
-    const confirmed = window.confirm(`要刪除支付方式「${method.name}」嗎？如果仍有交易使用它，系統會阻擋刪除。`);
+  async function deletePaymentMethod(method: PaymentMethodOption, confirmed = false) {
     if (!confirmed) {
+      setConfirmDialog({
+        title: `刪除支付方式「${method.name}」`,
+        description: "如果仍有交易使用它，系統會先阻擋刪除並提示交易筆數。",
+        confirmLabel: "檢查並刪除",
+        tone: "danger",
+        onConfirm: () => deletePaymentMethod(method, true),
+      });
       return;
     }
 
@@ -639,8 +693,14 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function copyPreviousMonthBudgets() {
-    if (!window.confirm("要用上個月的預算配置覆蓋本月目前的金額嗎？")) {
+  async function copyPreviousMonthBudgets(confirmed = false) {
+    if (!confirmed) {
+      setConfirmDialog({
+        title: "複製上月預算",
+        description: "會用上個月的預算配置覆蓋本月目前金額，建議先確認目前未完成輸入。",
+        confirmLabel: "套用上月預算",
+        onConfirm: () => copyPreviousMonthBudgets(true),
+      });
       return;
     }
 
@@ -676,14 +736,20 @@ export default function BudgetAllocationCompactPage() {
     }
   }
 
-  async function applyAutoBudgets() {
+  async function applyAutoBudgets(confirmed = false) {
     const autoRows = rows.filter((row) => row.isAuto && row.autoAmount > 0);
     if (autoRows.length === 0) {
       setToast({ tone: "info", message: "目前沒有可套用的固定預算。" });
       return;
     }
 
-    if (!window.confirm(`要將 ${autoRows.length} 個固定預算一次套用到本月嗎？`)) {
+    if (!confirmed) {
+      setConfirmDialog({
+        title: "批次套用固定預算",
+        description: `會將 ${autoRows.length} 個固定預算一次套用到本月。`,
+        confirmLabel: "套用固定預算",
+        onConfirm: () => applyAutoBudgets(true),
+      });
       return;
     }
 
@@ -994,6 +1060,7 @@ export default function BudgetAllocationCompactPage() {
 
                             <input
                               inputMode="numeric"
+                              aria-label={`${row.categoryGroupName} ${row.categoryName} 固定預算`}
                               value={String(row.autoAmount)}
                               onChange={(event) => {
                                 const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
@@ -1011,6 +1078,7 @@ export default function BudgetAllocationCompactPage() {
 
                             <input
                               inputMode="numeric"
+                              aria-label={`${row.categoryGroupName} ${row.categoryName} 本月預算`}
                               value={String(row.allocated)}
                               onChange={(event) => {
                                 const nextValue = Number(event.target.value.replace(/[^\d]/g, "") || 0);
@@ -1108,6 +1176,56 @@ export default function BudgetAllocationCompactPage() {
           </div>
         ) : null}
       </section>
+
+      {confirmDialog ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-scrim/40 px-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-label={confirmDialog.title} className="w-full max-w-md rounded-[28px] bg-surface p-5 shadow-elev-3">
+            <h2 className="text-title-md text-on-surface">{confirmDialog.title}</h2>
+            <div className="mt-2 text-body-md text-on-surface-variant">{confirmDialog.description}</div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmDialog(null)} className="h-10 rounded-full px-4 text-body-md font-medium text-primary hover:bg-primary/5 active:bg-primary/10">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitConfirmDialog()}
+                className={cn(
+                  "h-10 rounded-full px-5 text-body-md font-medium transition-colors duration-m3-short",
+                  confirmDialog.tone === "danger"
+                    ? "bg-money-expense text-money-expense-container hover:bg-money-expense/90"
+                    : "bg-primary text-primary-on hover:bg-primary/90",
+                )}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {textDialog ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-scrim/40 px-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-label={textDialog.title} className="w-full max-w-md rounded-[28px] bg-surface p-5 shadow-elev-3">
+            <h2 className="text-title-md text-on-surface">{textDialog.title}</h2>
+            <label className="mt-4 block">
+              <span className="mb-1 block text-label-md text-on-surface-variant">{textDialog.label}</span>
+              <input
+                value={textDialogValue}
+                onChange={(event) => setTextDialogValue(event.target.value)}
+                className="h-11 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setTextDialog(null)} className="h-10 rounded-full px-4 text-body-md font-medium text-primary hover:bg-primary/5 active:bg-primary/10">
+                取消
+              </button>
+              <button type="button" onClick={() => void submitTextDialog()} disabled={!textDialogValue.trim()} className="h-10 rounded-full bg-primary px-5 text-body-md font-medium text-primary-on hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40">
+                {textDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
