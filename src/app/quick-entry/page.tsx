@@ -426,34 +426,6 @@ export default function QuickEntryPage() {
           </Link>
         </div>
 
-        {/* Type segmented toggle */}
-        <div className="flex rounded-full bg-surface-container p-[3px]">
-          {(
-            [
-              { key: "expense", label: "支出", color: "text-money-expense" },
-              { key: "income", label: "收入", color: "text-money-income" },
-              { key: "transfer", label: "轉帳", color: "text-on-surface" },
-            ] as const
-          ).map((t) => {
-            const active = entryType === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => handleEntryTypeChange(t.key)}
-                className={cn(
-                  "flex-1 h-8 rounded-full text-body-md font-medium transition-colors duration-m3-short",
-                  active
-                    ? cn("bg-surface shadow-elev-1", t.color)
-                    : "bg-transparent text-on-surface-variant",
-                )}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
         {/* Banner: 沒有支付方式 */}
         {noPaymentMethods ? (
           <div className="rounded-md bg-money-warn-container px-4 py-2 text-body-sm text-money-warn">
@@ -463,59 +435,6 @@ export default function QuickEntryPage() {
             </Link>{" "}
             建立。
           </div>
-        ) : null}
-
-        {/* Text / Telegram-style entry */}
-        <section className="rounded-md border border-outline bg-surface p-3 shadow-elev-1">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <p className="flex items-center gap-1 text-title-sm">
-                <Sparkles className="h-4 w-4 text-primary" />
-                文字記帳
-              </p>
-              <p className="text-label-sm text-on-surface-variant">例：早餐 80 現金 個人/飲食</p>
-            </div>
-            <button
-              type="button"
-              onClick={applyTextEntry}
-              disabled={!textEntry.trim() || loading}
-              className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-body-sm font-medium text-primary-on hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
-            >
-              解析
-            </button>
-          </div>
-          <textarea
-            value={textEntry}
-            onChange={(event) => setTextEntry(event.target.value)}
-            aria-label="文字記帳內容"
-            placeholder="輸入 Telegram 風格記帳文字"
-            rows={2}
-            className="w-full rounded-xs border border-outline-variant bg-surface px-3 py-2 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
-          />
-          {parsedText ? (
-            <div className="mt-2 rounded-sm bg-surface-container px-3 py-2 text-label-sm text-on-surface-variant">
-              預覽：{parsedText.amount ? `$${parsedText.amount.toLocaleString("en-US")}` : "未辨識金額"} · {parsedText.categoryName ?? "未辨識分類"} · {parsedText.paymentMethodName ?? "未辨識支付方式"}
-              {parsedText.warnings.length > 0 ? `｜${parsedText.warnings.join("、")}` : ""}
-            </div>
-          ) : null}
-        </section>
-
-        {recentTemplates.length > 0 ? (
-          <section className="rounded-md bg-surface-container px-3 py-2">
-            <p className="mb-2 text-label-md text-on-surface-variant">最近常用範本</p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {recentTemplates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => applyTemplate(template)}
-                  className="shrink-0 rounded-full border border-outline bg-surface px-3 py-1.5 text-body-sm text-on-surface hover:bg-on-surface/[0.03] active:bg-on-surface/[0.06]"
-                >
-                  {template.label}
-                </button>
-              ))}
-            </div>
-          </section>
         ) : null}
 
         {lastSaved ? (
@@ -697,7 +616,7 @@ export default function QuickEntryPage() {
           ))}
         </div>
 
-        {/* Save button (sticky bottom feel via mt-auto + page padding) */}
+        {/* Save button */}
         <M3Button
           variant="filled"
           onClick={() => void submitTransaction()}
@@ -707,6 +626,88 @@ export default function QuickEntryPage() {
         >
           {isSubmitting ? "儲存中..." : amount ? "儲存" : "輸入金額後儲存"}
         </M3Button>
+
+        {/* Type segmented toggle */}
+        <div className="flex rounded-full bg-surface-container p-[3px]">
+          {(
+            [
+              { key: "expense", label: "支出", color: "text-money-expense" },
+              { key: "income", label: "收入", color: "text-money-income" },
+              { key: "transfer", label: "轉帳", color: "text-on-surface" },
+            ] as const
+          ).map((t) => {
+            const active = entryType === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => handleEntryTypeChange(t.key)}
+                className={cn(
+                  "flex-1 h-8 rounded-full text-body-md font-medium transition-colors duration-m3-short",
+                  active
+                    ? cn("bg-surface shadow-elev-1", t.color)
+                    : "bg-transparent text-on-surface-variant",
+                )}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Text / Telegram-style entry */}
+        <section className="rounded-md border border-outline bg-surface p-3 shadow-elev-1">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="flex items-center gap-1 text-title-sm">
+                <Sparkles className="h-4 w-4 text-primary" />
+                文字記帳
+              </p>
+              <p className="text-label-sm text-on-surface-variant">例：早餐 80 現金 個人/飲食</p>
+            </div>
+            <button
+              type="button"
+              onClick={applyTextEntry}
+              disabled={!textEntry.trim() || loading}
+              className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-body-sm font-medium text-primary-on hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40"
+            >
+              解析
+            </button>
+          </div>
+          <textarea
+            value={textEntry}
+            onChange={(event) => setTextEntry(event.target.value)}
+            aria-label="文字記帳內容"
+            placeholder="輸入 Telegram 風格記帳文字"
+            rows={2}
+            className="w-full rounded-xs border border-outline-variant bg-surface px-3 py-2 text-body-md text-on-surface outline-none focus:border-primary focus:border-2 focus:px-[11px]"
+          />
+          {parsedText ? (
+            <div className="mt-2 rounded-sm bg-surface-container px-3 py-2 text-label-sm text-on-surface-variant">
+              預覽：{parsedText.amount ? `$${parsedText.amount.toLocaleString("en-US")}` : "未辨識金額"} · {parsedText.categoryName ?? "未辨識分類"} · {parsedText.paymentMethodName ?? "未辨識支付方式"}
+              {parsedText.warnings.length > 0 ? `｜${parsedText.warnings.join("、")}` : ""}
+            </div>
+          ) : null}
+        </section>
+
+        {recentTemplates.length > 0 ? (
+          <section className="rounded-md bg-surface-container px-3 py-2">
+            <p className="mb-2 text-label-md text-on-surface-variant">最近常用範本</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {recentTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => applyTemplate(template)}
+                  className="shrink-0 rounded-full border border-outline bg-surface px-3 py-1.5 text-body-sm text-on-surface hover:bg-on-surface/[0.03] active:bg-on-surface/[0.06]"
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
       </div>
 
       <PaymentMethodModal

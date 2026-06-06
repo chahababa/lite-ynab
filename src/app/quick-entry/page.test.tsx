@@ -40,6 +40,8 @@ vi.mock("@/lib/supabaseClient", () => ({
   }),
 }));
 
+const RECENT_TEMPLATE_STORAGE_KEY = "lite-ynab.quick-entry.recent-templates.v1";
+
 const QUICK_CATEGORIES = [
   {
     id: "cat-food",
@@ -127,6 +129,34 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(screen.getByTitle("大項：家庭")).toBeInTheDocument();
   });
 
+  it("places entry type, text entry, and recent templates at the bottom", async () => {
+    window.localStorage.setItem(
+      RECENT_TEMPLATE_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "recent-1",
+          label: "個人-娛樂飲食(非必要)🟧 $300",
+          amount: 300,
+          categoryId: "cat-food",
+          categoryName: "飲食",
+          paymentMethodId: "pm-cash",
+          paymentMethodName: "現金",
+          note: "",
+        },
+      ]),
+    );
+
+    render(createElement(QuickEntryPage));
+
+    const saveButton = await screen.findByRole("button", { name: "輸入金額後儲存" });
+    const typeButton = screen.getByRole("button", { name: "支出" });
+    const textEntryTitle = screen.getByText("文字記帳");
+    const recentTitle = await screen.findByText("最近常用範本");
+
+    expect(saveButton.compareDocumentPosition(typeButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(typeButton.compareDocumentPosition(textEntryTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(textEntryTitle.compareDocumentPosition(recentTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 
   it("updates amount and note via keypad and input", async () => {
     render(createElement(QuickEntryPage));
