@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
-  Plus,
   Wallet,
 } from "lucide-react";
 
@@ -240,8 +239,8 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* Hero balance card */}
-            <div className="rounded-md bg-primary-container p-6 shadow-elev-1">
-              <div className="flex items-start justify-between gap-3">
+            <div className="relative rounded-md bg-primary-container p-6 shadow-elev-1">
+              <div className="pr-24">
                 <div className="min-w-0">
                   <p className="text-body-sm text-primary-on-container/80">
                     本月剩餘預算
@@ -266,14 +265,14 @@ export default function DashboardPage() {
                     · 已用 <span className="font-mono tabular-nums">{usagePct}%</span>
                   </p>
                 </div>
-                <Link href="/quick-entry" aria-label="記一筆">
-                  <M3Button
-                    variant="filled"
-                    className="!bg-primary-on-container !text-primary-container shrink-0"
-                    startIcon={<Plus className="h-[18px] w-[18px]" />}
-                  >
-                    記一筆
-                  </M3Button>
+                <Link
+                  href="/quick-entry"
+                  aria-label="記一筆"
+                  className="absolute right-6 top-9 flex h-14 w-24 items-center justify-center rounded-full bg-primary-on-container px-5 text-center text-body-md font-medium leading-tight text-primary-container shadow-elev-1 transition-colors hover:bg-primary-on-container/90 active:bg-primary-on-container/80"
+                >
+                  <span>
+                    記一<br />筆
+                  </span>
                 </Link>
               </div>
               <div className="mt-5">

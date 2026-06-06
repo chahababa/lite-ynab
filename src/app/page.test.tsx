@@ -152,11 +152,12 @@ describe("DashboardPage (M3 v2.0)", () => {
     expect(screen.getByText("−$120")).toBeInTheDocument();
   });
 
-  it("「記一筆」 button links to /quick-entry", async () => {
+  it("「記一筆」 button links to /quick-entry and sits inside hero card as a compact pill", async () => {
     render(createElement(DashboardPage));
     await screen.findByText("主控臺");
     const link = screen.getByLabelText("記一筆");
     expect(link.getAttribute("href")).toBe("/quick-entry");
+    expect(link).toHaveClass("absolute", "right-6", "top-9", "h-14", "w-24", "rounded-full");
   });
 
   it("opens income edit dialog and saves new income value", async () => {
