@@ -30,8 +30,10 @@ import { Button as M3Button } from "@/components/m3/Button";
 import { Chip as M3Chip } from "@/components/m3/Chip";
 import { MoneyText } from "@/components/m3/MoneyText";
 import {
+  CAT_BG_CLASS,
   CAT_BORDER_CLASS,
   CAT_TEXT_CLASS,
+  type M3CatColor,
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
@@ -79,6 +81,29 @@ const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
   CreditCard,
   Tag,
 };
+
+const GROUP_BADGE_COLOR_BY_NAME: Array<{ keywords: string[]; color: M3CatColor }> = [
+  { keywords: ["個人", "personal"], color: "transport" },
+  { keywords: ["家庭", "家", "home", "family"], color: "home" },
+  { keywords: ["吉他", "音樂", "music", "guitar"], color: "fun" },
+  { keywords: ["其他", "other"], color: "shop" },
+];
+const GROUP_BADGE_FALLBACK_COLORS: M3CatColor[] = ["food", "transport", "shop", "home", "health", "fun"];
+
+function getGroupBadgeColor(groupName: string): M3CatColor {
+  const lower = groupName.toLowerCase();
+  const matched = GROUP_BADGE_COLOR_BY_NAME.find((rule) =>
+    rule.keywords.some((keyword) => lower.includes(keyword.toLowerCase())),
+  );
+  if (matched) return matched.color;
+
+  const hash = Array.from(groupName).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return GROUP_BADGE_FALLBACK_COLORS[hash % GROUP_BADGE_FALLBACK_COLORS.length];
+}
+
+function getGroupBadgeText(groupName: string): string {
+  return Array.from(groupName.trim())[0] ?? "#";
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -579,6 +604,7 @@ export default function QuickEntryPage() {
               {visibleQuickCategories.map((category) => {
                 const style = getCategoryStyle(category.name);
                 const Icon = ICON_COMPONENTS[style.icon];
+                const groupBadgeColor = getGroupBadgeColor(category.groupName);
                 const isSelected = selectedCategoryId === category.id;
                 const display = getCategoryDisplay(category, ambiguousNames);
                 return (
@@ -600,12 +626,22 @@ export default function QuickEntryPage() {
                         : "border border-outline text-on-surface-variant hover:bg-on-surface/[0.03]",
                     )}
                   >
-                    <Icon className="h-[18px] w-[18px]" />
-                    {display.secondary ? (
-                      <span className="text-[8px] leading-none opacity-70">
-                        {display.secondary}
+                    <span className="relative inline-flex h-7 w-7 items-center justify-center">
+                      <Icon className="h-[22px] w-[22px]" />
+                      <span
+                        aria-hidden="true"
+                        title={`大項：${category.groupName}`}
+                        className={cn(
+                          "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white shadow-elev-1 ring-1 ring-surface",
+                          CAT_BG_CLASS[groupBadgeColor],
+                        )}
+                      >
+                        {getGroupBadgeText(category.groupName)}
                       </span>
-                    ) : null}
+                    </span>
+                    <span className="text-[8px] leading-none opacity-70">
+                      #{category.groupName}
+                    </span>
                     <span className="text-[10px] font-medium leading-tight">
                       {display.primary}
                     </span>

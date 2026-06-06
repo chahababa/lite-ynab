@@ -52,6 +52,16 @@ const QUICK_CATEGORIES = [
     sortOrder: 10,
   },
   {
+    id: "cat-family-food",
+    groupId: "group-home",
+    groupName: "家庭",
+    name: "飲食",
+    isQuick: true,
+    isAuto: false,
+    autoAmount: 0,
+    sortOrder: 15,
+  },
+  {
     id: "cat-coffee",
     groupId: "group-personal",
     groupName: "個人",
@@ -103,6 +113,20 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(screen.getByRole("button", { name: "收入" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "轉帳" })).toBeInTheDocument();
   });
+
+  it("shows parent group labels and badges on every quick category tile", async () => {
+    render(createElement(QuickEntryPage));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText("#個人")).toHaveLength(2);
+    expect(screen.getByText("#家庭")).toBeInTheDocument();
+    expect(screen.getAllByTitle("大項：個人")).toHaveLength(2);
+    expect(screen.getByTitle("大項：家庭")).toBeInTheDocument();
+  });
+
 
   it("updates amount and note via keypad and input", async () => {
     render(createElement(QuickEntryPage));
