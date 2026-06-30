@@ -44,6 +44,7 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
     mocks.syncMonthlyReportToGoogleSheets.mockReset();
     mocks.buildGoogleSheetsMonthlyExportTables.mockReset();
     process.env.CRON_SECRET = "secret";
+    process.env.LITEYNAB_USER_ID = "user-1";
     delete process.env.GOOGLE_SHEET_ID;
 
     mocks.getPreviousMonthIdInTaipei.mockReturnValue("2026-04");
@@ -96,8 +97,61 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
         },
       },
     });
-    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith(undefined, "2026-04");
+    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith(undefined, "2026-04", { userId: "user-1" });
     expect(mocks.syncMonthlyReportToGoogleSheets).toHaveBeenCalledWith(sampleReport, { spreadsheetId: "sheet-1" });
+  });
+
+  it("rejects invalid monthId before fetching report data", async () => {
+    process.env.GOOGLE_SHEET_ID = "sheet-1";
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report/sheets?monthId=2026-00", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: "Invalid monthId: 2026-00" });
+    expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
+    expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
+  });
+
+  it("rejects side-effecting syncs without explicit tenant scope", async () => {
+    process.env.GOOGLE_SHEET_ID = "sheet-1";
+    delete process.env.LITEYNAB_USER_ID;
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report/sheets?monthId=2026-04", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Missing LITEYNAB_USER_ID; non-dry-run monthly report requires explicit tenant scope",
+    });
+    expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
+    expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed bearer tokens", async () => {
+    process.env.GOOGLE_SHEET_ID = "sheet-1";
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report/sheets?monthId=2026-04", {
+        headers: { Authorization: "Bearer nope" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Unauthorized" });
+    expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
   });
 
   it("supports dryRun preview without writing to Google Sheets", async () => {

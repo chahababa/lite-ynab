@@ -70,7 +70,12 @@ export async function sendMonthlyReportToTelegram(
         throw new Error(`Telegram monthly report send failed: ${response.status} ${body}`);
       }
 
-      return (await response.json()) as { ok: boolean; result?: { message_id: number } };
+      const payload = (await response.json()) as { ok: boolean; result?: { message_id: number }; description?: string };
+      if (!payload.ok) {
+        throw new Error(`Telegram monthly report send failed: ${payload.description ?? "ok=false"}`);
+      }
+
+      return payload;
     } catch (error) {
       lastError = error;
       const hasRetryLeft = attempt < retryDelaysMs.length;

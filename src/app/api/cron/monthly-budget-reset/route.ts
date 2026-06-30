@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/cronAuth";
+
 export const runtime = "nodejs";
 
 type ResetResponse = {
@@ -13,17 +15,6 @@ function getMonthId(request: Request) {
   const url = new URL(request.url);
   const monthId = url.searchParams.get("monthId");
   return monthId || undefined;
-}
-
-function isAuthorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return false;
-  }
-
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
-  return token === secret;
 }
 
 function createServiceRoleClient() {
@@ -43,7 +34,7 @@ function createServiceRoleClient() {
 }
 
 async function runMonthlyBudgetReset(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

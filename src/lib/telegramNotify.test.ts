@@ -23,6 +23,10 @@ function okTelegramResponse(messageId: number) {
   return new Response(JSON.stringify({ ok: true, result: { message_id: messageId } }), { status: 200 });
 }
 
+function failedTelegramResponse(description: string) {
+  return new Response(JSON.stringify({ ok: false, description }), { status: 200 });
+}
+
 describe("sendMonthlyReportToTelegram", () => {
   beforeEach(() => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token");
@@ -59,5 +63,14 @@ describe("sendMonthlyReportToTelegram", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     const init = fetchMock.mock.calls[0]?.[1];
     expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("throws when Telegram returns HTTP 200 with ok false", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(failedTelegramResponse("chat not found"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendMonthlyReportToTelegram(sampleReport, { retryDelaysMs: [] })).rejects.toThrow(
+      "Telegram monthly report send failed: chat not found",
+    );
   });
 });

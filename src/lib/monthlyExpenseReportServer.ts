@@ -24,11 +24,13 @@ export function createMonthlyReportServiceClient() {
 export async function fetchMonthlyExpenseReport(
   supabase: SupabaseClient = createMonthlyReportServiceClient(),
   monthId: string = getPreviousMonthIdInTaipei(),
+  options?: { userId?: string },
 ): Promise<MonthlyExpenseReport> {
   const previousMonthId = shiftMonth(monthId, -1);
+  const userId = options?.userId ?? process.env.LITEYNAB_USER_ID;
   const [collections, previousTransactions] = await Promise.all([
-    fetchMonthlyReportCollections(supabase, monthId),
-    fetchTransactionsForMonth(supabase, previousMonthId),
+    fetchMonthlyReportCollections(supabase, monthId, userId),
+    fetchTransactionsForMonth(supabase, previousMonthId, userId),
   ]);
 
   const reportData = computeReportData(collections, previousTransactions, {
@@ -43,10 +45,9 @@ export async function fetchMonthlyExpenseReport(
   return buildMonthlyExpenseReport(reportData);
 }
 
-async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: string) {
+async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: string, userId?: string) {
   const monthIds = listMonthIds(monthId, monthId);
   const { start, end } = getReportRangeBounds(monthId, monthId);
-  const userId = process.env.LITEYNAB_USER_ID;
 
   const groupsQuery = maybeFilterByUser(supabase.from("category_groups").select("*").order("sort_order"), userId);
   const categoriesQuery = maybeFilterByUser(supabase.from("categories").select("*").order("sort_order"), userId);
@@ -84,9 +85,8 @@ async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: 
   };
 }
 
-async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: string) {
+async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: string, userId?: string) {
   const { start, end } = getReportRangeBounds(monthId, monthId);
-  const userId = process.env.LITEYNAB_USER_ID;
   const query = maybeFilterByUser(
     supabase
       .from("transactions")
