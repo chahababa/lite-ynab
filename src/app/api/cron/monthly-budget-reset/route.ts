@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-import { isCronAuthorized } from "@/lib/cronAuth";
+import { isCronAuthorized, isValidMonthId } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 
@@ -39,8 +39,12 @@ async function runMonthlyBudgetReset(request: Request) {
   }
 
   try {
-    const supabase = createServiceRoleClient();
     const monthId = getMonthId(request);
+    if (monthId !== undefined && !isValidMonthId(monthId)) {
+      return NextResponse.json({ ok: false, error: `Invalid monthId: ${monthId}` }, { status: 400 });
+    }
+
+    const supabase = createServiceRoleClient();
     const params = monthId ? { p_month_id: monthId } : {};
     const { data, error } = await supabase.rpc("reset_monthly_auto_budgets", params);
 
