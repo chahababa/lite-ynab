@@ -8,8 +8,14 @@ const DEFAULT_MONTHLY_REPORT_DATABASE_ID = "3646f483-1a61-8191-8280-c2ab8ca8fa0c
 const NOTION_API_VERSION = "2022-06-28";
 const RICH_TEXT_LIMIT = 1900;
 
-type NotionPageResult = { id: string; url?: string };
+export type NotionMonthlyReportPage = { id: string; url?: string; telegramSent?: boolean };
+type NotionPageResult = NotionMonthlyReportPage & { properties?: NotionMonthlyReportProperties };
 type NotionSearchResult = { results?: NotionPageResult[] };
+type NotionMonthlyReportProperties = {
+  "Telegram 已傳送"?: {
+    checkbox?: boolean;
+  };
+};
 
 function getNotionConfig() {
   const token = process.env.NOTION_API_KEY ?? process.env.NOTION_TOKEN;
@@ -25,7 +31,7 @@ function getNotionConfig() {
 export async function saveMonthlyReportToNotion(report: MonthlyExpenseReport, options?: { telegramSent?: boolean }) {
   const { databaseId, headers } = getNotionConfig();
   const properties = buildMonthlyReportProperties(report, options);
-  const existingPage = await findExistingMonthlyReportPage(databaseId, report.monthId, headers);
+  const existingPage = await findExistingMonthlyReportPageInDatabase(databaseId, report.monthId, headers);
 
   if (existingPage) {
     const response = await fetch(`https://api.notion.com/v1/pages/${existingPage.id}`, {
@@ -77,7 +83,12 @@ export async function updateMonthlyReportTelegramStatus(pageId: string, report: 
   return (await response.json()) as NotionPageResult;
 }
 
-async function findExistingMonthlyReportPage(databaseId: string, monthId: string, headers: Record<string, string>) {
+export async function findExistingMonthlyReportPage(monthId: string): Promise<NotionMonthlyReportPage | null> {
+  const { databaseId, headers } = getNotionConfig();
+  return findExistingMonthlyReportPageInDatabase(databaseId, monthId, headers);
+}
+
+async function findExistingMonthlyReportPageInDatabase(databaseId: string, monthId: string, headers: Record<string, string>) {
   const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
     method: "POST",
     headers,
@@ -98,7 +109,14 @@ async function findExistingMonthlyReportPage(databaseId: string, monthId: string
   }
 
   const data = (await response.json()) as NotionSearchResult;
-  return data.results?.[0] ?? null;
+  const page = data.results?.[0];
+  return page
+    ? {
+        id: page.id,
+        url: page.url,
+        telegramSent: page.properties?.["Telegram 已傳送"]?.checkbox ?? false,
+      }
+    : null;
 }
 
 function buildNotionHeaders(token: string) {

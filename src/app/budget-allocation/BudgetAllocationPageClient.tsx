@@ -147,8 +147,8 @@ export default function BudgetAllocationCompactPage() {
 
         const message =
           error instanceof Error && error.message === "AUTH_REQUIRED"
-            ? "請先登入，才能查看預算分配試作版。"
-            : `載入預算分配試作版失敗：${getErrorMessage(error)}`;
+            ? "請先登入，才能查看預算分配。"
+            : `載入預算分配失敗：${getErrorMessage(error)}`;
 
         setLoadError(message);
         setToast({ tone: "error", message });
