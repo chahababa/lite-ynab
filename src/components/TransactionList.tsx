@@ -377,7 +377,10 @@ export function TransactionList({
               </label>
 
               {formError ? (
-                <div className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense">
+                <div
+                  role="alert"
+                  className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense"
+                >
                   {formError}
                 </div>
               ) : null}
