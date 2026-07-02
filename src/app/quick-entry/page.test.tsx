@@ -158,13 +158,13 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(textEntryTitle.compareDocumentPosition(recentTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("updates amount and note via keypad without removing the guidance slot", async () => {
+  it("updates amount and note via keypad without rendering the removed guidance field", async () => {
     render(createElement(QuickEntryPage));
     await screen.findByText("記一筆");
 
     expect(
-      screen.getByText("先輸入金額，再點常用分類即可快速儲存；儲存後可從交易列表編輯 / 復原。"),
-    ).toBeInTheDocument();
+      screen.queryByText("先輸入金額，再點常用分類即可快速儲存；儲存後可從交易列表編輯 / 復原。"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "2" }));
@@ -175,7 +175,7 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     });
 
     expect(screen.getByText("−$120")).toBeInTheDocument();
-    expect(screen.getByText("點常用分類可立即儲存，或按下方儲存。")).toBeInTheDocument();
+    expect(screen.queryByText("點常用分類可立即儲存，或按下方儲存。")).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("早餐")).toBeInTheDocument();
     expect(mockInsert).not.toHaveBeenCalled();
   });
