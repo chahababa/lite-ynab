@@ -269,7 +269,7 @@ export default function TransactionsPage() {
     setPendingTransactionId(input.id);
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("transactions")
         .update({
           amount: input.amount,
@@ -278,16 +278,22 @@ export default function TransactionsPage() {
           payment_method_id: input.paymentMethodId,
           note: input.note,
         })
-        .eq("id", input.id);
+        .eq("id", input.id)
+        .select("id")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        throw new Error("找不到這筆交易，或目前帳號沒有權限更新。");
+      }
 
       setToast({ tone: "success", message: "交易已更新。" });
       reload();
-      return true;
-    } catch {
-      setToast({ tone: "error", message: "更新交易失敗，請稍後再試。" });
-      return false;
+      return { ok: true as const };
+    } catch (error) {
+      const message = `更新交易失敗：${getErrorMessage(error)}`;
+      setToast({ tone: "error", message });
+      return { ok: false as const, message };
     } finally {
       setPendingTransactionId(null);
     }
