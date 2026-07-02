@@ -487,11 +487,11 @@ export default function QuickEntryPage() {
             size="display"
           />
         </div>
-        {!amount ? (
-          <p className="rounded-md bg-surface-container px-4 py-2 text-center text-label-md text-on-surface-variant">
-            先輸入金額，再點常用分類即可快速儲存；儲存後可從交易列表編輯 / 復原。
-          </p>
-        ) : null}
+        <p className="min-h-9 rounded-md bg-surface-container px-4 py-2 text-center text-label-md text-on-surface-variant">
+          {amount
+            ? "點常用分類可立即儲存，或按下方儲存。"
+            : "先輸入金額，再點常用分類即可快速儲存；儲存後可從交易列表編輯 / 復原。"}
+        </p>
 
         {/* Category 1×6 grid */}
         <section>
@@ -534,7 +534,7 @@ export default function QuickEntryPage() {
                     aria-label={`${category.groupName} ${category.name}`}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex flex-col items-center gap-0.5 px-1 py-2 rounded-[10px] transition-colors duration-m3-short",
+                      "flex aspect-[3/4] flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-[10px] transition-colors duration-m3-short",
                       isSelected
                         ? cn(
                             "border-[1.5px]",
