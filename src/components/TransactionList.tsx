@@ -61,7 +61,7 @@ type TransactionListProps = {
     categoryId: string;
     paymentMethodId: string;
     note: string;
-  }) => Promise<boolean>;
+  }) => Promise<{ ok: true } | { ok: false; message?: string }>;
   onDelete: (id: string) => Promise<boolean>;
 };
 
@@ -165,7 +165,7 @@ export function TransactionList({
       return;
     }
     setFormError(null);
-    const ok = await onSave({
+    const result = await onSave({
       id: editingId,
       amount: Number(editingDraft.amount),
       date: editingDraft.date,
@@ -173,7 +173,12 @@ export function TransactionList({
       paymentMethodId: editingDraft.paymentMethodId,
       note: editingDraft.note.trim(),
     });
-    if (ok) closeEditor();
+    if (result.ok) {
+      closeEditor();
+      return;
+    }
+
+    setFormError(result.message ?? "更新交易失敗，請稍後再試。");
   }
 
   async function handleDelete() {
@@ -372,7 +377,10 @@ export function TransactionList({
               </label>
 
               {formError ? (
-                <div className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense">
+                <div
+                  role="alert"
+                  className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense"
+                >
                   {formError}
                 </div>
               ) : null}

@@ -15,7 +15,10 @@ const { fetchTransactionsPageData, routerValue } = vi.hoisted(() => ({
 }));
 
 const deleteEq = vi.fn().mockResolvedValue({ error: null });
-const updateEq = vi.fn().mockResolvedValue({ error: null });
+const updateMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "tx-1" }, error: null });
+const updateSelect = vi.fn(() => ({ maybeSingle: updateMaybeSingle }));
+const updateEq = vi.fn(() => ({ select: updateSelect }));
+const update = vi.fn(() => ({ eq: updateEq }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerValue,
@@ -42,9 +45,7 @@ vi.mock("@/lib/supabaseClient", () => ({
       }),
     },
     from: () => ({
-      update: () => ({
-        eq: updateEq,
-      }),
+      update,
       delete: () => ({
         eq: deleteEq,
       }),
@@ -60,7 +61,7 @@ describe("TransactionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     deleteEq.mockResolvedValue({ error: null });
-    updateEq.mockResolvedValue({ error: null });
+    updateMaybeSingle.mockResolvedValue({ data: { id: "tx-1" }, error: null });
     fetchTransactionsPageData.mockResolvedValue({
       user: { email: "demo@example.com" },
       categories: [
@@ -156,5 +157,47 @@ describe("TransactionsPage", () => {
       expect(deleteEq).toHaveBeenCalled();
       expect(screen.getByText("已刪除交易")).toBeInTheDocument();
     });
+  });
+
+  it("saves an edited transaction and closes the modal", async () => {
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    fireEvent.change(screen.getByLabelText("金額"), { target: { value: "1141" } });
+    fireEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith({
+        amount: 1141,
+        date: "2026-04-02",
+        category_id: "cat-rent",
+        payment_method_id: "pm-card",
+        note: "四月房租",
+      });
+      expect(updateEq).toHaveBeenCalledWith("id", "tx-2");
+      expect(updateSelect).toHaveBeenCalledWith("id");
+      expect(updateMaybeSingle).toHaveBeenCalledTimes(1);
+      expect(dialog).not.toBeInTheDocument();
+      expect(screen.getByText("交易已更新。")).toBeInTheDocument();
+    });
+  });
+
+  it("shows inline feedback when saving an edit fails", async () => {
+    updateMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "儲存" }));
+
+    await waitFor(() => {
+      const dialog = screen.getByRole("dialog", { name: "編輯交易" });
+      expect(dialog).toHaveTextContent(/找不到這筆交易，或目前帳號沒有權限更新。/);
+    });
+    expect(screen.getByRole("dialog", { name: "編輯交易" })).toBeInTheDocument();
   });
 });
