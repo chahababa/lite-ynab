@@ -25,6 +25,8 @@
 - 大項 / 小項分類管理
 - 支付方式管理
 - 固定預算設定
+- 預算結轉：沒花完的預算自動累積到下個月（2026-07 起算）
+- 收入自動帶入：新月份自動複製最近一次填寫的收入
 - 月報自動分析與通知（Notion 存檔 + Telegram 摘要 + Google Sheets 匯出）
 - 基本測試與型別檢查
 
@@ -86,6 +88,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 202604030003_translate_default_categories_to_zh_hant.sql
 202604030004_add_budget_planning_groups_and_payment_methods.sql
 202604030005_stop_recreating_deleted_default_categories.sql
+202604110001_merge_duplicate_english_categories.sql
+202605180001_monthly_auto_budget_reset.sql
+202605180002_add_transaction_source_fields.sql
+202605210001_merge_duplicate_rent_category_helpers.sql
+202605210002_fix_duplicate_rent_category_helper_array_concat.sql
+202605210003_fix_duplicate_rent_helper_conflict_target.sql
+202605210004_fix_duplicate_rent_preview_notes_array.sql
+202607030001_month_init_income_carry_no_backfill.sql
 ```
 
 4. 啟動開發伺服器

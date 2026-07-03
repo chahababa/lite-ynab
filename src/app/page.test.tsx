@@ -83,6 +83,7 @@ describe("DashboardPage (M3 v2.0)", () => {
           categoryGroupName: "個人",
           categoryName: "飲食",
           allocated: 8000,
+          carryover: 0,
           spent: 1200,
           remaining: 6800,
           isQuick: true,

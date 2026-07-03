@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-07-03 - 預算結轉與月初初始化修正
+
+### Added
+
+- 新增預算結轉（rollover）：從 2026-07 起，每個分類沒花完的預算會累積到下個月的「剩餘可用」，儲蓄型分類（旅遊基金、裝潢費等）從此可以逐月累積；超支的月份結轉歸零重新起算，不會把負數帶到下個月
+- 主控臺分類卡片與預算使用頁顯示「含上月結轉」金額；使用率、進度條與剩餘可用皆以「本月分配＋結轉」計算
+- 結轉起算月份定義在 `src/lib/data.ts` 的 `ROLLOVER_START_MONTH`（2026-07）
+
+### Changed
+
+- `initialize_monthly_budget` 只對「當月與未來月份」套用固定預算（is_auto），補建歷史月份時一律填 0，避免 YNAB 匯入等情境把歷史預算灌水
+- 新月份初始化時，收入自動帶入最近一個有填金額的月份收入，不再需要每月手動重填
+
+### Fixed
+
+- 清理正式資料庫：刪除 App 預設殘留分類（「其他」大項全部、重複的「飲食」「房租」），交易與預算已併入對應的 YNAB 原生分類；刪除「Credit Card Payments」「調整數字用」空群組與 QA 測試帳號資料；修正一筆掛錯到他人分類的交易（完整備份存於資料庫 `cleanup_backup` schema）
+
+### Verified
+
+- `npm run typecheck`
+- `npm run test`（28 個測試檔、133 個測試通過）
+
+### Deployment notes
+
+- 新增 migration：`202607030001_month_init_income_carry_no_backfill.sql`（已於 2026-07-03 直接套用至正式 Supabase）
+- 2026-07 的本月收入已依新邏輯補為 100,000（最近一次填寫值），可在主控臺自行修改
+
 ## [Unreleased] - Google Sheets 月報匯出
 
 ### Fixed

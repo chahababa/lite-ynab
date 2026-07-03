@@ -1,6 +1,13 @@
 # STATUS
 
-更新日期：2026-04-05
+更新日期：2026-07-03
+
+## 最新變更（2026-07-03）
+
+- 正式資料庫大掃除：預設殘留分類（其他大項、重複飲食／房租）已合併刪除，QA 測試資料清空，備份在 `cleanup_backup` schema
+- 新增預算結轉：從 2026-07 起沒花完的預算累積到下月，超支月歸零重算（起算月在 `src/lib/data.ts` 的 `ROLLOVER_START_MONTH`）
+- `initialize_monthly_budget` 修正：歷史月份不再套固定預算；新月份收入自動帶入最近一次填寫值
+- 對應 migration：`202607030001_month_init_income_carry_no_backfill.sql`（已套用正式環境）
 
 ## 專案階段
 

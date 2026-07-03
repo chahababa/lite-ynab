@@ -105,6 +105,7 @@ describe("BudgetAllocationPage", () => {
           categoryGroupName: "個人",
           categoryName: "飲食",
           allocated: 1200,
+          carryover: 0,
           spent: 300,
           remaining: 900,
           isQuick: true,

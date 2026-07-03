@@ -147,8 +147,9 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthId, refreshTick]);
 
+  // 總預算含上月結轉，讓「本月剩餘預算」與各分類卡片一致
   const totalBudget = useMemo(
-    () => budgetRows.reduce((s, r) => s + r.allocated, 0),
+    () => budgetRows.reduce((s, r) => s + r.allocated + r.carryover, 0),
     [budgetRows],
   );
   const totalSpent = useMemo(
@@ -344,11 +345,12 @@ export default function DashboardPage() {
                   {budgetRows.map((row) => {
                     const style = getCategoryStyle(row.categoryName);
                     const Icon = ICON_COMPONENTS[style.icon];
+                    const available = row.allocated + row.carryover;
                     const pct =
-                      row.allocated > 0
-                        ? Math.min(100, Math.round((row.spent / row.allocated) * 100))
+                      available > 0
+                        ? Math.min(100, Math.round((row.spent / available) * 100))
                         : 0;
-                    const over = row.allocated > 0 && row.spent > row.allocated;
+                    const over = available > 0 && row.spent > available;
                     const display = getCategoryDisplay(
                       { name: row.categoryName, groupName: row.categoryGroupName },
                       ambiguousBudgetNames,
@@ -395,12 +397,23 @@ export default function DashboardPage() {
                             prefix={false}
                           />
                           <MoneyText
-                            value={row.allocated}
+                            value={available}
                             size="caption"
                             prefix="/ "
                             className="text-on-surface-variant"
                           />
                         </div>
+                        {row.carryover > 0 ? (
+                          <p className="mt-1 text-label-sm text-on-surface-variant">
+                            含上月結轉{" "}
+                            <MoneyText
+                              value={row.carryover}
+                              size="caption"
+                              prefix={false}
+                              className="text-on-surface-variant"
+                            />
+                          </p>
+                        ) : null}
                         <Progress
                           value={pct}
                           variant={over ? "expense" : "primary"}

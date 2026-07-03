@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDashboardData, computeReportData, getReportRangeBounds } from "@/lib/data";
+import {
+  computeCarryoverByCategory,
+  computeDashboardData,
+  computeReportData,
+  getReportRangeBounds,
+} from "@/lib/data";
 import type {
   Budget,
   Category,
@@ -168,6 +173,7 @@ describe("computeDashboardData", () => {
         categoryGroupName: "personal",
         categoryName: "food",
         allocated: 500,
+        carryover: 0,
         spent: 250,
         remaining: 250,
         isQuick: true,
@@ -182,6 +188,7 @@ describe("computeDashboardData", () => {
         categoryGroupName: "home",
         categoryName: "rent",
         allocated: 0,
+        carryover: 0,
         spent: 1200,
         remaining: -1200,
         isQuick: false,
@@ -230,6 +237,93 @@ describe("computeDashboardData", () => {
     expect(result.quickCategories).toHaveLength(10);
     expect(result.recentTransactions).toHaveLength(10);
     expect(result.unallocated).toBe(0);
+  });
+});
+
+describe("computeCarryoverByCategory", () => {
+  it("accumulates unspent budget month by month from the rollover start month", () => {
+    const budgets = [
+      createBudget({ id: "b-1", month_id: "2026-07", category_id: "cat-save", allocated: 3000 }),
+      createBudget({ id: "b-2", month_id: "2026-08", category_id: "cat-save", allocated: 3000 }),
+    ];
+    const transactions = [
+      createTransaction({ id: "t-1", date: "2026-07-15", category_id: "cat-save", amount: 500 }),
+    ];
+
+    const result = computeCarryoverByCategory(budgets, transactions, "2026-09", "2026-07");
+
+    expect(result.get("cat-save")).toBe(5500);
+  });
+
+  it("resets overspent months to zero instead of carrying a negative balance", () => {
+    const budgets = [
+      createBudget({ id: "b-1", month_id: "2026-07", category_id: "cat-food", allocated: 1000 }),
+      createBudget({ id: "b-2", month_id: "2026-08", category_id: "cat-food", allocated: 1000 }),
+    ];
+    const transactions = [
+      createTransaction({ id: "t-1", date: "2026-07-20", category_id: "cat-food", amount: 4000 }),
+      createTransaction({ id: "t-2", date: "2026-08-10", category_id: "cat-food", amount: 300 }),
+    ];
+
+    const result = computeCarryoverByCategory(budgets, transactions, "2026-09", "2026-07");
+
+    expect(result.get("cat-food")).toBe(700);
+  });
+
+  it("returns no carryover for the rollover start month or earlier", () => {
+    const budgets = [
+      createBudget({ id: "b-1", month_id: "2026-06", category_id: "cat-food", allocated: 9999 }),
+    ];
+
+    expect(computeCarryoverByCategory(budgets, [], "2026-07", "2026-07").size).toBe(0);
+    expect(computeCarryoverByCategory(budgets, [], "2026-06", "2026-07").size).toBe(0);
+  });
+
+  it("ignores months outside the rollover window", () => {
+    const budgets = [
+      createBudget({ id: "b-1", month_id: "2026-05", category_id: "cat-food", allocated: 8000 }),
+      createBudget({ id: "b-2", month_id: "2026-07", category_id: "cat-food", allocated: 1000 }),
+      createBudget({ id: "b-3", month_id: "2026-09", category_id: "cat-food", allocated: 8000 }),
+    ];
+    const transactions = [
+      createTransaction({ id: "t-1", date: "2026-07-05", category_id: "cat-food", amount: 400 }),
+    ];
+
+    const result = computeCarryoverByCategory(budgets, transactions, "2026-08", "2026-07");
+
+    expect(result.get("cat-food")).toBe(600);
+  });
+});
+
+describe("computeDashboardData with carryover", () => {
+  it("adds carryover to remaining and suppresses the missing-budget warning", () => {
+    const groups = [createGroup({ id: "group-personal", name: "personal", sort_order: 10 })];
+    const categories = [
+      createCategory({ id: "cat-save", category_group_id: "group-personal", name: "save", sort_order: 10 }),
+    ];
+    const paymentMethods = [createPaymentMethod({ id: "pm-cash", name: "cash", sort_order: 10 })];
+    const budgets = [createBudget({ id: "budget-save", category_id: "cat-save", allocated: 0 })];
+    const transactions = [
+      createTransaction({ id: "tx-1", category_id: "cat-save", payment_method_id: "pm-cash", amount: 800 }),
+    ];
+
+    const result = computeDashboardData({
+      groups,
+      categories,
+      paymentMethods,
+      budgets,
+      transactions,
+      income: null,
+      carryoverByCategory: new Map([["cat-save", 2000]]),
+    });
+
+    expect(result.budgetRows[0]).toMatchObject({
+      allocated: 0,
+      carryover: 2000,
+      spent: 800,
+      remaining: 1200,
+      warning: null,
+    });
   });
 });
 

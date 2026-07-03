@@ -126,8 +126,9 @@ export default function BudgetUsagePage() {
       .sort((a, b) => b.usageRate - a.usageRate);
   }, [data]);
 
+  // 總預算含上月結轉，與各類別的剩餘計算一致
   const totalAllocated = useMemo(
-    () => (data ? data.groups.reduce((s, g) => s + g.allocated, 0) : 0),
+    () => (data ? data.groups.reduce((s, g) => s + g.allocated + g.carryover, 0) : 0),
     [data],
   );
 
@@ -265,11 +266,12 @@ export default function BudgetUsagePage() {
                   {allItems.map((item, i) => {
                     const style = getCategoryStyle(item.name);
                     const Icon = ICON_COMPONENTS[style.icon];
+                    const available = item.allocated + item.carryover;
                     const pct =
-                      item.allocated > 0
+                      available > 0
                         ? Math.min(
                             999,
-                            Math.round((item.spent / item.allocated) * 100),
+                            Math.round((item.spent / available) * 100),
                           )
                         : 0;
                     const display = getCategoryDisplay(item, ambiguousNames);
@@ -304,6 +306,9 @@ export default function BudgetUsagePage() {
                               {item.isOverspent
                                 ? `超支 $${Math.abs(item.remaining).toLocaleString("en-US")}`
                                 : `還剩 $${item.remaining.toLocaleString("en-US")}`}
+                              {item.carryover > 0
+                                ? `（含結轉 $${item.carryover.toLocaleString("en-US")}）`
+                                : ""}
                             </p>
                           </div>
                           <div className="text-right">
@@ -314,7 +319,7 @@ export default function BudgetUsagePage() {
                               prefix={false}
                             />
                             <p className="font-mono tabular-nums text-label-sm text-on-surface-variant">
-                              / ${item.allocated.toLocaleString("en-US")}
+                              / ${available.toLocaleString("en-US")}
                             </p>
                           </div>
                         </div>

@@ -463,6 +463,7 @@ export default function BudgetAllocationCompactPage() {
               categoryGroupName: group.groupName,
               categoryName: nextName,
               allocated: 0,
+              carryover: 0,
               spent: 0,
               remaining: 0,
               isQuick: false,
@@ -713,7 +714,7 @@ export default function BudgetAllocationCompactPage() {
         return {
           ...row,
           allocated: nextAllocated,
-          remaining: nextAllocated - row.spent,
+          remaining: nextAllocated + row.carryover - row.spent,
         };
       });
 
@@ -761,7 +762,7 @@ export default function BudgetAllocationCompactPage() {
           ? {
               ...row,
               allocated: row.autoAmount,
-              remaining: row.autoAmount - row.spent,
+              remaining: row.autoAmount + row.carryover - row.spent,
             }
           : row,
       );
@@ -1088,7 +1089,7 @@ export default function BudgetAllocationCompactPage() {
                                       ? {
                                           ...item,
                                           allocated: nextValue,
-                                          remaining: nextValue - item.spent,
+                                          remaining: nextValue + item.carryover - item.spent,
                                         }
                                       : item,
                                   ),

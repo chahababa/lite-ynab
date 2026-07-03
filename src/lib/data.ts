@@ -38,6 +38,7 @@ type DashboardCollections = {
   budgets: Budget[];
   transactions: Transaction[];
   income: MonthlyIncome | null;
+  carryoverByCategory?: Map<string, number>;
 };
 
 type DashboardComputedData = {
@@ -101,6 +102,105 @@ const LEGACY_CATEGORY_NAME_MAP = {
 } as const;
 
 const legacyCategoryNormalizationTasks = new Map<string, Promise<void>>();
+
+// 預算結轉的起算月份。這個月之前的歷史資料（YNAB 匯入）分配不完整，
+// 拿來累積結轉會失真，所以結轉一律從這個月開始往後算。
+export const ROLLOVER_START_MONTH = "2026-07";
+
+// 逐月累積「分配 - 支出」作為結轉；超支的月份歸零重新起算，不把負數帶到下個月。
+export function computeCarryoverByCategory(
+  budgets: Pick<Budget, "month_id" | "category_id" | "allocated">[],
+  transactions: Pick<Transaction, "date" | "category_id" | "amount">[],
+  targetMonthId: string,
+  startMonthId: string = ROLLOVER_START_MONTH,
+): Map<string, number> {
+  if (targetMonthId <= startMonthId) {
+    return new Map();
+  }
+
+  const monthIds = listMonthIds(startMonthId, shiftMonth(targetMonthId, -1));
+  const allocatedByMonthCategory = new Map<string, number>();
+  const spentByMonthCategory = new Map<string, number>();
+  const categoryIds = new Set<string>();
+
+  for (const budget of budgets) {
+    if (budget.month_id < startMonthId || budget.month_id >= targetMonthId) {
+      continue;
+    }
+
+    const key = `${budget.month_id}:${budget.category_id}`;
+    allocatedByMonthCategory.set(key, (allocatedByMonthCategory.get(key) ?? 0) + budget.allocated);
+    categoryIds.add(budget.category_id);
+  }
+
+  for (const transaction of transactions) {
+    const monthId = transaction.date.slice(0, 7);
+
+    if (monthId < startMonthId || monthId >= targetMonthId) {
+      continue;
+    }
+
+    const key = `${monthId}:${transaction.category_id}`;
+    spentByMonthCategory.set(key, (spentByMonthCategory.get(key) ?? 0) + transaction.amount);
+    categoryIds.add(transaction.category_id);
+  }
+
+  const carryoverByCategory = new Map<string, number>();
+
+  for (const categoryId of categoryIds) {
+    let balance = 0;
+
+    for (const monthId of monthIds) {
+      const key = `${monthId}:${categoryId}`;
+      balance += (allocatedByMonthCategory.get(key) ?? 0) - (spentByMonthCategory.get(key) ?? 0);
+      balance = Math.max(balance, 0);
+    }
+
+    if (balance > 0) {
+      carryoverByCategory.set(categoryId, balance);
+    }
+  }
+
+  return carryoverByCategory;
+}
+
+export async function fetchCarryoverByCategory(
+  supabase: SupabaseClient,
+  monthId: string,
+): Promise<Map<string, number>> {
+  if (monthId <= ROLLOVER_START_MONTH) {
+    return new Map();
+  }
+
+  const { start: rangeStart } = monthDateRange(ROLLOVER_START_MONTH);
+  const { start: rangeEnd } = monthDateRange(monthId);
+
+  const [budgetsResult, transactionsResult] = await Promise.all([
+    supabase
+      .from("budgets")
+      .select("month_id,category_id,allocated")
+      .gte("month_id", ROLLOVER_START_MONTH)
+      .lt("month_id", monthId),
+    supabase
+      .from("transactions")
+      .select("date,category_id,amount")
+      .gte("date", rangeStart)
+      .lt("date", rangeEnd),
+  ]);
+
+  if (budgetsResult.error) {
+    throw budgetsResult.error;
+  }
+  if (transactionsResult.error) {
+    throw transactionsResult.error;
+  }
+
+  return computeCarryoverByCategory(
+    (budgetsResult.data ?? []) as Pick<Budget, "month_id" | "category_id" | "allocated">[],
+    (transactionsResult.data ?? []) as Pick<Transaction, "date" | "category_id" | "amount">[],
+    monthId,
+  );
+}
 
 function getLegacyCategoryTargetName(name: string) {
   return LEGACY_CATEGORY_NAME_MAP[name as keyof typeof LEGACY_CATEGORY_NAME_MAP] ?? null;
@@ -420,6 +520,7 @@ export function computeDashboardData({
   budgets,
   transactions,
   income,
+  carryoverByCategory,
 }: DashboardCollections): DashboardComputedData {
   const groupMap = new Map(groups.map((group) => [group.id, group]));
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
@@ -446,7 +547,9 @@ export function computeDashboardData({
       }
 
       const spent = spentByCategory[budget.category_id] ?? 0;
-      const remaining = budget.allocated - spent;
+      const carryover = carryoverByCategory?.get(budget.category_id) ?? 0;
+      const available = budget.allocated + carryover;
+      const remaining = available - spent;
 
       return {
         budgetId: budget.id,
@@ -455,12 +558,13 @@ export function computeDashboardData({
         categoryGroupName: group.name,
         categoryName: category.name,
         allocated: budget.allocated,
+        carryover,
         spent,
         remaining,
         isQuick: category.is_quick,
         isAuto: category.is_auto,
         autoAmount: category.auto_amount,
-        warning: budget.allocated === 0 && spent > 0 ? "尚未分配預算卻已有支出" : null,
+        warning: available === 0 && spent > 0 ? "尚未分配預算卻已有支出" : null,
       } satisfies BudgetRow;
     })
     .filter((row): row is BudgetRow => row !== null)
@@ -649,11 +753,14 @@ export async function fetchDashboardData(
   await bootstrapAndInitializeMonth(supabase, monthId);
   await runLegacyCategoryNormalization(supabase, user.id);
 
-  const collections = await fetchBaseCollections(supabase, monthId);
+  const [collections, carryoverByCategory] = await Promise.all([
+    fetchBaseCollections(supabase, monthId),
+    fetchCarryoverByCategory(supabase, monthId),
+  ]);
 
   return {
     user,
-    ...computeDashboardData(collections),
+    ...computeDashboardData({ ...collections, carryoverByCategory }),
   };
 }
 
@@ -665,11 +772,14 @@ export async function fetchBudgetAllocationData(
   await bootstrapAndInitializeMonth(supabase, monthId);
   await runLegacyCategoryNormalization(supabase, user.id);
 
-  const collections = await fetchBaseCollections(supabase, monthId);
+  const [collections, carryoverByCategory] = await Promise.all([
+    fetchBaseCollections(supabase, monthId),
+    fetchCarryoverByCategory(supabase, monthId),
+  ]);
 
   return {
     user,
-    ...computeDashboardData(collections),
+    ...computeDashboardData({ ...collections, carryoverByCategory }),
   };
 }
 
@@ -726,7 +836,10 @@ export async function fetchBudgetUsageData(
   await bootstrapAndInitializeMonth(supabase, monthId);
   await runLegacyCategoryNormalization(supabase, user.id);
 
-  const collections = await fetchBaseCollections(supabase, monthId);
+  const [collections, carryoverByCategory] = await Promise.all([
+    fetchBaseCollections(supabase, monthId),
+    fetchCarryoverByCategory(supabase, monthId),
+  ]);
   const today = getTodayInTaipei();
   const scopedTransactions =
     scope === "today"
@@ -748,8 +861,10 @@ export async function fetchBudgetUsageData(
       }
 
       const spent = spentByCategory.get(category.id) ?? 0;
-      const remaining = budget.allocated - spent;
-      const usageRate = budget.allocated > 0 ? spent / budget.allocated : 0;
+      const carryover = carryoverByCategory.get(category.id) ?? 0;
+      const available = budget.allocated + carryover;
+      const remaining = available - spent;
+      const usageRate = available > 0 ? spent / available : 0;
 
       return {
         id: category.id,
@@ -757,6 +872,7 @@ export async function fetchBudgetUsageData(
         groupName: groupMap.get(category.category_group_id)?.name ?? "未分組",
         name: category.name,
         allocated: budget.allocated,
+        carryover,
         spent,
         remaining,
         usageRate,
@@ -780,6 +896,7 @@ export async function fetchBudgetUsageData(
     .map((group) => {
       const categories = usageItems.filter((item) => item.groupId === group.id);
       const allocated = categories.reduce((sum, item) => sum + item.allocated, 0);
+      const carryover = categories.reduce((sum, item) => sum + item.carryover, 0);
       const spent = categories.reduce((sum, item) => sum + item.spent, 0);
       const remaining = categories.reduce((sum, item) => sum + item.remaining, 0);
       const hasOverspentItem = categories.some((item) => item.isOverspent);
@@ -788,6 +905,7 @@ export async function fetchBudgetUsageData(
         id: group.id,
         name: group.name,
         allocated,
+        carryover,
         spent,
         remaining,
         hasOverspentItem,

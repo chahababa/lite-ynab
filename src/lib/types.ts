@@ -62,6 +62,7 @@ export type BudgetRow = {
   categoryGroupName: string;
   categoryName: string;
   allocated: number;
+  carryover: number;
   spent: number;
   remaining: number;
   isQuick: boolean;
@@ -188,6 +189,7 @@ export type BudgetUsageItem = {
   groupName: string;
   name: string;
   allocated: number;
+  carryover: number;
   spent: number;
   remaining: number;
   usageRate: number;
@@ -198,6 +200,7 @@ export type BudgetUsageGroup = {
   id: string;
   name: string;
   allocated: number;
+  carryover: number;
   spent: number;
   remaining: number;
   hasOverspentItem: boolean;
