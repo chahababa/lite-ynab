@@ -998,6 +998,38 @@ export async function fetchTransactionsPageData(
   };
 }
 
+const QUICK_USAGE_WINDOW_DAYS = 30;
+
+function shiftDate(dateText: string, deltaDays: number): string {
+  const [year, month, day] = dateText.split("-").map(Number);
+  const shifted = new Date(year, month - 1, day + deltaDays);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}-${pad(shifted.getDate())}`;
+}
+
+// 快速格子的排序：最近使用次數多的優先；沒有使用紀錄時退回手動標記（isQuick）與原本排序。
+export function sortQuickCategories(
+  allCategories: CategoryOption[],
+  usageCountByCategory: Map<string, number>,
+): CategoryOption[] {
+  return allCategories
+    .filter((category) => category.isQuick || (usageCountByCategory.get(category.id) ?? 0) > 0)
+    .sort((left, right) => {
+      const usageDiff =
+        (usageCountByCategory.get(right.id) ?? 0) - (usageCountByCategory.get(left.id) ?? 0);
+
+      if (usageDiff !== 0) {
+        return usageDiff;
+      }
+
+      if (left.isQuick !== right.isQuick) {
+        return left.isQuick ? -1 : 1;
+      }
+
+      return 0;
+    });
+}
+
 export async function fetchQuickEntryData(
   supabase: SupabaseClient,
   monthId: string,
@@ -1006,10 +1038,13 @@ export async function fetchQuickEntryData(
   await bootstrapAndInitializeMonth(supabase, monthId);
   await runLegacyCategoryNormalization(supabase, user.id);
 
-  const [groupsResult, categoriesResult, paymentMethodsResult] = await Promise.all([
+  const usageSince = shiftDate(getTodayInTaipei(), -QUICK_USAGE_WINDOW_DAYS);
+
+  const [groupsResult, categoriesResult, paymentMethodsResult, recentUsageResult] = await Promise.all([
     supabase.from("category_groups").select("*").order("sort_order", { ascending: true }),
     supabase.from("categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("payment_methods").select("*").order("sort_order", { ascending: true }),
+    supabase.from("transactions").select("category_id").gte("date", usageSince),
   ]);
 
   if (groupsResult.error) {
@@ -1021,15 +1056,24 @@ export async function fetchQuickEntryData(
   if (paymentMethodsResult.error) {
     throw paymentMethodsResult.error;
   }
+  if (recentUsageResult.error) {
+    throw recentUsageResult.error;
+  }
 
   const allCategories = createCategoryOptions(
     (groupsResult.data ?? []) as CategoryGroup[],
     (categoriesResult.data ?? []) as Category[],
   );
 
+  const usageCountByCategory = new Map<string, number>();
+
+  for (const row of (recentUsageResult.data ?? []) as Pick<Transaction, "category_id">[]) {
+    usageCountByCategory.set(row.category_id, (usageCountByCategory.get(row.category_id) ?? 0) + 1);
+  }
+
   return {
     allCategories,
-    quickCategories: allCategories.filter((category) => category.isQuick),
+    quickCategories: sortQuickCategories(allCategories, usageCountByCategory),
     paymentMethods: createPaymentMethodOptions((paymentMethodsResult.data ?? []) as PaymentMethod[]),
   };
 }

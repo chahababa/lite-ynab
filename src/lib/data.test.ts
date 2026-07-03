@@ -5,7 +5,9 @@ import {
   computeDashboardData,
   computeReportData,
   getReportRangeBounds,
+  sortQuickCategories,
 } from "@/lib/data";
+import type { CategoryOption } from "@/lib/types";
 import type {
   Budget,
   Category,
@@ -237,6 +239,49 @@ describe("computeDashboardData", () => {
     expect(result.quickCategories).toHaveLength(10);
     expect(result.recentTransactions).toHaveLength(10);
     expect(result.unallocated).toBe(0);
+  });
+});
+
+describe("sortQuickCategories", () => {
+  function createOption(overrides: Partial<CategoryOption> & { id: string }): CategoryOption {
+    return {
+      groupId: "group-1",
+      groupName: "個人",
+      name: overrides.id,
+      isQuick: false,
+      isAuto: false,
+      autoAmount: 0,
+      sortOrder: 0,
+      ...overrides,
+    };
+  }
+
+  it("puts most-used categories first even when they are not flagged quick", () => {
+    const categories = [
+      createOption({ id: "cat-quick-a", isQuick: true, sortOrder: 10 }),
+      createOption({ id: "cat-quick-b", isQuick: true, sortOrder: 20 }),
+      createOption({ id: "cat-hot", isQuick: false, sortOrder: 30 }),
+    ];
+    const usage = new Map([
+      ["cat-hot", 12],
+      ["cat-quick-a", 3],
+    ]);
+
+    const result = sortQuickCategories(categories, usage);
+
+    expect(result.map((c) => c.id)).toEqual(["cat-hot", "cat-quick-a", "cat-quick-b"]);
+  });
+
+  it("excludes unused non-quick categories and keeps original order for ties", () => {
+    const categories = [
+      createOption({ id: "cat-a", isQuick: true, sortOrder: 10 }),
+      createOption({ id: "cat-unused", isQuick: false, sortOrder: 20 }),
+      createOption({ id: "cat-b", isQuick: true, sortOrder: 30 }),
+    ];
+
+    const result = sortQuickCategories(categories, new Map());
+
+    expect(result.map((c) => c.id)).toEqual(["cat-a", "cat-b"]);
   });
 });
 

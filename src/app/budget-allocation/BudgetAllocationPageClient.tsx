@@ -1038,6 +1038,11 @@ export default function BudgetAllocationCompactPage() {
                               <p className="text-label-sm text-on-surface-variant">
                                 已支出 ${row.spent.toLocaleString("en-US")}
                               </p>
+                              {row.carryover > 0 ? (
+                                <p className="text-label-sm text-on-surface-variant">
+                                  含上月結轉 ${row.carryover.toLocaleString("en-US")}
+                                </p>
+                              ) : null}
                               {pendingKey === row.budgetId ? (
                                 <p className="text-label-sm text-primary">自動儲存中...</p>
                               ) : null}

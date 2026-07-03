@@ -307,7 +307,7 @@ export default function BudgetUsagePage() {
                                 ? `超支 $${Math.abs(item.remaining).toLocaleString("en-US")}`
                                 : `還剩 $${item.remaining.toLocaleString("en-US")}`}
                               {item.carryover > 0
-                                ? `（含結轉 $${item.carryover.toLocaleString("en-US")}）`
+                                ? `（含上月結轉 $${item.carryover.toLocaleString("en-US")}）`
                                 : ""}
                             </p>
                           </div>

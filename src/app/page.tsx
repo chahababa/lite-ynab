@@ -7,13 +7,13 @@ import {
   ArrowDownToLine,
   ArrowRight,
   ArrowUpFromLine,
-  ChevronLeft,
-  ChevronRight,
   Pencil,
+  Settings as SettingsIcon,
   Wallet,
 } from "lucide-react";
 
 import { LoadingCard } from "@/components/LoadingCard";
+import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
 import { Button as M3Button } from "@/components/m3/Button";
@@ -201,31 +201,24 @@ export default function DashboardPage() {
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-4 pb-[88px]">
-        {/* Top bar: month switcher */}
+        {/* Top bar */}
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-label-md text-on-surface-variant">主控臺</p>
-            <p className="text-headline-sm">{formatMonthLabel(monthId)}</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setMonthId((v) => shiftMonth(v, -1))}
-              aria-label="上個月"
-              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMonthId((v) => shiftMonth(v, 1))}
-              aria-label="下個月"
-              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
+          <p className="text-headline-sm">主控臺</p>
+          <Link
+            href="/settings"
+            aria-label="設定"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
+          >
+            <SettingsIcon className="h-5 w-5" />
+          </Link>
         </div>
+
+        {/* Month switcher：與其他頁面共用同一元件 */}
+        <MonthSwitcher
+          monthId={monthId}
+          onPrevious={() => setMonthId((v) => shiftMonth(v, -1))}
+          onNext={() => setMonthId((v) => shiftMonth(v, 1))}
+        />
 
         {loading ? (
           <LoadingCard label="正在載入主控臺..." />
@@ -455,10 +448,12 @@ export default function DashboardPage() {
                       ? `${display.secondary} / ${display.primary}`
                       : display.primary;
                     return (
-                      <div
+                      <Link
                         key={tx.id}
+                        href={`/transactions?edit=${tx.id}`}
+                        aria-label={`編輯交易 ${tx.note || fullName}`}
                         className={cn(
-                          "flex items-center gap-3 px-5 py-3.5",
+                          "flex items-center gap-3 px-5 py-3.5 transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10",
                           i > 0 && "border-t border-outline",
                         )}
                       >
@@ -484,7 +479,7 @@ export default function DashboardPage() {
                           type="expense"
                           size="body"
                         />
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>

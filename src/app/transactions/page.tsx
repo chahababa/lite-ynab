@@ -79,9 +79,21 @@ export default function TransactionsPage() {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
+  const [initialEditId, setInitialEditId] = useState<string | null>(null);
+
+  // 支援 /transactions?edit=<id>：從主控臺點最近交易直接開編輯視窗
+  useEffect(() => {
+    const editId = new URLSearchParams(window.location.search).get("edit");
+    if (editId) {
+      setInitialEditId(editId);
+    }
+  }, []);
 
   useEffect(() => {
-    const timer = toast ? window.setTimeout(() => setToast(null), 2600) : undefined;
+    // 帶有動作按鈕（例如「復原」）的通知停留久一點，讓使用者來得及反應
+    const timer = toast
+      ? window.setTimeout(() => setToast(null), toast.action ? 6000 : 2600)
+      : undefined;
     return () => {
       if (timer) {
         window.clearTimeout(timer);
@@ -299,8 +311,35 @@ export default function TransactionsPage() {
     }
   }
 
+  async function restoreTransaction(backup: Record<string, unknown>) {
+    try {
+      const { error } = await supabase.from("transactions").insert(backup);
+
+      if (error) throw error;
+
+      setToast({ tone: "success", message: "已復原交易。" });
+      reload();
+    } catch (error) {
+      setToast({ tone: "error", message: `復原交易失敗：${getErrorMessage(error)}` });
+    }
+  }
+
   async function deleteTransaction(id: string) {
     setPendingTransactionId(id);
+
+    // 先備份整筆資料，刪除後可一鍵復原；備份失敗不影響刪除，只是少了復原按鈕
+    let backup: Record<string, unknown> | null = null;
+
+    try {
+      const backupResult = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      backup = (backupResult.data as Record<string, unknown> | null) ?? null;
+    } catch {
+      backup = null;
+    }
 
     try {
       const { error } = await supabase.from("transactions").delete().eq("id", id);
@@ -308,7 +347,15 @@ export default function TransactionsPage() {
       if (error) throw error;
 
       setTransactions((current) => current.filter((item) => item.id !== id));
-      setToast({ tone: "success", message: "已刪除交易" });
+      setToast(
+        backup
+          ? {
+              tone: "success",
+              message: "已刪除交易",
+              action: { label: "復原", onClick: () => void restoreTransaction(backup) },
+            }
+          : { tone: "success", message: "已刪除交易" },
+      );
       return true;
     } catch {
       setToast({ tone: "error", message: "刪除交易失敗，請稍後再試。" });
@@ -320,7 +367,7 @@ export default function TransactionsPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
-      {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
+      {toast ? <Toast message={toast.message} tone={toast.tone} action={toast.action} /> : null}
 
       <section className="mx-auto w-full max-w-md space-y-4">
         <div className="flex items-center justify-between">
@@ -521,6 +568,7 @@ export default function TransactionsPage() {
                 pendingTransactionId={pendingTransactionId}
                 onSave={saveTransaction}
                 onDelete={deleteTransaction}
+                initialEditId={initialEditId}
               />
             </div>
           </>

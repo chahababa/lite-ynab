@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Car,
   Coffee,
@@ -63,6 +63,7 @@ type TransactionListProps = {
     note: string;
   }) => Promise<{ ok: true } | { ok: false; message?: string }>;
   onDelete: (id: string) => Promise<boolean>;
+  initialEditId?: string | null;
 };
 
 type DraftState = {
@@ -80,11 +81,23 @@ export function TransactionList({
   pendingTransactionId,
   onSave,
   onDelete,
+  initialEditId,
 }: TransactionListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const consumedInitialEditRef = useRef<string | null>(null);
+
+  // 從主控臺點最近交易帶 ?edit= 進來時，自動打開該筆的編輯視窗（只開一次）
+  useEffect(() => {
+    if (!initialEditId || consumedInitialEditRef.current === initialEditId) return;
+    if (items.some((item) => item.id === initialEditId)) {
+      consumedInitialEditRef.current = initialEditId;
+      setEditingId(initialEditId);
+      setFormError(null);
+    }
+  }, [initialEditId, items]);
 
   useEffect(() => {
     setDrafts(

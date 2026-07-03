@@ -223,4 +223,8 @@ export type BudgetUsageData = {
 export type ToastState = {
   message: string;
   tone: "success" | "error" | "info";
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 } | null;

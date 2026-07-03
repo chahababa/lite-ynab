@@ -170,6 +170,10 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     fireEvent.click(screen.getByRole("button", { name: "0" }));
 
+    // 備註預設收摺，需先點「＋ 加備註」展開
+    expect(screen.queryByPlaceholderText("備註（可留空）")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "＋ 加備註" }));
+
     fireEvent.change(screen.getByPlaceholderText("備註（可留空）"), {
       target: { value: "早餐" },
     });

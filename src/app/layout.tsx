@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_TC, Roboto, Roboto_Mono } from "next/font/google";
 
 import "@/app/globals.css";
-import { PageQuickNav } from "@/components/PageQuickNav";
+import { BottomNav } from "@/components/BottomNav";
 
 const roboto = Roboto({
   subsets: ["latin"],
@@ -41,8 +41,8 @@ export default function RootLayout({
       className={`${roboto.variable} ${notoSansTC.variable} ${robotoMono.variable}`}
     >
       <body>
-        <PageQuickNav />
         {children}
+        <BottomNav />
       </body>
     </html>
   );

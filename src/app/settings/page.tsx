@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ChevronRight,
   DatabaseZap,
+  LogOut,
   ReceiptText,
   Sparkles,
   WalletCards,
@@ -120,7 +121,22 @@ export default function SettingsPage() {
             {/* Account card */}
             <div className="rounded-md border border-outline bg-surface p-4">
               <p className="text-label-md text-on-surface-variant">帳號</p>
-              <p className="mt-1 text-body-md text-on-surface">{email || "—"}</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-body-md text-on-surface">{email || "—"}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void supabase.auth.signOut().then(() => {
+                      router.replace("/login");
+                      router.refresh();
+                    });
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-outline px-3 py-1.5 text-body-sm text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                  登出
+                </button>
+              </div>
             </div>
 
             {/* Overview cards */}
