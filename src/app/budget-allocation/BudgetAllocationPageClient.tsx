@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Plus, Settings } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, Plus, Settings } from "lucide-react";
 
 import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
@@ -805,6 +806,22 @@ export default function BudgetAllocationCompactPage() {
             onNext={() => setMonthId((value) => shiftMonth(value, 1))}
           />
         </div>
+
+        {/* 引導模式入口：月初分配的主要路徑 */}
+        <Link
+          href="/budget-allocation/wizard"
+          className="flex items-center justify-between gap-3 rounded-md bg-primary-container p-4 shadow-elev-1 transition-colors duration-m3-short hover:brightness-95 active:brightness-90"
+        >
+          <div>
+            <p className="text-title-md text-primary-on-container">開始本月分配</p>
+            <p className="mt-0.5 text-body-sm text-primary-on-container/70">
+              一次一組引導你分完，照上月一鍵帶入，待分配歸零就完成
+            </p>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-on-container text-primary-container">
+            <ArrowRight className="h-5 w-5" />
+          </span>
+        </Link>
 
         {loading ? <LoadingCard label="正在載入預算分配頁..." /> : null}
         {!loading && loadError ? (
