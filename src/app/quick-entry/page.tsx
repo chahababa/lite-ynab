@@ -439,20 +439,6 @@ export default function QuickEntryPage() {
           </div>
         ) : null}
 
-        {lastSaved ? (
-          <div className="rounded-md border border-primary bg-primary-container px-4 py-3 text-body-sm text-primary-on-container">
-            <div className="flex items-start justify-between gap-3">
-              <p>
-                已儲存 {lastSaved.categoryName} ${lastSaved.amount.toLocaleString("en-US")}（{lastSaved.paymentMethodName}）
-              </p>
-              <Link href="/transactions" className="shrink-0 font-medium underline">
-                編輯 / 復原
-              </Link>
-            </div>
-            <p className="mt-1 text-label-sm opacity-75">為避免誤刪，復原走交易列表確認流程；本頁已保留最近範本可快速重記。</p>
-          </div>
-        ) : null}
-
         {/* Amount card */}
         <div className="flex items-baseline justify-between rounded-md bg-primary-container px-4 py-3">
           <div className="flex flex-col gap-1">
@@ -489,7 +475,36 @@ export default function QuickEntryPage() {
             size="display"
           />
         </div>
-        {/* Category 1×6 grid */}
+        {/* Payment method chips */}
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {paymentMethods.map((pm) => (
+            <M3Chip
+              key={pm.id}
+              selected={pm.id === selectedPaymentMethodId}
+              onClick={() => setSelectedPaymentMethodId(pm.id)}
+              className="h-7 px-3 text-body-sm flex-shrink-0"
+            >
+              {pm.name}
+            </M3Chip>
+          ))}
+        </div>
+
+        {/* Number pad */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {KEYPAD_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleKeypad(key)}
+              aria-label={key === "del" ? "刪除" : key}
+              className="h-11 rounded-md bg-surface-container text-on-surface font-mono text-num-title font-medium hover:bg-surface-container-high active:bg-surface-container-highest"
+            >
+              {key === "del" ? <Delete className="mx-auto h-5 w-5" /> : key}
+            </button>
+          ))}
+        </div>
+
+        {/* Category 1×6 grid：放在數字鍵下方，載入快慢不會推動上方的金額與鍵盤 */}
         <section>
           {loading ? (
             <div className="grid grid-cols-6 gap-1">
@@ -574,21 +589,22 @@ export default function QuickEntryPage() {
           </button>
         </section>
 
-        {/* Payment method chips */}
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {paymentMethods.map((pm) => (
-            <M3Chip
-              key={pm.id}
-              selected={pm.id === selectedPaymentMethodId}
-              onClick={() => setSelectedPaymentMethodId(pm.id)}
-              className="h-7 px-3 text-body-sm flex-shrink-0"
-            >
-              {pm.name}
-            </M3Chip>
-          ))}
-        </div>
+        {/* 已儲存通知：放在鍵盤下方，出現時不會推動輸入區 */}
+        {lastSaved ? (
+          <div className="rounded-md border border-primary bg-primary-container px-4 py-3 text-body-sm text-primary-on-container">
+            <div className="flex items-start justify-between gap-3">
+              <p>
+                已儲存 {lastSaved.categoryName} ${lastSaved.amount.toLocaleString("en-US")}（{lastSaved.paymentMethodName}）
+              </p>
+              <Link href="/transactions" className="shrink-0 font-medium underline">
+                編輯 / 復原
+              </Link>
+            </div>
+            <p className="mt-1 text-label-sm opacity-75">為避免誤刪，復原走交易列表確認流程；本頁已保留最近範本可快速重記。</p>
+          </div>
+        ) : null}
 
-        {/* Note：多數記帳不寫備註，預設收摺讓版面留給鍵盤與分類 */}
+        {/* Note：多數記帳不寫備註，預設收摺；放下方避免展開時推動鍵盤 */}
         {isNoteVisible || note !== "" ? (
           <input
             value={note}
@@ -607,21 +623,6 @@ export default function QuickEntryPage() {
             ＋ 加備註
           </button>
         )}
-
-        {/* Number pad */}
-        <div className="grid grid-cols-3 gap-1.5">
-          {KEYPAD_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleKeypad(key)}
-              aria-label={key === "del" ? "刪除" : key}
-              className="h-11 rounded-md bg-surface-container text-on-surface font-mono text-num-title font-medium hover:bg-surface-container-high active:bg-surface-container-highest"
-            >
-              {key === "del" ? <Delete className="mx-auto h-5 w-5" /> : key}
-            </button>
-          ))}
-        </div>
 
         {/* Save button */}
         <M3Button

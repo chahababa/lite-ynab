@@ -184,6 +184,19 @@ describe("QuickEntryPage (M3 v2.0)", () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
+  it("keeps the keypad above the category grid so late-loading tiles never shift input", async () => {
+    render(createElement(QuickEntryPage));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "個人 飲食" })).toBeInTheDocument();
+    });
+
+    const keypadOne = screen.getByRole("button", { name: "1" });
+    const categoryTile = screen.getByRole("button", { name: "個人 飲食" });
+    expect(
+      keypadOne.compareDocumentPosition(categoryTile) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("toasts when 收入 / 轉帳 segments are tapped (v2.1 placeholder)", async () => {
     render(createElement(QuickEntryPage));
     await screen.findByText("記一筆");
