@@ -7,7 +7,7 @@ import { BarChart3, Home, PieChart, Plus, ReceiptText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/", label: "主控臺", icon: Home, isPrimary: false },
+  { href: "/dashboard", label: "主控臺", icon: Home, isPrimary: false },
   { href: "/budget-usage", label: "預算", icon: PieChart, isPrimary: false },
   { href: "/quick-entry", label: "記一筆", icon: Plus, isPrimary: true },
   { href: "/transactions", label: "交易", icon: ReceiptText, isPrimary: false },
@@ -17,8 +17,8 @@ const NAV_ITEMS = [
 export function BottomNav() {
   const pathname = usePathname();
 
-  // 登入頁不需要導覽；快速記帳是全螢幕輸入流程，用自己的關閉鈕返回
-  if (pathname === "/login" || pathname === "/quick-entry") {
+  // 只有登入頁不顯示導覽；快速記帳現在是首頁，必須有導覽列
+  if (pathname === "/login") {
     return null;
   }
 

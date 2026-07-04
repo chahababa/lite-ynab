@@ -5,7 +5,7 @@ import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import DashboardPage from "@/app/page";
+import DashboardPage from "@/app/dashboard/page";
 
 const {
   mockReplace,

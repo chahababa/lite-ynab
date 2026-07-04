@@ -412,7 +412,7 @@ export default function QuickEntryPage() {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/dashboard")}
             aria-label="關閉"
             className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
           >

@@ -49,13 +49,19 @@ describe("BottomNav", () => {
     expect(active).toHaveAttribute("aria-current", "page");
   });
 
-  it("stays hidden on login and quick-entry", () => {
-    testState.pathname = "/quick-entry";
+  it("stays hidden on login but shows on quick-entry (the landing page)", () => {
+    testState.pathname = "/login";
     const { container } = render(createElement(BottomNav));
     expect(container.firstElementChild).toBeNull();
+    cleanup();
 
-    testState.pathname = "/login";
-    const second = render(createElement(BottomNav));
-    expect(second.container.firstElementChild).toBeNull();
+    testState.pathname = "/quick-entry";
+    render(createElement(BottomNav));
+    expect(screen.getByRole("navigation", { name: "主要導覽" })).toBeInTheDocument();
+  });
+
+  it("links the dashboard tab to /dashboard", () => {
+    render(createElement(BottomNav));
+    expect(screen.getByText("主控臺").closest("a")?.getAttribute("href")).toBe("/dashboard");
   });
 });
