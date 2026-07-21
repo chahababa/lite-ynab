@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,23 +159,41 @@ describe("TransactionsPage", () => {
     });
   });
 
-  it("saves an edited transaction and closes the modal", async () => {
+  it("shows the exact save CTA label and cancel action", async () => {
     render(createElement(TransactionsPage));
 
     await screen.findByText("全部交易");
     fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
 
     const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
-    fireEvent.change(screen.getByLabelText("金額"), { target: { value: "1141" } });
-    fireEvent.click(screen.getByRole("button", { name: "儲存" }));
+    const scope = within(dialog);
+    expect(scope.getByRole("button", { name: "儲存更新" })).toBeInTheDocument();
+    expect(scope.getByRole("button", { name: "取消" })).toBeInTheDocument();
+    expect(scope.queryByRole("button", { name: "儲存" })).not.toBeInTheDocument();
+  });
+
+  it("saves every edited field and closes the modal", async () => {
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    const scope = within(dialog);
+    fireEvent.change(scope.getByLabelText("金額"), { target: { value: "1141" } });
+    fireEvent.change(scope.getByLabelText("日期"), { target: { value: "2026-04-15" } });
+    fireEvent.change(scope.getByLabelText("支付方式"), { target: { value: "pm-cash" } });
+    fireEvent.change(scope.getByLabelText("分類"), { target: { value: "cat-food" } });
+    fireEvent.change(scope.getByLabelText("備註"), { target: { value: "更新後備註" } });
+    fireEvent.click(scope.getByRole("button", { name: "儲存更新" }));
 
     await waitFor(() => {
       expect(update).toHaveBeenCalledWith({
         amount: 1141,
-        date: "2026-04-02",
-        category_id: "cat-rent",
-        payment_method_id: "pm-card",
-        note: "四月房租",
+        date: "2026-04-15",
+        category_id: "cat-food",
+        payment_method_id: "pm-cash",
+        note: "更新後備註",
       });
       expect(updateEq).toHaveBeenCalledWith("id", "tx-2");
       expect(updateSelect).toHaveBeenCalledWith("id");
@@ -185,19 +203,76 @@ describe("TransactionsPage", () => {
     });
   });
 
-  it("shows inline feedback when saving an edit fails", async () => {
+  it("shows an inline alert and keeps the dialog open when no row is updated", async () => {
     updateMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     render(createElement(TransactionsPage));
 
     await screen.findByText("全部交易");
     fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "儲存" }));
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "儲存更新" }));
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent(/找不到這筆交易，或目前帳號沒有權限更新。/);
+    expect(screen.getByRole("dialog", { name: "編輯交易" })).toBeInTheDocument();
+  });
+
+  it("disables the CTA and shows the exact pending label while saving", async () => {
+    let resolveMaybeSingle: (value: { data: { id: string }; error: null }) => void =
+      () => {};
+    updateMaybeSingle.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMaybeSingle = resolve;
+        }),
+    );
+
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "儲存更新" }));
+
+    const pendingCta = await within(dialog).findByRole("button", { name: "儲存中…" });
+    expect(pendingCta).toBeDisabled();
+    expect(within(dialog).queryByRole("button", { name: "儲存更新" })).not.toBeInTheDocument();
+
+    resolveMaybeSingle({ data: { id: "tx-2" }, error: null });
 
     await waitFor(() => {
-      const dialog = screen.getByRole("dialog", { name: "編輯交易" });
-      expect(dialog).toHaveTextContent(/找不到這筆交易，或目前帳號沒有權限更新。/);
+      expect(dialog).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("dialog", { name: "編輯交易" })).toBeInTheDocument();
+  });
+
+  it("renders a bounded flex modal with a scrollable body and sticky safe-area footer", async () => {
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    const scope = within(dialog);
+
+    const container = scope.getByTestId("edit-modal-container");
+    expect(container.className).toContain("flex");
+    expect(container.className).toContain("flex-col");
+    expect(container.className).toContain("max-h-[92vh]");
+    expect(container.className).toContain("overflow-hidden");
+
+    const body = scope.getByTestId("edit-modal-body");
+    expect(body.className).toContain("min-h-0");
+    expect(body.className).toContain("flex-1");
+    expect(body.className).toContain("overflow-y-auto");
+
+    const footer = scope.getByTestId("edit-modal-footer");
+    expect(footer.className).toContain("sticky");
+    expect(footer.className).toContain("bottom-0");
+    expect(footer.className).toContain("env(safe-area-inset-bottom)");
+
+    // Footer holds the always-visible CTA; the scrolling region does not.
+    expect(within(footer).getByRole("button", { name: "儲存更新" })).toBeInTheDocument();
+    expect(within(body).queryByRole("button", { name: "儲存更新" })).not.toBeInTheDocument();
   });
 });

@@ -288,9 +288,10 @@ export function TransactionList({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-md bg-surface shadow-elev-3 sm:rounded-md"
+            data-testid="edit-modal-container"
+            className="flex w-full max-w-md max-h-[92vh] flex-col overflow-hidden rounded-t-md bg-surface shadow-elev-3 sm:rounded-md"
           >
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-3">
               <div>
                 <p className="text-label-md text-on-surface-variant">編輯交易</p>
                 <p className="text-title-md text-on-surface">
@@ -308,7 +309,10 @@ export function TransactionList({
               </button>
             </div>
 
-            <div className="space-y-3 px-5 pb-3">
+            <div
+              data-testid="edit-modal-body"
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-3"
+            >
               <label className="block">
                 <span className="mb-1 block text-label-md text-on-surface-variant">
                   金額
@@ -399,7 +403,10 @@ export function TransactionList({
               ) : null}
             </div>
 
-            <div className="flex justify-end gap-2 px-5 pb-5">
+            <div
+              data-testid="edit-modal-footer"
+              className="sticky bottom-0 flex shrink-0 justify-end gap-2 border-t border-outline bg-surface px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            >
               <M3Button
                 variant="text"
                 onClick={closeEditor}
@@ -412,7 +419,7 @@ export function TransactionList({
                 onClick={() => void handleSave()}
                 disabled={isEditingPending}
               >
-                {isEditingPending ? "儲存中" : "儲存"}
+                {isEditingPending ? "儲存中…" : "儲存更新"}
               </M3Button>
             </div>
           </div>
