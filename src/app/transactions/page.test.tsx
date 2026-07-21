@@ -166,9 +166,17 @@ describe("TransactionsPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
 
     const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    // The whole edit modal must layer above the global BottomNav (z-[999])
+    // so a normal tap on 儲存更新 is not intercepted on mobile.
+    expect(dialog.className).toContain("z-[1000]");
     const scope = within(dialog);
-    expect(scope.getByRole("button", { name: "儲存更新" })).toBeInTheDocument();
-    expect(scope.getByRole("button", { name: "取消" })).toBeInTheDocument();
+    const save = scope.getByRole("button", { name: "儲存更新" });
+    const cancel = scope.getByRole("button", { name: "取消" });
+    expect(save).toBeInTheDocument();
+    expect(cancel).toBeInTheDocument();
+    // Modal action touch targets must be at least 44px high (min-h-11 = 2.75rem).
+    expect(save.className).toContain("min-h-11");
+    expect(cancel.className).toContain("min-h-11");
     expect(scope.queryByRole("button", { name: "儲存" })).not.toBeInTheDocument();
   });
 
@@ -215,6 +223,10 @@ describe("TransactionsPage", () => {
 
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent(/找不到這筆交易，或目前帳號沒有權限更新。/);
+    // Inline error must use a stronger semantic pairing for WCAG AA contrast.
+    expect(alert.className).toContain("bg-money-expense");
+    expect(alert.className).toContain("text-white");
+    expect(alert.className).not.toContain("text-money-expense");
     expect(screen.getByRole("dialog", { name: "編輯交易" })).toBeInTheDocument();
   });
 

@@ -284,7 +284,7 @@ export function TransactionList({
           aria-modal="true"
           aria-label="編輯交易"
           onClick={closeEditor}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
+          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -396,7 +396,7 @@ export function TransactionList({
               {formError ? (
                 <div
                   role="alert"
-                  className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense"
+                  className="rounded-md bg-money-expense px-3 py-2 text-body-sm text-white"
                 >
                   {formError}
                 </div>
@@ -411,6 +411,7 @@ export function TransactionList({
                 variant="text"
                 onClick={closeEditor}
                 disabled={isEditingPending}
+                className="min-h-11"
               >
                 取消
               </M3Button>
@@ -418,6 +419,7 @@ export function TransactionList({
                 variant="filled"
                 onClick={() => void handleSave()}
                 disabled={isEditingPending}
+                className="min-h-11"
               >
                 {isEditingPending ? "儲存中…" : "儲存更新"}
               </M3Button>
