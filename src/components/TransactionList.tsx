@@ -284,13 +284,14 @@ export function TransactionList({
           aria-modal="true"
           aria-label="編輯交易"
           onClick={closeEditor}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
+          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-md bg-surface shadow-elev-3 sm:rounded-md"
+            data-testid="edit-modal-container"
+            className="flex w-full max-w-md max-h-[92vh] flex-col overflow-hidden rounded-t-md bg-surface shadow-elev-3 sm:rounded-md"
           >
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-3">
               <div>
                 <p className="text-label-md text-on-surface-variant">編輯交易</p>
                 <p className="text-title-md text-on-surface">
@@ -308,7 +309,10 @@ export function TransactionList({
               </button>
             </div>
 
-            <div className="space-y-3 px-5 pb-3">
+            <div
+              data-testid="edit-modal-body"
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-3"
+            >
               <label className="block">
                 <span className="mb-1 block text-label-md text-on-surface-variant">
                   金額
@@ -392,18 +396,22 @@ export function TransactionList({
               {formError ? (
                 <div
                   role="alert"
-                  className="rounded-md bg-money-expense-container px-3 py-2 text-body-sm text-money-expense"
+                  className="rounded-md bg-money-expense px-3 py-2 text-body-sm text-white"
                 >
                   {formError}
                 </div>
               ) : null}
             </div>
 
-            <div className="flex justify-end gap-2 px-5 pb-5">
+            <div
+              data-testid="edit-modal-footer"
+              className="sticky bottom-0 flex shrink-0 justify-end gap-2 border-t border-outline bg-surface px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            >
               <M3Button
                 variant="text"
                 onClick={closeEditor}
                 disabled={isEditingPending}
+                className="min-h-11"
               >
                 取消
               </M3Button>
@@ -411,8 +419,14 @@ export function TransactionList({
                 variant="filled"
                 onClick={() => void handleSave()}
                 disabled={isEditingPending}
+                // Shared filled hover (bg-primary/90) dilutes toward white to
+                // 3.84:1 for the white label; keep the hover/active/focus
+                // surface at opaque primary (4.5:1) so this modal CTA meets
+                // WCAG AA. !important is required because cn() does not merge
+                // the conflicting shared hover utility.
+                className="min-h-11 hover:!bg-primary active:!bg-primary focus-visible:!bg-primary"
               >
-                {isEditingPending ? "儲存中" : "儲存"}
+                {isEditingPending ? "儲存中…" : "儲存更新"}
               </M3Button>
             </div>
           </div>
