@@ -180,6 +180,24 @@ describe("TransactionsPage", () => {
     expect(scope.queryByRole("button", { name: "儲存" })).not.toBeInTheDocument();
   });
 
+  it("scopes an opaque primary hover/active/focus override on the save CTA for WCAG AA contrast", async () => {
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getAllByRole("button", { name: "編輯交易" })[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "編輯交易" });
+    const save = within(dialog).getByRole("button", { name: "儲存更新" });
+    // The shared filled hover (hover:bg-primary/90) dilutes the surface toward
+    // white and computes 3.84:1 for the white label — below WCAG AA 4.5:1.
+    // Scope an opaque primary hover/active/focus surface (bg-primary = 4.5:1)
+    // that reliably overrides the diluted shared hover via !important, since
+    // cn() is a plain join and does not merge conflicting Tailwind utilities.
+    expect(save.className).toContain("hover:!bg-primary");
+    expect(save.className).toContain("active:!bg-primary");
+    expect(save.className).toContain("focus-visible:!bg-primary");
+  });
+
   it("saves every edited field and closes the modal", async () => {
     render(createElement(TransactionsPage));
 

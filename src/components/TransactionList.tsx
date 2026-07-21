@@ -419,7 +419,12 @@ export function TransactionList({
                 variant="filled"
                 onClick={() => void handleSave()}
                 disabled={isEditingPending}
-                className="min-h-11"
+                // Shared filled hover (bg-primary/90) dilutes toward white to
+                // 3.84:1 for the white label; keep the hover/active/focus
+                // surface at opaque primary (4.5:1) so this modal CTA meets
+                // WCAG AA. !important is required because cn() does not merge
+                // the conflicting shared hover utility.
+                className="min-h-11 hover:!bg-primary active:!bg-primary focus-visible:!bg-primary"
               >
                 {isEditingPending ? "儲存中…" : "儲存更新"}
               </M3Button>
