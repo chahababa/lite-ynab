@@ -1,0 +1,8 @@
+{
+  "messageId": "synthetic-ctbc-message-001",
+  "from": "\"中國信託銀行\" <bank.csc@inib.ctbcbank.com>",
+  "subject": "信用卡消費成交回報 ",
+  "authenticationResults": "mx.google.com; dkim=pass header.i=@inib.ctbcbank.com; spf=pass smtp.mailfrom=bank.csc@inib.ctbcbank.com; dmarc=pass header.from=inib.ctbcbank.com",
+  "receivedAt": "2026-07-23T08:46:32+08:00",
+  "html": "<html><body><table><tr><td>外層版型<table><tr><th>卡別</th><th>末四碼</th><th>消費日</th><th>消費金額</th><th>商店名稱</th><th>商店類型│交易類型</th></tr><tr><td><font>旅遊聯名卡 (正卡)</font></td><td>1234</td><td><span>2026/07/22 09:15</span></td><td><strong>$1,280 元</strong></td><td>範例餐廳</td><td>餐飲美食 行動支付</td></tr><tr><td>旅遊聯名卡 (附卡)</td><td>5678</td><td>2026/07/22 13:20</td><td>$95 元</td><td>暫無商店資訊</td><td>量販超市/食品非實體卡交易</td></tr><tr><td>數位生活卡 (正卡)</td><td>9012</td><td>2026/07/22 18:45</td><td>$320 元</td><td>EXAMPLE STREAMING</td><td>非實體卡交易</td></tr></table></td></tr></table></body></html>"
+}

@@ -1,0 +1,7 @@
+{
+  "messageId": "synthetic-ctbc-message-partial",
+  "from": "\"中國信託銀行\" <bank.csc@inib.ctbcbank.com>",
+  "subject": "信用卡消費成交回報",
+  "authenticationResults": "mx.google.com; dkim=pass header.i=@inib.ctbcbank.com; spf=pass smtp.mailfrom=bank.csc@inib.ctbcbank.com; dmarc=pass header.from=inib.ctbcbank.com",
+  "html": "<table><tr><th>卡別</th><th>末四碼</th><th>消費日</th><th>消費金額</th><th>商店名稱</th><th>商店類型│交易類型</th></tr><tr><td>旅遊聯名卡 (正卡)</td><td>1234</td><td>2026/07/22 09:15</td><td>$500 元</td><td>範例商家</td><td>餐飲美食 實體卡交易</td></tr><tr><td>旅遊聯名卡 (正卡)</td><td>1234</td><td>2026/07/22 10:15</td><td>金額不明</td><td>另一範例商家</td><td>餐飲美食 實體卡交易</td></tr></table>"
+}
