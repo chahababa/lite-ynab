@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dry-run:ctbc-email": "node scripts/ctbc-email-dry-run.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
