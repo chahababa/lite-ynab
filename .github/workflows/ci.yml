@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   quality-gates:
-    name: Test, typecheck & build
+    name: Lint, test, typecheck & build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,12 +30,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # `@testing-library/dom` is an undeclared peer in the legacy lockfile;
-        # install it explicitly because `--legacy-peer-deps` intentionally skips peers.
-        run: npm install @testing-library/dom --legacy-peer-deps --no-audit --no-fund --no-package-lock --no-save
+        run: npm ci --no-audit --no-fund
 
-      - name: Verify package files unchanged
-        run: git diff --exit-code -- package.json package-lock.json
+      - name: Lint
+        run: npm run lint
 
       - name: Test
         run: npm test
