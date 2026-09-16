@@ -222,6 +222,19 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sh
 
 回傳應包含 `ok: true`、`spreadsheetId` 與各 tab 寫入 row count。正式同步排程建議設定為每月 1 號 00:20（Asia/Taipei），排在 Notion/Telegram 月報之後。
 
+### 每日交易備份 release preflight（不啟用）
+
+每日交易備份使用另一個專用 Sheet，不得使用月報的 `GOOGLE_SHEET_ID`。release gate 應先確認服務帳號已被授權至目的 Sheet、`GOOGLE_TRANSACTION_BACKUP_SHEET_ID` 指向正確目的地，並以 dry run 驗證：
+
+```bash
+curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/daily-transaction-backup?dryRun=1" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+dry-run response 只應含 `currentRows`、差異事件計數與 `rowHashes`；不得含交易 note、source text 或 metadata。正常啟用建議每日 03:30 Asia/Taipei。沒有 Matt 的 exact-scope 授權時，不得設定 env、scheduler、部署或執行首次正式回填。
+
+執行成功後，`Transactions Current` 是目前完整快照，`Transaction History` 是 append-only 的 `BACKFILL`／`INSERT`／`UPDATE`／`DELETE` 差異事件。發生程式錯誤時以 revert 單一 PR 或停用 scheduler 前進修正；不得透過刪除 Sheet history 列回滾。
+
 ### Hermes 文字記帳 webhook
 
 受保護 endpoint：`POST /api/hermes/transactions`

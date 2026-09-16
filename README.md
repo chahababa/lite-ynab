@@ -162,6 +162,21 @@ npm run test
 - 目前正式 Sheet：`Lite YNAB 月報匯出`（`1bnq9psR6yWNvZv97n1t5zyZkqTf2PMNH8tLwnfoZm28`）
 - 服務帳號需要被加入該 Google Sheet，且至少要有 Editor 權限
 
+## 每日交易 Google Sheets 備份
+
+受保護 endpoint：`GET/POST /api/cron/daily-transaction-backup`
+
+- Header：`Authorization: Bearer <CRON_SECRET>`
+- 專用 env：`GOOGLE_TRANSACTION_BACKUP_SHEET_ID`；不得重用月報的 `GOOGLE_SHEET_ID`。
+- 範圍固定為 `LITEYNAB_USER_ID` 單一 tenant；缺少 tenant scope 時會 fail-closed，不讀取或寫入資料。
+- `dryRun=1`：只讀取並回傳 Current 筆數、差異事件計數與 row hash，不寫入 Google Sheets，也不回傳交易 note、source text 或 metadata。
+- `Transactions Current` 保存目前 Supabase 的完整交易快照；`Transaction History` 首次追加 `BACKFILL`，後續只追加 `INSERT`、`UPDATE`、`DELETE` 差異事件。重試以 deterministic event ID 去重。
+- 寫入順序為 History（含 header）→ Current → 清除舊 Current 尾列；任何失敗都回傳非 2xx，不會回報假成功。
+
+每日快照只能保留兩次執行之間的淨差異：同一天新增後又刪除、且沒有跨過排程時間的交易無法被捕捉。本功能不新增 production DB audit trigger，也不會從 Sheet 回寫 Supabase；若需要逐筆完整稽核，應另開 Tier 2 migration 專案。
+
+正式啟用前先做 release preflight dry-run/readback。建議排程為每日 03:30 Asia/Taipei，但 env、scheduler、首次正式回填與部署都需要另行的 exact-scope 授權。
+
 ## 報表頁目前支援
 
 - 月對月比較
