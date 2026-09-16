@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
     targetMaybeSingle: vi.fn(),
     latestLimit: vi.fn(),
     updateMaybeSingle: vi.fn(),
+    duplicateBuilders: [] as Array<{ eq: ReturnType<typeof vi.fn>; maybeSingle: ReturnType<typeof vi.fn> }>,
     transactionSelectBuilders: [] as Array<{ eq: ReturnType<typeof vi.fn>; order: ReturnType<typeof vi.fn>; maybeSingle: ReturnType<typeof vi.fn> }>,
     updateBuilders: [] as Array<{ eq: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn> }>,
     categoryRows: [] as Array<{ id: string; name: string; category_groups?: { name: string } | null }>,
@@ -53,13 +54,12 @@ function createMockSupabase() {
         return {
           select: (selectClause?: string) => {
             if (selectClause === "id") {
-              return {
-                eq: () => ({
-                  eq: () => ({
-                    maybeSingle: mocks.duplicateMaybeSingle,
-                  }),
-                }),
+              const builder = {
+                eq: vi.fn(() => builder),
+                maybeSingle: mocks.duplicateMaybeSingle,
               };
+              mocks.duplicateBuilders.push(builder);
+              return builder;
             }
 
             const builder = {
@@ -127,6 +127,7 @@ describe("POST /api/hermes/transactions", () => {
     mocks.targetMaybeSingle.mockReset();
     mocks.latestLimit.mockReset();
     mocks.updateMaybeSingle.mockReset();
+    mocks.duplicateBuilders = [];
     mocks.transactionSelectBuilders = [];
     mocks.updateBuilders = [];
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
@@ -294,6 +295,45 @@ describe("POST /api/hermes/transactions", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, duplicate: true, transactionId: "existing-tx" });
     expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.duplicateBuilders[0].eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mocks.duplicateBuilders[0].eq).toHaveBeenCalledWith("source", "hermes");
+    expect(mocks.duplicateBuilders[0].eq).toHaveBeenCalledWith("source_id", "telegram:123:456");
+  });
+
+  it("rejects POST without a configured tenant before Supabase access", async () => {
+    delete process.env.LITEYNAB_USER_ID;
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({ text: "早餐 85 現金", userId: "attacker-user" }),
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Missing LITEYNAB_USER_ID; Hermes API requires a trusted tenant binding",
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects POST body userId that does not match the configured tenant before Supabase access", async () => {
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({ text: "早餐 85 現金", userId: "attacker-user" }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: "userId does not match the configured tenant" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
   it("PATCH corrects one existing Hermes transaction with guard conditions and read-back", async () => {
@@ -331,6 +371,22 @@ describe("POST /api/hermes/transactions", () => {
       }),
     );
     expect(mocks.updateBuilders[0].eq).toHaveBeenCalledWith("source", "hermes");
+  });
+
+  it("rejects PATCH body userId that does not match the configured tenant before Supabase access", async () => {
+    const { PATCH } = await import("./route");
+
+    const response = await PATCH(
+      new Request("https://lite-ynab.test/api/hermes/transactions", {
+        method: "PATCH",
+        headers: { Authorization: "Bearer secret" },
+        body: JSON.stringify({ userId: "attacker-user", target: { sourceId: "telegram:123:456" }, updates: { note: "x" } }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: "userId does not match the configured tenant" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
   it("PATCH by transactionId refuses to target non-Hermes transactions", async () => {

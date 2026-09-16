@@ -102,12 +102,30 @@ function createServiceRoleClient() {
   });
 }
 
-function getUserId(body: { userId?: string }) {
-  return process.env.LITEYNAB_USER_ID || body.userId?.trim() || null;
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+function getTrustedUserId(bodyUserId: unknown) {
+  const configuredUserId = process.env.LITEYNAB_USER_ID?.trim();
+  if (!configuredUserId) {
+    throw new HttpError(500, "Missing LITEYNAB_USER_ID; Hermes API requires a trusted tenant binding");
+  }
+  if (typeof bodyUserId === "string" && bodyUserId.trim() && bodyUserId.trim() !== configuredUserId) {
+    throw new HttpError(403, "userId does not match the configured tenant");
+  }
+  return configuredUserId;
 }
 
 async function findExistingHermesTransaction(
   supabase: ReturnType<typeof createServiceRoleClient>,
+  userId: string,
   sourceId: string | null | undefined,
 ) {
   if (!sourceId) return null;
@@ -115,6 +133,7 @@ async function findExistingHermesTransaction(
   const { data, error } = await supabase
     .from("transactions")
     .select("id")
+    .eq("user_id", userId)
     .eq("source", "hermes")
     .eq("source_id", sourceId)
     .maybeSingle();
@@ -291,18 +310,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as HermesTransactionRequest;
     const text = body.text?.trim();
-    const userId = getUserId(body);
+    const userId = getTrustedUserId(body.userId);
 
     if (!text) {
       return NextResponse.json({ ok: false, error: "缺少文字內容" }, { status: 400 });
     }
 
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "缺少 userId 或 LITEYNAB_USER_ID" }, { status: 400 });
-    }
-
     const supabase = createServiceRoleClient();
-    const duplicate = await findExistingHermesTransaction(supabase, body.sourceId);
+    const duplicate = await findExistingHermesTransaction(supabase, userId, body.sourceId);
 
     if (duplicate) {
       return NextResponse.json({ ok: true, duplicate: true, transactionId: duplicate.id });
@@ -338,8 +353,9 @@ export async function POST(request: Request) {
       parsed,
     });
   } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
     const message = error instanceof Error ? error.message : "Hermes transaction entry failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
 
@@ -350,13 +366,10 @@ export async function PATCH(request: Request) {
 
   try {
     const body = (await request.json()) as HermesTransactionCorrectionRequest;
-    const userId = getUserId(body);
+    const userId = getTrustedUserId(body.userId);
     const target = body.target;
     const updates = body.updates ?? {};
 
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "缺少 userId 或 LITEYNAB_USER_ID" }, { status: 400 });
-    }
     if (!target) {
       return NextResponse.json({ ok: false, error: "缺少 target" }, { status: 400 });
     }
@@ -441,7 +454,8 @@ export async function PATCH(request: Request) {
       after: publicTransaction(updateResult.data as TransactionReadRow),
     });
   } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
     const message = error instanceof Error ? error.message : "Hermes transaction correction failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
