@@ -1,7 +1,7 @@
 # Lite YNAB Option B＋旅遊事件 Domain / Product SPEC
 
 版本：v2026-09-16
-狀態：PMO review draft
+狀態：Option A 產品語意已核定；Concept maturity = 5
 風險等級：Tier 0 — 文件 / 規格 only；本 PR 不修改任何 executable code、package files、migration、env / secrets、deployment、production data 或既有 transactions / categories。
 
 ## 0. Precedence / 歷史保留
@@ -128,7 +128,7 @@ Single-source-of-truth aggregation：任何 event actual amount、category spent
 | `personal` | 一般個人 / 家庭生活支出 | 是 | 否 | 日常分類與月度規劃的主要來源 |
 | `travel` | 旅遊事件支出 | 否 | 是 | 需關聯 spending event；旅行日期也排除日常分母 |
 | `work_excluded` | 工作支出 / 公司代墊 | 否 | 可在排除報表查看 | 不處理應收款、還款配對或公司帳 |
-| `special` | 非日常但仍屬個人的特殊支出 | 否，或在日常主視圖外另列 | 是 | 例如大額一次性設備、禮物、醫療等；是否納入個人總額需由報表口徑標示 |
+| `special` | 非日常但仍屬個人的特殊支出 | 否；不進日常速度分析 | 是 | 計入個人總支出，並在特殊支出報表獨立呈現，例如大額一次性設備、禮物、醫療等 |
 | `excluded` | 不進分析的紀錄 | 否 | 否 | 測試資料、修正紀錄、明確排除項 |
 
 所有聚合都必須先明確選擇 analysis scope，不得再用「全部 transactions」隱含代表「個人日常」。
@@ -351,7 +351,7 @@ Reserve / target categories 例如緊急預備金、年度目標、旅行基金�
 - [ ] 每筆交易可以被歸入 personal / travel / work_excluded / special / excluded。
 - [ ] Routine personal report 只使用 `personal` scope，除非使用者明確切換報表口徑。
 - [ ] Work advances 不進個人分析，不影響「比規劃多 / 少花」。
-- [ ] Special spending 可單獨呈現，不默默扭曲日常速度。
+- [ ] Special spending 計入個人總支出、不進 routine daily pacing，並在特殊支出報表單獨呈現。
 
 ### 8.3 Travel events
 
@@ -558,9 +558,9 @@ Goal：讓 PMO 對齊產品語意、Notion decision、old SPEC precedence、impl
 Exit criteria：
 
 - PMO 確認本文件與 Notion decision 一致。
-- PMO 判斷 concept maturity 是否達 5。
+- Concept maturity = 5；四項產品語意已依 Option A 定案。
 - PMO 決定是否拆出 safety blocker / implementation cards。
-- 在 target mode 下，若 maturity gate 通過，PMO 自動建立對應 Tier 2 dependency graph；若未通過，PMO 回填缺口而不是啟動 implementation。
+- 在 target mode 下，maturity gate 已通過；PMO 仍須完成本文件與 Notion decision 的讀回校對，才可建立對應 Tier 2 dependency graph，且不得把此決策視為 production mutation 授權。
 
 ### Phase 1 — Safety blockers first
 
@@ -621,11 +621,13 @@ Implementation card 不得早於以下條件：
 - [ ] Non-goals 被原樣帶入 implementation card。
 - [ ] Implementation card 明確禁止 account ledger / Ready to Assign / reconciliation / FX / splits。
 
-## 14. Open questions for PMO, not blockers for this SPEC
+## 14. Normative product semantics — Option A
 
-1. 是否要把「日常飲食 / 娛樂飲食」做成固定系統分類，還是先以 category naming + user convention 達成？
-2. `special` scope 的支出是否要進「個人總支出」但排除「日常速度」，或完全獨立成特殊支出報表？
-3. `closed` 的解鎖 / 更正流程要由 PMO 規格化，還是等第一個 implementation slice 再決定？
-4. `monthly_incomes` 在新語意下是否改名或以 UI 文案重新定義為「本月規劃基準」，避免收入 / 現金流誤解？
+Matt 已選擇 Option A；以下四項為後續規格與實作的產品語意，不再是待 PMO 選擇的開放問題：
 
-以上問題會影響後續 implementation scope，但不影響本文件作為 domain / product SPEC 的交付。
+1. 日常飲食與娛樂飲食的行為判定使用穩定的系統語意角色 / 標籤，不依賴使用者可編輯的顯示名稱；使用者改名不得改變其分析行為。
+2. `special` spending 計入個人總支出、排除日常速度（daily pacing），並在特殊支出報表獨立呈現。
+3. `closed` 月份只能透過明確的重新開啟 / 更正流程修改，且必須留下 audit；禁止靜默覆寫已結算月份。
+4. Phase 1 將 `monthly_incomes` 的使用者可見 UI 文案改為「本月規劃基準」，但保留既有 table / field 名稱，不做 rename migration。
+
+這些決策只收斂既有 Option B 產品語意；不改變 C-compatible / B-first 旅遊模型、non-goals、invariants、acceptance criteria 或 production hard-stop boundaries，也不構成 implementation 或 production mutation 授權。
