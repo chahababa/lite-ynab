@@ -1,0 +1,39 @@
+name: Daily transaction backup
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+      timezone: Asia/Taipei
+
+permissions:
+  actions: read
+  contents: read
+
+# The endpoint has only a process-local lock. Keep every scheduler attempt in one
+# non-cancelling queue so a new request never replaces an in-flight request.
+concurrency:
+  group: daily-transaction-backup-production
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  backup:
+    name: Daily backup
+    if: ${{ vars.DAILY_TRANSACTION_BACKUP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out scheduler runner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Back up production transactions
+        run: node scripts/daily-transaction-backup-runner.mjs
+        env:
+          BACKUP_CRON_SECRET: ${{ secrets.DAILY_TRANSACTION_BACKUP_CRON_SECRET }}
+          BACKUP_ENDPOINT: https://lite-ynab.zeabur.app/api/cron/daily-transaction-backup
+          BACKUP_TIMEOUT_MS: "600000"
+          GITHUB_TOKEN: ${{ github.token }}
+          RECONCILED_RUN_ATTEMPT: ${{ vars.DAILY_TRANSACTION_BACKUP_RECONCILED_RUN_ATTEMPT }}
+          SCHEDULER_WORKFLOW_FILE: daily-transaction-backup.yml
