@@ -210,8 +210,13 @@ async function rewriteMonthlyTable(
   await transport.updateValues(spreadsheetId, `${table.sheetName}!A1:${lastColumn}${values.length}`, values);
 }
 
-export function createGoogleSheetsTransport(options?: { accessToken?: string; fetchImpl?: typeof fetch }): GoogleSheetsTransport {
+export function createGoogleSheetsTransport(options?: {
+  accessToken?: string;
+  fetchImpl?: typeof fetch;
+  valueInputOption?: "RAW" | "USER_ENTERED";
+}): GoogleSheetsTransport {
   const fetchImpl = options?.fetchImpl ?? fetch;
+  const valueInputOption = options?.valueInputOption ?? "USER_ENTERED";
   let cachedAccessToken = options?.accessToken;
 
   async function getAccessToken() {
@@ -242,7 +247,8 @@ export function createGoogleSheetsTransport(options?: { accessToken?: string; fe
 
   return {
     async getValues(spreadsheetId, range) {
-      const response = await request(`/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`);
+      const renderOption = valueInputOption === "RAW" ? "?valueRenderOption=UNFORMATTED_VALUE" : "";
+      const response = await request(`/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}${renderOption}`);
       const data = (await response.json()) as { values?: GoogleSheetsRow[] };
       return data.values ?? [];
     },
@@ -253,14 +259,14 @@ export function createGoogleSheetsTransport(options?: { accessToken?: string; fe
       });
     },
     async updateValues(spreadsheetId, range, values) {
-      await request(`/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, {
+      await request(`/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=${valueInputOption}`, {
         method: "PUT",
         body: JSON.stringify({ values }),
       });
     },
     async appendValues(spreadsheetId, range, values) {
       await request(
-        `/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        `/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=${valueInputOption}&insertDataOption=INSERT_ROWS`,
         {
           method: "POST",
           body: JSON.stringify({ values }),

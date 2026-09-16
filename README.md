@@ -162,6 +162,21 @@ npm run test
 - 目前正式 Sheet：`Lite YNAB 月報匯出`（`1bnq9psR6yWNvZv97n1t5zyZkqTf2PMNH8tLwnfoZm28`）
 - 服務帳號需要被加入該 Google Sheet，且至少要有 Editor 權限
 
+## 每日交易 Google Sheets 備份
+
+`GET/POST /api/cron/daily-transaction-backup` 以 `Authorization: Bearer <CRON_SECRET>` 保護，固定讀取 `LITEYNAB_USER_ID` 的交易與分類名稱。缺少 tenant 時，包含 dry run 都會在讀取資料前拒絕。
+
+- 使用獨立的 `GOOGLE_TRANSACTION_BACKUP_SHEET_ID`，不得指向月報 Sheet。
+- `Transactions Current` 保存最新交易快照；`Transaction History` 首次記錄 `BACKFILL`，之後追加 `INSERT`、`UPDATE`、`DELETE`（刪除前快照）。不輸出頂層 `user_id`。
+- `dryRun=1`（或 `true`）會讀取來源與 Sheet，但只回傳筆數、差異計數與 row hashes，不寫入、不回傳原始交易內容。
+- 先寫 History，再覆寫 Current，最後清除舊尾列。序列重試以 History 還原基準，不會因 Current 寫入失敗而重複 BACKFILL/INSERT；event ID 包含前一事件，保留反覆修改及刪除後重建的差異。
+- 備份 transport 使用 `RAW` 與 `UNFORMATTED_VALUE`，讓公式外觀文字、前導零及日期外觀文字保持原值，金額維持數字。月報 transport 的既有預設不在本 PR 變更範圍內。
+- v1 只允許一個 scheduler，每日一次、max concurrency = 1、序列 retry。端點的 process-local single-flight 在同一 instance 重疊時回 `409`；這不是跨 instance distributed lock，也不提供 HA 保證。
+
+每日快照只捕捉兩次備份之間的淨變化；同日新增後刪除且未跨過備份點的交易不會留存。來源分頁並非資料庫 point-in-time snapshot：筆數漂移或重複 ID 會拒絕執行，但分頁期間同筆數的異動不保證偵測。交易與分類分開讀取，執行中改名可能於下次備份才反映。v1 不新增 DB audit trigger、migration 或 Sheet 回寫。
+
+正式啟用前，依 [部署與恢復說明](./DEPLOYMENT.md#每日交易備份啟用與恢復) 完成獨立 activation gate。程式碼合併不等於排程啟用，也不授權首次 production backfill。
+
 ## 報表頁目前支援
 
 - 月對月比較

@@ -222,6 +222,33 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sh
 
 回傳應包含 `ok: true`、`spreadsheetId` 與各 tab 寫入 row count。正式同步排程建議設定為每月 1 號 00:20（Asia/Taipei），排在 Notion/Telegram 月報之後。
 
+### 每日交易備份啟用與恢復
+
+本功能對應 Issue #35，使用獨立 Sheet「Lite YNAB 交易備份」，不使用月報 `GOOGLE_SHEET_ID`。Repository PR 的測試只使用 synthetic fixtures，不會讀取或寫入正式財務資料。
+
+正式 activation 需要 Matt 另行核准精確範圍，至少包含目標 service/environment、目的 Sheet、所需 env 名稱、唯一 scheduler、dry run、第一次回填、失敗處置及 rollback。取得授權之前維持未啟用；不要因 code merge 自動執行下列 production 步驟。
+
+1. 唯讀核對目標 Sheet、服務帳號既有 Editor 授權、`CRON_SECRET`、`LITEYNAB_USER_ID`、`GOOGLE_TRANSACTION_BACKUP_SHEET_ID` 等變數名稱，禁止輸出值。目的 Sheet 必須與兩個月報 env alias 都不同。
+2. 確認兩個分頁已存在且第一列分別符合程式碼的 `TRANSACTION_CURRENT_HEADERS` / `TRANSACTION_HISTORY_HEADERS`。不得在既有 History 插列、排序、編輯、清空或重建；事件的追加順序是 retry 還原基準。History 不是任意可編輯的工作表。
+3. Read back 唯一 scheduler：每日 03:30 Asia/Taipei（UTC 19:30）、max concurrency = 1、單次 timeout、序列 retry 規則、失敗監控及人工補跑程序。沒有核實其中任何一項時不可啟用。不得同時有 cron、worker 與人工觸發。成功靜默，失敗保留 HTTP status、時間與 scheduler job/run ID，不保留原始交易或 token。
+4. 所有重試必須等上一個服務端執行結束；scheduler timeout 或失去 response 不代表服務端已停止。遇到不確定完成狀態，暫停新觸發並先 read back/reconcile，確認沒有 in-flight run 才能序列重試。不得自動取消舊 request 後立刻在另一 instance 重跑；部署/重啟也需先讓 scheduler 排空。
+5. 依授權先呼叫 `POST /api/cron/daily-transaction-backup?dryRun=1`，確認只回傳 `currentRows`、`events`、`rowHashes`。dry run 仍會讀取 production 財務資料，必須包含在 activation scope 中；此步驟不會寫入 Google Sheets。
+6. 在同一序列執行首次正式 backfill，再核對 row counts、event types、row hashes 及可判讀的 UTC/Asia-Taipei 時間。此後才啟用排程。大型資料集的執行時間與 Sheet 容量應在核准的 dry run/readback 中確認。
+
+端點會先驗證 secret 與 tenant，再取得 process-local single-flight，持有至讀取、寫入或錯誤處理完成。重疊回 `409`，所有 provider 失敗回 `500 / ok:false`，錯誤內容不包含 provider 原始 payload。單一 instance 的 guard 無法阻止另一 instance，亦不跨 restart；Redis、DB lock migration、多 scheduler 與 HA 都是 v1 non-goal。
+
+寫入順序固定為 History header（需要時）→ History append → Current update → Current tail clear。若 History 已成功而 Current 失敗，下次重試先重播 History，以最後事件狀態和 Supabase 比較；相同狀態不追加，來源已再變動則追加下一個 transition。event ID 包含前一事件，因此 A→B→A→B 不會漏掉第二次 B。`deduped` 表示已記錄於 History、但 Current 尚未反映且本次來源仍相同的交易數。
+
+恢復及失敗處置：
+
+- 單次失敗：確認上一個 run 已結束，序列 retry；不清空 History。即使 append response 遺失，只要資料已可讀回，retry 會使用既有 journal。
+- Current 舊尾列未清除：重試完成 Current 更新與尾端清除；相同 DELETE 不會再次追加。
+- History 遺失、人工改動或 schema 不符：停止自動化，保存目的地副本後另行調查；不得以清空 History「修好」去重。
+- 程式 rollback：在取得對應 production 授權後停用 scheduler，revert replacement PR；保留 Sheet 與 History。回復 Current 應由仍受 tenant 約束的程式重建，不能將 Sheet 回寫 Supabase。
+- 錯誤 History 以另行核准的修正事件或人工標示前進處理，不可不可逆刪列。僅靠本備份不能自動還原交易以外的收入、預算、設定或逐筆事件稽核。
+
+Google Sheets transport 的 RAW 行為依 [Google 官方 ValueInputOption](https://developers.google.com/workspace/sheets/api/reference/rest/v4/ValueInputOption)，分頁採 [Supabase range 的含首尾區間](https://supabase.com/docs/reference/javascript/using-modifiers-range) 並核對 exact count；遇到比請求更低的 server row cap，會依實際回傳筆數繼續讀取所有四種資料表。
+
 ### Hermes 文字記帳 webhook
 
 受保護 endpoint：`POST /api/hermes/transactions`
