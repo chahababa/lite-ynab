@@ -1,0 +1,2 @@
+# Local-only Supabase stack identifier; this is not a remote project reference.
+project_id = "lite-ynab-local"

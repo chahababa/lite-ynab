@@ -43,3 +43,23 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  migration-tests:
+    name: Local migration smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Start local Supabase services
+        run: supabase start
+
+      - name: Reset local database
+        run: supabase db reset --local
+
+      - name: Run pgTAP smoke tests
+        run: supabase test db --local
