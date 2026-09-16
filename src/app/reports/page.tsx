@@ -13,6 +13,7 @@ import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
 import { fetchReportsData } from "@/lib/data";
+import { toCsvCell, toHtmlTableCell } from "@/lib/spreadsheetSafety";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { ReportData, ToastState } from "@/lib/types";
 import { cn, formatCurrency, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
@@ -23,11 +24,6 @@ function getErrorMessage(error: unknown) {
   }
 
   return "發生未預期的錯誤";
-}
-
-function csvCell(value: string | number) {
-  const content = String(value).replace(/"/g, '""');
-  return `"${content}"`;
 }
 
 function createCsvContent(data: ReportData) {
@@ -53,7 +49,7 @@ function createCsvContent(data: ReportData) {
     ...data.paymentMethods.map((item) => [item.name, item.spent, `${Math.round(item.share * 100)}%`, item.previousSpent, item.deltaSpent, item.transactionCount]),
   ];
 
-  return "\ufeff" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  return "\ufeff" + rows.map((row) => row.map(toCsvCell).join(",")).join("\r\n");
 }
 
 function createExcelContent(data: ReportData) {
@@ -62,7 +58,10 @@ function createExcelContent(data: ReportData) {
       .map(
         (row) =>
           `<tr>${row
-            .map((cell) => `<td style="border:1px solid #666;padding:8px;">${String(cell)}</td>`)
+            .map(
+              (cell) =>
+                `<td style="border:1px solid #666;padding:8px;">${toHtmlTableCell(cell)}</td>`,
+            )
             .join("")}</tr>`,
       )
       .join("");

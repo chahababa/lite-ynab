@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ReportsPage from "@/app/reports/page";
 
@@ -42,13 +42,17 @@ vi.mock("@/lib/supabaseClient", () => ({
 }));
 
 describe("ReportsPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     fetchReportsData.mockResolvedValue({
       user: { email: "demo@example.com" },
       period: {
         mode: "month",
-        startMonthId: "2026-04",
+        startMonthId: "\t=1+1",
         endMonthId: "2026-04",
         monthCount: 1,
         previousStartMonthId: "2026-03",
@@ -106,7 +110,7 @@ describe("ReportsPage", () => {
       categories: [
         {
           id: "cat-food",
-          name: "飲食",
+          name: "\t=1+1",
           allocated: 6000,
           spent: 4200,
           remaining: 1800,
@@ -174,6 +178,29 @@ describe("ReportsPage", () => {
       expect(clickSpy).toHaveBeenCalledTimes(2);
     });
 
+    clickSpy.mockRestore();
+  });
+
+  it("neutralizes formula-capable report text in CSV and HTML-XLS exports", async () => {
+    const blobParts: BlobPart[][] = [];
+    vi.stubGlobal(
+      "Blob",
+      class {
+        constructor(parts: BlobPart[]) {
+          blobParts.push(parts);
+        }
+      },
+    );
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(createElement(ReportsPage));
+
+    await screen.findByText("報表分析");
+    fireEvent.click(screen.getByRole("button", { name: /CSV/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Excel/i }));
+
+    expect(String(blobParts[0][0])).toContain("'\t=1+1");
+    expect(String(blobParts[1][0])).toContain("&#39;\t=1+1");
     clickSpy.mockRestore();
   });
 });

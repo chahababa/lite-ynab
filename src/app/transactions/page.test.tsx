@@ -98,7 +98,7 @@ describe("TransactionsPage", () => {
           amount: 100,
           category_id: "cat-food",
           payment_method_id: "pm-cash",
-          note: "早餐",
+          note: "=1+1",
           categoryGroupName: "個人",
           categoryName: "飲食",
           paymentMethodName: "現金",
@@ -133,12 +133,37 @@ describe("TransactionsPage", () => {
     await screen.findByText("全部交易");
     const searchInput = screen.getByPlaceholderText("可搜尋分類、支付方式、備註、日期");
 
-    fireEvent.change(searchInput, { target: { value: "早餐" } });
+    fireEvent.change(searchInput, { target: { value: "=1+1" } });
 
     await waitFor(() => {
-      expect(screen.getByText("早餐")).toBeInTheDocument();
+      expect(screen.getByText("=1+1")).toBeInTheDocument();
       expect(screen.queryByText("四月房租")).not.toBeInTheDocument();
     });
+  });
+
+  it("neutralizes formula-capable transaction text in the CSV export", async () => {
+    const blobParts: BlobPart[][] = [];
+    vi.stubGlobal(
+      "Blob",
+      class {
+        constructor(parts: BlobPart[]) {
+          blobParts.push(parts);
+        }
+      },
+    );
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:test"),
+      revokeObjectURL: vi.fn(),
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(createElement(TransactionsPage));
+
+    await screen.findByText("全部交易");
+    fireEvent.click(screen.getByRole("button", { name: "匯出 CSV" }));
+
+    expect(String(blobParts[0][0])).toContain("'=1+1");
+    clickSpy.mockRestore();
   });
 
   it("opens a custom delete confirmation modal", async () => {
