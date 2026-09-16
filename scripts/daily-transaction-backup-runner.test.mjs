@@ -20,6 +20,18 @@ const baseGate = {
   token: "github-token",
 };
 
+const currentRun = {
+  id: 300,
+  run_number: 3,
+  head_sha: "a".repeat(40),
+  status: "in_progress",
+  conclusion: null,
+};
+
+function priorRun(id, runNumber, conclusion = "success") {
+  return { id, run_number: runNumber, status: "completed", conclusion };
+}
+
 const productionEnv = {
   GITHUB_REPOSITORY: "chahababa/lite-ynab",
   SCHEDULER_WORKFLOW_FILE: "daily-transaction-backup.yml",
@@ -71,7 +83,7 @@ describe("daily backup workflow contract", () => {
 
 describe("daily backup scheduler history gate", () => {
   it("allows the first substantive scheduled run", async () => {
-    const fetchImpl = apiFixture({ pages: [[{ id: 300, status: "in_progress", conclusion: null }]], jobs: {} });
+    const fetchImpl = apiFixture({ pages: [[currentRun]], jobs: {} });
     await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl })).resolves.toEqual({
       manualRerun: false,
       previousRun: null,
@@ -81,9 +93,9 @@ describe("daily backup scheduler history gate", () => {
   it("does not let disabled successful runs hide an older failure", async () => {
     const fetchImpl = apiFixture({
       pages: [[
-        { id: 300, status: "in_progress", conclusion: null },
-        { id: 200, status: "completed", conclusion: "success" },
-        { id: 100, status: "completed", conclusion: "failure" },
+        currentRun,
+        priorRun(200, 2),
+        priorRun(100, 1, "failure"),
       ]],
       jobs: {
         200: [{ name: "Daily backup", conclusion: "skipped" }],
@@ -98,8 +110,8 @@ describe("daily backup scheduler history gate", () => {
   it("paginates past disabled runs before deciding", async () => {
     const fetchImpl = apiFixture({
       pages: [
-        [{ id: 300, status: "in_progress", conclusion: null }, { id: 200, status: "completed", conclusion: "success" }],
-        [{ id: 100, status: "completed", conclusion: "success" }],
+        [currentRun, priorRun(200, 2)],
+        [priorRun(100, 1)],
       ],
       jobs: {
         200: [{ id: 20, name: "Daily backup", conclusion: "skipped" }],
@@ -113,7 +125,7 @@ describe("daily backup scheduler history gate", () => {
 
   it("fails closed when prior job readback is missing", async () => {
     const fetchImpl = apiFixture({
-      pages: [[{ id: 300, status: "in_progress", conclusion: null }, { id: 200, status: "completed", conclusion: "success" }]],
+      pages: [[currentRun, priorRun(200, 2)]],
       jobs: { 200: [] },
     });
     await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl })).rejects.toMatchObject({
@@ -131,8 +143,8 @@ describe("daily backup scheduler history gate", () => {
       return json({
         total_count: 3,
         workflow_runs: [
-          { id: 300, status: "in_progress", conclusion: null },
-          { id: 200, status: "completed", conclusion: "success" },
+          currentRun,
+          priorRun(200, 2),
         ],
       });
     });
@@ -150,8 +162,8 @@ describe("daily backup scheduler history gate", () => {
       return json({
         total_count: 3,
         workflow_runs: [
-          { id: 300, status: "in_progress", conclusion: null },
-          { id: 200, status: "completed", conclusion: "success" },
+          currentRun,
+          priorRun(200, 2),
         ],
       });
     });
@@ -160,7 +172,7 @@ describe("daily backup scheduler history gate", () => {
   });
 
   it("fails closed on duplicate pagination pages", async () => {
-    const duplicate = { id: 200, status: "completed", conclusion: "success" };
+    const duplicate = priorRun(200, 2);
     const fetchImpl = vi.fn(async (input) => {
       const url = new URL(input);
       if (url.pathname.endsWith("/jobs")) {
@@ -169,7 +181,7 @@ describe("daily backup scheduler history gate", () => {
       return json({
         total_count: 3,
         workflow_runs: url.searchParams.get("page") === "1"
-          ? [{ id: 300, status: "in_progress", conclusion: null }, duplicate]
+          ? [currentRun, duplicate]
           : [duplicate],
       });
     });
@@ -178,23 +190,24 @@ describe("daily backup scheduler history gate", () => {
   });
 
   it("uses a recent substantive success even when older history exceeds the API limit", async () => {
+    const highCurrent = { ...currentRun, run_number: 1001 };
     const fetchImpl = apiFixture({
       pages: [[
-        { id: 300, status: "in_progress", conclusion: null },
-        { id: 200, status: "completed", conclusion: "success" },
-        ...Array.from({ length: 98 }, (_, index) => ({ id: 1000 + index, status: "completed", conclusion: "success" })),
+        highCurrent,
+        priorRun(200, 1000),
+        ...Array.from({ length: 98 }, (_, index) => priorRun(1000 + index, 999 - index)),
       ], ...Array.from({ length: 10 }, () => [])],
       jobs: { 200: [{ id: 20, name: "Daily backup", conclusion: "success" }] },
       totalCount: 1001,
     });
-    const result = await assertPreviousRunSafe({ ...baseGate, fetchImpl });
+    const result = await assertPreviousRunSafe({ ...baseGate, runNumber: "1001", fetchImpl });
     expect(result.previousRun.id).toBe(200);
   });
 
   it("fails closed when skipped runs exhaust the verifiable history limit", async () => {
-    const disabledRun = (id) => ({ id, status: "completed", conclusion: "success" });
+    const highCurrent = { ...currentRun, run_number: 5 };
     const fetchImpl = apiFixture({
-      pages: [[disabledRun(300), disabledRun(200)], [disabledRun(100), disabledRun(99)]],
+      pages: [[highCurrent, priorRun(200, 4)], [priorRun(100, 3), priorRun(99, 2)]],
       jobs: {
         200: [{ id: 20, name: "Daily backup", conclusion: "skipped" }],
         100: [{ id: 10, name: "Daily backup", conclusion: "skipped" }],
@@ -202,13 +215,13 @@ describe("daily backup scheduler history gate", () => {
       },
       totalCount: 5,
     });
-    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl, pageSize: 2, runLimit: 4 }))
+    await expect(assertPreviousRunSafe({ ...baseGate, runNumber: "5", fetchImpl, pageSize: 2, runLimit: 4 }))
       .rejects.toThrow("exceeded the verifiable pagination limit");
   });
 
   it("permits only the latest explicitly reconciled manual re-run attempt", async () => {
     const fetchImpl = apiFixture({
-      pages: [[{ id: 300, run_number: 3, head_sha: "a".repeat(40), status: "in_progress", conclusion: null }]],
+      pages: [[currentRun]],
       jobs: {},
     });
     await expect(assertPreviousRunSafe({
@@ -226,7 +239,7 @@ describe("daily backup scheduler history gate", () => {
     const fetchImpl = apiFixture({
       pages: [[
         { id: 400, run_number: 4, head_sha: "a".repeat(40), status: "completed", conclusion: "failure" },
-        { id: 300, run_number: 3, head_sha: "a".repeat(40), status: "in_progress", conclusion: null },
+        currentRun,
       ]],
       jobs: {},
     });
@@ -247,6 +260,98 @@ describe("daily backup scheduler history gate", () => {
       fetchImpl,
     })).rejects.toThrow("one-attempt reconciliation acknowledgement");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects an incomplete manual re-run history page", async () => {
+    const fetchImpl = apiFixture({ pages: [[currentRun]], jobs: {}, totalCount: 2 });
+    await expect(assertPreviousRunSafe({
+      ...baseGate,
+      runAttempt: "2",
+      reconciledRunAttempt: "300:2",
+      fetchImpl,
+    })).rejects.toThrow("manual re-run history pagination is invalid");
+  });
+
+  it("rejects duplicate manual re-run IDs", async () => {
+    const fetchImpl = apiFixture({
+      pages: [[currentRun, { ...currentRun, run_number: 4 }]],
+      jobs: {},
+    });
+    await expect(assertPreviousRunSafe({
+      ...baseGate,
+      runAttempt: "2",
+      reconciledRunAttempt: "300:2",
+      fetchImpl,
+    })).rejects.toThrow("duplicate run IDs");
+  });
+
+  it("rejects non-numeric manual history counts", async () => {
+    const fetchImpl = vi.fn(async () => json({ total_count: "1", workflow_runs: [currentRun] }));
+    await expect(assertPreviousRunSafe({
+      ...baseGate,
+      runAttempt: "2",
+      reconciledRunAttempt: "300:2",
+      fetchImpl,
+    })).rejects.toThrow("manual re-run history pagination is invalid");
+  });
+});
+
+describe("daily backup scheduler history freshness", () => {
+  it("rejects null total_count instead of treating it as zero", async () => {
+    const fetchImpl = vi.fn(async () => json({ total_count: null, workflow_runs: [] }));
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("workflow run history pagination is invalid");
+  });
+
+  it("rejects boolean job history counts", async () => {
+    const fetchImpl = vi.fn(async (input) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith("/jobs")) {
+        return json({ total_count: true, jobs: [{ id: 20, name: "Daily backup", conclusion: "success" }] });
+      }
+      return json({
+        total_count: 2,
+        workflow_runs: [currentRun, priorRun(200, 2)],
+      });
+    });
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("workflow job history pagination is invalid");
+  });
+
+  it("requires the current run before trusting an older success", async () => {
+    const fetchImpl = apiFixture({
+      pages: [[priorRun(200, 2)]],
+      jobs: { 200: [{ id: 20, name: "Daily backup", conclusion: "success" }] },
+    });
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("did not begin with the current run");
+  });
+
+  it("rejects a normal history page that omits a newer run", async () => {
+    const fetchImpl = vi.fn(async () => json({
+      total_count: 3,
+      workflow_runs: [currentRun, priorRun(100, 1)],
+    }));
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("workflow run history page is incomplete");
+  });
+
+  it("rejects a complete page whose run numbers hide a newer failure out of order", async () => {
+    const fetchImpl = apiFixture({
+      pages: [[currentRun, priorRun(100, 1), priorRun(200, 2, "failure")]],
+      jobs: {},
+    });
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("not ordered by descending run number");
+  });
+
+  it.each([
+    [{ ...currentRun, run_number: 4 }],
+    [{ ...currentRun, head_sha: "b".repeat(40) }],
+  ])("rejects mismatched current-run identity", async (reportedCurrent) => {
+    const fetchImpl = apiFixture({ pages: [[reportedCurrent]], jobs: {} });
+    await expect(assertPreviousRunSafe({ ...baseGate, fetchImpl }))
+      .rejects.toThrow("does not match the current run identity");
   });
 });
 
@@ -333,7 +438,7 @@ describe("daily backup scheduler request", () => {
       const url = new URL(input);
       if (url.hostname === "api.github.com") {
         if (url.pathname.endsWith("/commits/main")) return json({ sha: "a".repeat(40) });
-        return json({ total_count: 1, workflow_runs: [{ id: 300, status: "in_progress", conclusion: null }] });
+        return json({ total_count: 1, workflow_runs: [currentRun] });
       }
       return json({
         ok: true,

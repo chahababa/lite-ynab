@@ -59,6 +59,8 @@ export async function assertPreviousRunSafe({
     workflowFile,
     runId,
     token,
+    runNumber,
+    currentSha,
     backupJobName,
     pageSize,
     runLimit,
@@ -104,19 +106,28 @@ async function assertManualRerunSafe({
   if (!Array.isArray(payload.workflow_runs)) {
     throw new SchedulerError("GitHub manual re-run history response is invalid");
   }
-  const totalCount = Number(payload.total_count);
-  if (!Number.isSafeInteger(totalCount) || totalCount < payload.workflow_runs.length) {
+  const totalCount = payload.total_count;
+  if (typeof totalCount !== "number" || !Number.isSafeInteger(totalCount)
+    || totalCount < 0 || payload.workflow_runs.length !== Math.min(totalCount, pageSize)) {
     throw new SchedulerError("GitHub manual re-run history pagination is invalid");
   }
 
   const seenNumbers = new Set();
+  const seenIds = new Set();
   let currentRun;
   let highestRunNumber = 0;
+  let previousRunNumber = Number.POSITIVE_INFINITY;
   for (const run of payload.workflow_runs) {
+    if (seenIds.has(String(run.id))) throw new SchedulerError("GitHub manual re-run history has duplicate run IDs");
+    seenIds.add(String(run.id));
     if (!Number.isSafeInteger(run.run_number) || run.run_number <= 0 || seenNumbers.has(run.run_number)) {
       throw new SchedulerError("GitHub manual re-run history has invalid or duplicate run numbers");
     }
+    if (run.run_number >= previousRunNumber) {
+      throw new SchedulerError("GitHub manual re-run history is not ordered by descending run number");
+    }
     seenNumbers.add(run.run_number);
+    previousRunNumber = run.run_number;
     highestRunNumber = Math.max(highestRunNumber, run.run_number);
     if (String(run.id) === String(runId)) currentRun = run;
   }
@@ -142,6 +153,8 @@ export async function findPreviousSubstantiveRun({
   workflowFile,
   runId,
   token,
+  runNumber,
+  currentSha,
   backupJobName = DEFAULT_BACKUP_JOB_NAME,
   pageSize = DEFAULT_PAGE_SIZE,
   runLimit = GITHUB_FILTERED_RUN_LIMIT,
@@ -149,7 +162,10 @@ export async function findPreviousSubstantiveRun({
   let page = 1;
   let seenRunCount = 0;
   const seenRunIds = new Set();
+  const seenRunNumbers = new Set();
   let expectedRunTotal;
+  let currentRunSeen = false;
+  let previousRunNumber = Number.POSITIVE_INFINITY;
   for (;;) {
     const runsUrl = new URL(
       `/repos/${repository}/actions/workflows/${encodeURIComponent(workflowFile)}/runs`,
@@ -161,13 +177,17 @@ export async function findPreviousSubstantiveRun({
     const payload = await getGitHubJson(fetchImpl, runsUrl, token, "workflow run history");
     const runs = Array.isArray(payload.workflow_runs) ? payload.workflow_runs : null;
     if (!runs) throw new SchedulerError("GitHub workflow run history response is invalid");
-    const totalCount = Number(payload.total_count);
-    if (!Number.isSafeInteger(totalCount) || totalCount < 0) {
+    const totalCount = payload.total_count;
+    if (typeof totalCount !== "number" || !Number.isSafeInteger(totalCount) || totalCount < 0) {
       throw new SchedulerError("GitHub workflow run history pagination is invalid");
     }
     expectedRunTotal ??= totalCount;
     if (totalCount !== expectedRunTotal) {
       throw new SchedulerError("GitHub workflow run history pagination changed during readback");
+    }
+    const expectedPageLength = Math.min(pageSize, totalCount - seenRunCount);
+    if (runs.length !== expectedPageLength) {
+      throw new SchedulerError("GitHub workflow run history page is incomplete");
     }
 
     for (const run of runs) {
@@ -175,8 +195,28 @@ export async function findPreviousSubstantiveRun({
         throw new SchedulerError("GitHub workflow run history contains duplicate pages");
       }
       seenRunIds.add(String(run.id));
+      if (!Number.isSafeInteger(run.run_number) || run.run_number <= 0 || seenRunNumbers.has(run.run_number)) {
+        throw new SchedulerError("GitHub workflow run history has invalid or duplicate run numbers");
+      }
+      if (run.run_number >= previousRunNumber) {
+        throw new SchedulerError("GitHub workflow run history is not ordered by descending run number");
+      }
+      seenRunNumbers.add(run.run_number);
+      previousRunNumber = run.run_number;
+    }
+
+    for (const run of runs) {
       seenRunCount += 1;
-      if (String(run.id) === String(runId)) continue;
+      if (String(run.id) === String(runId)) {
+        if (run.run_number !== Number(runNumber) || run.head_sha !== currentSha) {
+          throw new SchedulerError("GitHub workflow run history does not match the current run identity");
+        }
+        currentRunSeen = true;
+        continue;
+      }
+      if (!currentRunSeen) {
+        throw new SchedulerError("GitHub workflow run history did not begin with the current run");
+      }
       if (run.status !== "completed") return { ...run, gateReason: "previous-run-not-completed" };
 
       const jobs = await getAllRunJobs({ fetchImpl, apiUrl, repository, runId: run.id, token, pageSize });
@@ -189,7 +229,10 @@ export async function findPreviousSubstantiveRun({
       return run;
     }
 
-    if (seenRunCount === totalCount) return null;
+    if (seenRunCount === totalCount) {
+      if (!currentRunSeen) throw new SchedulerError("GitHub workflow run history is missing the current run");
+      return null;
+    }
     if (seenRunCount > totalCount) throw new SchedulerError("GitHub workflow run history pagination changed during readback");
     if (runs.length === 0) throw new SchedulerError("GitHub workflow run history pagination ended early");
     if (page * pageSize >= runLimit) {
@@ -211,13 +254,18 @@ async function getAllRunJobs({ fetchImpl, apiUrl, repository, runId, token, page
     jobsUrl.searchParams.set("page", String(page));
     const payload = await getGitHubJson(fetchImpl, jobsUrl, token, "workflow job history");
     if (!Array.isArray(payload.jobs)) throw new SchedulerError("GitHub workflow job history response is invalid");
-    const totalCount = Number(payload.total_count);
-    if (!Number.isSafeInteger(totalCount) || totalCount < 0 || totalCount > GITHUB_FILTERED_RUN_LIMIT) {
+    const totalCount = payload.total_count;
+    if (typeof totalCount !== "number" || !Number.isSafeInteger(totalCount)
+      || totalCount < 0 || totalCount > GITHUB_FILTERED_RUN_LIMIT) {
       throw new SchedulerError("GitHub workflow job history pagination is invalid");
     }
     expectedJobTotal ??= totalCount;
     if (totalCount !== expectedJobTotal) {
       throw new SchedulerError("GitHub workflow job history pagination changed during readback");
+    }
+    const expectedPageLength = Math.min(pageSize, totalCount - jobs.length);
+    if (payload.jobs.length !== expectedPageLength) {
+      throw new SchedulerError("GitHub workflow job history page is incomplete");
     }
     for (const job of payload.jobs) {
       if (seenJobIds.has(String(job.id))) throw new SchedulerError("GitHub workflow job history contains duplicate pages");
