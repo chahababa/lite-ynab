@@ -10,6 +10,7 @@ import { StateCard } from "@/components/StateCard";
 import { Toast } from "@/components/Toast";
 import { TransactionList } from "@/components/TransactionList";
 import { fetchTransactionsPageData } from "@/lib/data";
+import { toCsvCell } from "@/lib/spreadsheetSafety";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type {
   CategoryOption,
@@ -45,18 +46,6 @@ function downloadCsv(filename: string, content: string) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
-}
-
-function csvEscape(value: string | number) {
-  const stringValue = String(value ?? "");
-  if (
-    stringValue.includes(",") ||
-    stringValue.includes('"') ||
-    stringValue.includes("\n")
-  ) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-  return stringValue;
 }
 
 export default function TransactionsPage() {
@@ -256,12 +245,12 @@ export default function TransactionsPage() {
       ["日期", "大項分類", "分類", "支付方式", "金額", "備註"].join(","),
       ...filteredTransactions.map((item) =>
         [
-          csvEscape(item.date),
-          csvEscape(item.categoryGroupName),
-          csvEscape(item.categoryName),
-          csvEscape(item.paymentMethodName),
-          csvEscape(item.amount),
-          csvEscape(item.note ?? ""),
+          toCsvCell(item.date),
+          toCsvCell(item.categoryGroupName),
+          toCsvCell(item.categoryName),
+          toCsvCell(item.paymentMethodName),
+          toCsvCell(item.amount),
+          toCsvCell(item.note ?? ""),
         ].join(","),
       ),
     ];

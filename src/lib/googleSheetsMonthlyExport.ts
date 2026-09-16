@@ -1,6 +1,7 @@
 import { createSign } from "node:crypto";
 
 import type { MonthlyExpenseReport } from "./monthlyExpenseReport";
+import { sanitizeSpreadsheetValue } from "./spreadsheetSafety";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
@@ -163,7 +164,19 @@ export function buildGoogleSheetsMonthlyExportTables(
     rows: [[exportedAt, report.monthId, "success", "monthly-report", 1, categoryBreakdown.rows.length, transactions.rows.length, ""]],
   };
 
-  return { monthlySummary, categoryBreakdown, transactions, exportLog };
+  return {
+    monthlySummary: sanitizeTable(monthlySummary),
+    categoryBreakdown: sanitizeTable(categoryBreakdown),
+    transactions: sanitizeTable(transactions),
+    exportLog: sanitizeTable(exportLog),
+  };
+}
+
+function sanitizeTable(table: GoogleSheetsTable): GoogleSheetsTable {
+  return {
+    ...table,
+    rows: table.rows.map((row) => row.map(sanitizeSpreadsheetValue)),
+  };
 }
 
 export async function syncMonthlyReportToGoogleSheets(

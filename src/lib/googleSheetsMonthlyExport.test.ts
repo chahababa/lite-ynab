@@ -122,6 +122,38 @@ describe("buildGoogleSheetsMonthlyExportTables", () => {
       ["2026-05-01T00:15:00+08:00", "2026-04", "success", "monthly-report", 1, 2, 1, ""],
     ]);
   });
+
+  it("neutralizes formula-capable row text while preserving numeric values", () => {
+    const report: MonthlyExpenseReport = {
+      ...sampleReport,
+      monthId: "\r\n@SUM(A1:A2)",
+      categoryBreakdown: [
+        {
+          ...sampleReport.categoryBreakdown[0],
+          name: "\u00a0+1",
+          groupName: "\ufeff-1",
+        },
+      ],
+      topExpenses: [
+        {
+          ...sampleReport.topExpenses[0],
+          title: " =1+1",
+          paymentMethodName: "\t=1+1",
+        },
+      ],
+    };
+
+    const tables = buildGoogleSheetsMonthlyExportTables(report, {
+      exportedAt: "2026-05-01T00:15:00+08:00",
+    });
+
+    expect(tables.categoryBreakdown.rows[0]).toEqual(
+      expect.arrayContaining(["'\r\n@SUM(A1:A2)", "'\u00a0+1", "'\ufeff-1", 12000]),
+    );
+    expect(tables.transactions.rows[0]).toEqual(
+      expect.arrayContaining(["'\r\n@SUM(A1:A2)", "' =1+1", "'\t=1+1", 12000]),
+    );
+  });
 });
 
 describe("syncMonthlyReportToGoogleSheets", () => {
