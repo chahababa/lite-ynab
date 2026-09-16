@@ -21,13 +21,18 @@ export function createMonthlyReportServiceClient() {
   });
 }
 
-export async function fetchMonthlyExpenseReport(
-  supabase: SupabaseClient = createMonthlyReportServiceClient(),
-  monthId: string = getPreviousMonthIdInTaipei(),
-  options?: { userId?: string },
-): Promise<MonthlyExpenseReport> {
+export async function fetchMonthlyExpenseReport({
+  userId: rawUserId,
+  supabase = createMonthlyReportServiceClient(),
+  monthId = getPreviousMonthIdInTaipei(),
+}: {
+  userId: string;
+  supabase?: SupabaseClient;
+  monthId?: string;
+}): Promise<MonthlyExpenseReport> {
+  const userId = rawUserId.trim();
+  if (!userId) throw new Error("Monthly report requires explicit tenant scope");
   const previousMonthId = shiftMonth(monthId, -1);
-  const userId = options?.userId ?? process.env.LITEYNAB_USER_ID;
   const [collections, previousTransactions] = await Promise.all([
     fetchMonthlyReportCollections(supabase, monthId, userId),
     fetchTransactionsForMonth(supabase, previousMonthId, userId),
@@ -45,16 +50,16 @@ export async function fetchMonthlyExpenseReport(
   return buildMonthlyExpenseReport(reportData);
 }
 
-async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: string, userId?: string) {
+async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: string, userId: string) {
   const monthIds = listMonthIds(monthId, monthId);
   const { start, end } = getReportRangeBounds(monthId, monthId);
 
-  const groupsQuery = maybeFilterByUser(supabase.from("category_groups").select("*").order("sort_order"), userId);
-  const categoriesQuery = maybeFilterByUser(supabase.from("categories").select("*").order("sort_order"), userId);
-  const paymentMethodsQuery = maybeFilterByUser(supabase.from("payment_methods").select("*").order("sort_order"), userId);
-  const incomesQuery = maybeFilterByUser(supabase.from("monthly_incomes").select("*").in("month_id", monthIds), userId);
-  const budgetsQuery = maybeFilterByUser(supabase.from("budgets").select("*").in("month_id", monthIds), userId);
-  const transactionsQuery = maybeFilterByUser(
+  const groupsQuery = filterByUser(supabase.from("category_groups").select("*").order("sort_order"), userId);
+  const categoriesQuery = filterByUser(supabase.from("categories").select("*").order("sort_order"), userId);
+  const paymentMethodsQuery = filterByUser(supabase.from("payment_methods").select("*").order("sort_order"), userId);
+  const incomesQuery = filterByUser(supabase.from("monthly_incomes").select("*").in("month_id", monthIds), userId);
+  const budgetsQuery = filterByUser(supabase.from("budgets").select("*").in("month_id", monthIds), userId);
+  const transactionsQuery = filterByUser(
     supabase
       .from("transactions")
       .select("*")
@@ -85,9 +90,9 @@ async function fetchMonthlyReportCollections(supabase: SupabaseClient, monthId: 
   };
 }
 
-async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: string, userId?: string) {
+async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: string, userId: string) {
   const { start, end } = getReportRangeBounds(monthId, monthId);
-  const query = maybeFilterByUser(
+  const query = filterByUser(
     supabase
       .from("transactions")
       .select("*")
@@ -103,8 +108,8 @@ async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: stri
   return (result.data ?? []) as Transaction[];
 }
 
-function maybeFilterByUser<T extends { eq: (column: string, value: string) => T }>(query: T, userId?: string): T {
-  return userId ? query.eq("user_id", userId) : query;
+function filterByUser<T extends { eq: (column: string, value: string) => T }>(query: T, userId: string): T {
+  return query.eq("user_id", userId);
 }
 
 function throwIfSupabaseError(error: unknown) {

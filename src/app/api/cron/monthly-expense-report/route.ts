@@ -54,14 +54,14 @@ async function runMonthlyExpenseReport(request: Request) {
     const dryRun = getBooleanSearchParam(request, "dryRun");
     const userId = process.env.LITEYNAB_USER_ID?.trim();
 
-    if (!dryRun && !userId) {
+    if (!userId) {
       return NextResponse.json(
-        { ok: false, error: "Missing LITEYNAB_USER_ID; non-dry-run monthly report requires explicit tenant scope" },
+        { ok: false, error: "Missing LITEYNAB_USER_ID; monthly report requires explicit tenant scope" },
         { status: 400 },
       );
     }
 
-    const report = await fetchMonthlyExpenseReport(undefined, monthId, { userId });
+    const report = await fetchMonthlyExpenseReport({ userId, monthId });
 
     if (dryRun) {
       return NextResponse.json({

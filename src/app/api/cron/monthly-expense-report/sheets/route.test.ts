@@ -97,7 +97,7 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
         },
       },
     });
-    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith(undefined, "2026-04", { userId: "user-1" });
+    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith({ userId: "user-1", monthId: "2026-04" });
     expect(mocks.syncMonthlyReportToGoogleSheets).toHaveBeenCalledWith(sampleReport, { spreadsheetId: "sheet-1" });
   });
 
@@ -118,7 +118,7 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
     expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
   });
 
-  it("rejects side-effecting syncs without explicit tenant scope", async () => {
+  it("rejects syncs without explicit tenant scope", async () => {
     process.env.GOOGLE_SHEET_ID = "sheet-1";
     delete process.env.LITEYNAB_USER_ID;
     const { POST } = await import("./route");
@@ -133,7 +133,7 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       ok: false,
-      error: "Missing LITEYNAB_USER_ID; non-dry-run monthly report requires explicit tenant scope",
+      error: "Missing LITEYNAB_USER_ID; monthly report requires explicit tenant scope",
     });
     expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
     expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
@@ -175,6 +175,26 @@ describe("GET /api/cron/monthly-expense-report/sheets", () => {
       },
     });
     expect(mocks.buildGoogleSheetsMonthlyExportTables).toHaveBeenCalledWith(sampleReport);
+    expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
+  });
+
+  it("rejects dry-run previews without explicit tenant scope", async () => {
+    process.env.GOOGLE_SHEET_ID = "sheet-1";
+    delete process.env.LITEYNAB_USER_ID;
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://lite-ynab.test/api/cron/monthly-expense-report/sheets?dryRun=1&includeTables=1", {
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Missing LITEYNAB_USER_ID; monthly report requires explicit tenant scope",
+    });
+    expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
     expect(mocks.syncMonthlyReportToGoogleSheets).not.toHaveBeenCalled();
   });
 });

@@ -82,7 +82,7 @@ describe("GET /api/cron/monthly-expense-report", () => {
         telegramMessageId: 123,
       },
     });
-    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith(undefined, "2026-04", { userId: "user-1" });
+    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith({ userId: "user-1", monthId: "2026-04" });
     expect(mocks.findExistingMonthlyReportPage).toHaveBeenCalledWith("2026-04");
     expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledTimes(1);
     expect(mocks.saveMonthlyReportToNotion).toHaveBeenCalledWith(sampleReport, { telegramSent: false });
@@ -93,7 +93,7 @@ describe("GET /api/cron/monthly-expense-report", () => {
     );
   });
 
-  it("returns the report without Telegram or Notion side effects when dryRun and includeReport are enabled", async () => {
+  it("rejects dry runs without explicit tenant scope", async () => {
     delete process.env.LITEYNAB_USER_ID;
     const { GET } = await import("./route");
 
@@ -103,16 +103,12 @@ describe("GET /api/cron/monthly-expense-report", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      ok: true,
-      result: {
-        monthId: "2026-04",
-        dryRun: true,
-        report: sampleReport,
-      },
+      ok: false,
+      error: "Missing LITEYNAB_USER_ID; monthly report requires explicit tenant scope",
     });
-    expect(mocks.fetchMonthlyExpenseReport).toHaveBeenCalledWith(undefined, "2026-04", { userId: undefined });
+    expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
     expect(mocks.sendMonthlyReportToTelegram).not.toHaveBeenCalled();
     expect(mocks.saveMonthlyReportToNotion).not.toHaveBeenCalled();
   });
@@ -131,7 +127,7 @@ describe("GET /api/cron/monthly-expense-report", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       ok: false,
-      error: "Missing LITEYNAB_USER_ID; non-dry-run monthly report requires explicit tenant scope",
+      error: "Missing LITEYNAB_USER_ID; monthly report requires explicit tenant scope",
     });
     expect(mocks.fetchMonthlyExpenseReport).not.toHaveBeenCalled();
     expect(mocks.saveMonthlyReportToNotion).not.toHaveBeenCalled();
