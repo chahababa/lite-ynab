@@ -235,6 +235,18 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sh
 5. 依授權先呼叫 `POST /api/cron/daily-transaction-backup?dryRun=1`，確認只回傳 `currentRows`、`events`、`rowHashes`。dry run 仍會讀取 production 財務資料，必須包含在 activation scope 中；此步驟不會寫入 Google Sheets。
 6. 在同一序列執行首次正式 backfill，再核對 row counts、event types、row hashes 及可判讀的 UTC/Asia-Taipei 時間。此後才啟用排程。大型資料集的執行時間與 Sheet 容量應在核准的 dry run/readback 中確認。
 
+正式 scheduler 是 `.github/workflows/daily-transaction-backup.yml`，只接受 GitHub `schedule` 事件：每日 03:30、`timezone: Asia/Taipei`。固定 concurrency group 搭配 `cancel-in-progress: false` 與 `queue: max`，確保最多只有一個 workflow run 執行，且新的 run 只會排隊、不會取消或取代舊 request。job timeout 為 15 分鐘，HTTP request timeout 為 10 分鐘；timeout、連線中斷與任何非 200 response 都不會自動重試。排程時區與 concurrency 行為以 GitHub 官方 [schedule syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule) 及 [concurrency syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency) 為準。
+
+排程預設關閉。完成 production dry run 與首次 backfill 後，才在 GitHub repository 設定 secret `DAILY_TRANSACTION_BACKUP_CRON_SECRET` 與 variable `DAILY_TRANSACTION_BACKUP_ENABLED=true`；secret 值需與 Zeabur `CRON_SECRET` 相同，只能核對名稱，不得輸出值。不得另外建立 Zeabur cron、worker、其他 workflow 或外部排程。
+
+每次正式呼叫前，runner 會完整分頁讀回同 workflow 的既有 runs/jobs，略過 variable 關閉時產生的 skipped run，並要求最近一次實質執行已 `completed/success`。若先前 run 失敗、取消、逾時、仍在執行或無法判讀，後續每日 run 都會在呼叫 endpoint 前失敗，避免不確定狀態下再次寫入。處理方式如下：
+
+1. 先確認 Zeabur 沒有仍在執行的舊 request，讀回 `Transactions Current` / `Transaction History` 並依 row count、event type、row hash 對帳。
+2. 完成對帳後，確認最新失敗的 scheduled run 仍對應目前 `main`，把 repository variable `DAILY_TRANSACTION_BACKUP_RECONCILED_RUN_ATTEMPT` 暫時設成 `<run ID>:<下一個 attempt>`（例如第一次重跑 run 123 時設成 `123:2`），再對該 run 使用 **Re-run failed jobs**。runner 只接受目前最高 run number、目前 `main` SHA 與完全相符的一次性 attempt；舊 run、舊 SHA 或相同 acknowledgement 的下一次重播都會拒絕。workflow 仍使用同一 concurrency group，所以不會與既有 run 重疊。
+3. 人工 re-run 成功後，清空 `DAILY_TRANSACTION_BACKUP_RECONCILED_RUN_ATTEMPT`。下一次每日排程才會恢復。不要新增 `workflow_dispatch`，也不要用另一個工具直接呼叫 endpoint。
+
+GitHub Actions 成功時只保留交易筆數與事件計數；失敗時只保留 HTTP status、UTC 時間、GitHub run ID / attempt 與安全的 gate 原因，不輸出 response body、交易內容或 token。此 repository 是 public；依 GitHub 官方 [scheduled workflow 說明](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)，GitHub 可能在 60 天無 repository activity 後自動停用 scheduled workflows，因此失敗監控也要包含 workflow `state=active` 與最近一次預期排程是否出現。若排程被停用，先完成相同 readback/reconcile，再重新啟用並人工 re-run，不能另建第二個 scheduler。
+
 端點會先驗證 secret 與 tenant，再取得 process-local single-flight，持有至讀取、寫入或錯誤處理完成。重疊回 `409`，所有 provider 失敗回 `500 / ok:false`，錯誤內容不包含 provider 原始 payload。單一 instance 的 guard 無法阻止另一 instance，亦不跨 restart；Redis、DB lock migration、多 scheduler 與 HA 都是 v1 non-goal。
 
 寫入順序固定為 History header（需要時）→ History append → Current update → Current tail clear。若 History 已成功而 Current 失敗，下次重試先重播 History，以最後事件狀態和 Supabase 比較；相同狀態不追加，來源已再變動則追加下一個 transition。event ID 包含前一事件，因此 A→B→A→B 不會漏掉第二次 B。`deduped` 表示已記錄於 History、但 Current 尚未反映且本次來源仍相同的交易數。
