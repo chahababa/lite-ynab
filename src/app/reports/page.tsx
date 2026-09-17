@@ -205,7 +205,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={exportCsv}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Download className="h-4 w-4" />
                 CSV
@@ -213,7 +213,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={exportExcel}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <FileSpreadsheet className="h-4 w-4" />
                 Excel
