@@ -27,9 +27,9 @@ import type {
   TransactionWithCategory,
 } from "@/lib/types";
 import { formatMonthLabel, getTodayInTaipei, listMonthIds, monthDateRange, shiftMonth } from "@/lib/utils";
-import { computeReportData, createTransactionViews, getReportRangeBounds } from "@/lib/reportData";
+import { computeReportData, computeReportTrend, createTransactionViews, selectReportPeriod } from "@/lib/reportData";
 export { computeReportData, getReportRangeBounds } from "@/lib/reportData";
-import type { ReportCollections } from "@/lib/reportData";
+import { fetchReportCollections } from "@/lib/reportQuery";
 
 type DashboardCollections = {
   groups: CategoryGroup[];
@@ -670,81 +670,6 @@ async function fetchTransactionsForMonth(supabase: SupabaseClient, monthId: stri
   return (result.data ?? []) as Transaction[];
 }
 
-async function fetchTransactionsForRange(
-  supabase: SupabaseClient,
-  startMonthId: string,
-  endMonthId: string,
-) {
-  const { start, end } = getReportRangeBounds(startMonthId, endMonthId);
-
-  const result = await supabase
-    .from("transactions")
-    .select("*")
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  return (result.data ?? []) as Transaction[];
-}
-
-async function fetchReportCollections(
-  supabase: SupabaseClient,
-  startMonthId: string,
-  endMonthId: string,
-) {
-  const monthIds = listMonthIds(startMonthId, endMonthId);
-  const { start, end } = getReportRangeBounds(startMonthId, endMonthId);
-
-  const [groupsResult, categoriesResult, paymentMethodsResult, incomesResult, budgetsResult, transactionsResult] =
-    await Promise.all([
-      supabase.from("category_groups").select("*").order("sort_order", { ascending: true }),
-      supabase.from("categories").select("*").order("sort_order", { ascending: true }),
-      supabase.from("payment_methods").select("*").order("sort_order", { ascending: true }),
-      supabase.from("monthly_incomes").select("*").in("month_id", monthIds),
-      supabase.from("budgets").select("*").in("month_id", monthIds),
-      supabase
-        .from("transactions")
-        .select("*")
-        .gte("date", start)
-        .lt("date", end)
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
-
-  if (groupsResult.error) {
-    throw groupsResult.error;
-  }
-  if (categoriesResult.error) {
-    throw categoriesResult.error;
-  }
-  if (paymentMethodsResult.error) {
-    throw paymentMethodsResult.error;
-  }
-  if (incomesResult.error) {
-    throw incomesResult.error;
-  }
-  if (budgetsResult.error) {
-    throw budgetsResult.error;
-  }
-  if (transactionsResult.error) {
-    throw transactionsResult.error;
-  }
-
-  return {
-    groups: (groupsResult.data ?? []) as CategoryGroup[],
-    categories: (categoriesResult.data ?? []) as Category[],
-    paymentMethods: (paymentMethodsResult.data ?? []) as PaymentMethod[],
-    incomes: (incomesResult.data ?? []) as MonthlyIncome[],
-    budgets: (budgetsResult.data ?? []) as Budget[],
-    transactions: (transactionsResult.data ?? []) as Transaction[],
-  } satisfies ReportCollections;
-}
-
 export async function fetchDashboardData(
   supabase: SupabaseClient,
   monthId: string,
@@ -950,21 +875,20 @@ export async function fetchReportsData(
   const startMonthId = options?.startMonthId ?? monthId;
   const endMonthId = options?.endMonthId ?? monthId;
   const monthIds = listMonthIds(startMonthId, endMonthId);
-  await bootstrapAndInitializeMonths(supabase, monthIds);
-  await runLegacyCategoryNormalization(supabase, user.id);
 
   const monthCount = monthIds.length;
   const previousStartMonthId = shiftMonth(startMonthId, -monthCount);
   const previousEndMonthId = shiftMonth(endMonthId, -monthCount);
 
-  const [collections, previousTransactions] = await Promise.all([
-    fetchReportCollections(supabase, startMonthId, endMonthId),
-    fetchTransactionsForRange(supabase, previousStartMonthId, previousEndMonthId),
-  ]);
+  const trendStartMonthId = shiftMonth(endMonthId, -5);
+  const queryStartMonthId = [startMonthId, previousStartMonthId, trendStartMonthId].sort()[0];
+  const collections = await fetchReportCollections(supabase, user.id, queryStartMonthId, endMonthId);
+  const selectedCollections = selectReportPeriod(collections, startMonthId, endMonthId);
+  const previousTransactions = selectReportPeriod(collections, previousStartMonthId, previousEndMonthId).transactions;
 
   return {
     user,
-    ...computeReportData(collections, previousTransactions, {
+    ...computeReportData(selectedCollections, previousTransactions, {
       mode: startMonthId === endMonthId ? "month" : "range",
       startMonthId,
       endMonthId,
@@ -972,6 +896,7 @@ export async function fetchReportsData(
       previousStartMonthId,
       previousEndMonthId,
     }),
+    trend: computeReportTrend(collections, trendStartMonthId, endMonthId),
   };
 }
 

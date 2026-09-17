@@ -69,7 +69,6 @@ export function computeReportData(
   previousTransactions: Transaction[] = [],
   period?: ReportPeriod,
 ): ReportData {
-  const groupMap = new Map(groups.map((group) => [group.id, group]));
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
   const spentByCategory = new Map<string, number>();
   const countByCategory = new Map<string, number>();
@@ -77,9 +76,6 @@ export function computeReportData(
   const countByPaymentMethod = new Map<string, number>();
   const previousSpentByCategory = new Map<string, number>();
   const previousSpentByPaymentMethod = new Map<string, number>();
-  const incomeByMonth = new Map(incomes.map((item) => [item.month_id, item.amount]));
-  const allocatedByMonth = new Map<string, number>();
-  const spentByMonth = new Map<string, number>();
 
   for (const transaction of transactions) {
     spentByCategory.set(
@@ -98,10 +94,6 @@ export function computeReportData(
       transaction.payment_method_id,
       (countByPaymentMethod.get(transaction.payment_method_id) ?? 0) + 1,
     );
-    spentByMonth.set(
-      transaction.date.slice(0, 7),
-      (spentByMonth.get(transaction.date.slice(0, 7)) ?? 0) + transaction.amount,
-    );
   }
 
   for (const transaction of previousTransactions) {
@@ -115,13 +107,6 @@ export function computeReportData(
     );
   }
 
-  for (const budget of budgets) {
-    allocatedByMonth.set(
-      budget.month_id,
-      (allocatedByMonth.get(budget.month_id) ?? 0) + budget.allocated,
-    );
-  }
-
   const allocatedByCategory = new Map<string, number>();
 
   for (const budget of budgets) {
@@ -131,34 +116,30 @@ export function computeReportData(
     );
   }
 
-  const categoryRows = Array.from(allocatedByCategory.entries()).flatMap(
-    ([categoryId, allocated]) => {
-      const category = categoryMap.get(categoryId);
-      if (!category) return [];
+  const categoryIds = new Set([...allocatedByCategory.keys(), ...spentByCategory.keys(), ...previousSpentByCategory.keys()]);
+  const unknownGroupId = "__report_unknown_group__";
+  const categoryRows = Array.from(categoryIds).map((categoryId) => {
+    const category = categoryMap.get(categoryId);
+    const group = groups.find((item) => item.id === category?.category_group_id);
+    const allocated = allocatedByCategory.get(categoryId) ?? 0;
+    const spent = spentByCategory.get(categoryId) ?? 0;
+    const previousSpent = previousSpentByCategory.get(categoryId) ?? 0;
+    return {
+      id: categoryId,
+      name: category?.name ?? "未知分類",
+      groupName: group?.name ?? "未分類大項",
+      groupId: group?.id ?? unknownGroupId,
+      allocated, spent, previousSpent,
+      remaining: allocated - spent,
+      transactionCount: countByCategory.get(categoryId) ?? 0,
+      deltaSpent: spent - previousSpent,
+    };
+  });
+  const reportGroups = categoryRows.some((row) => row.groupId === unknownGroupId)
+    ? [...groups, { id: unknownGroupId, name: "未分類大項", sort_order: Infinity }]
+    : groups;
 
-      const spent = spentByCategory.get(category.id) ?? 0;
-      const previousSpent = previousSpentByCategory.get(category.id) ?? 0;
-      const transactionCount = countByCategory.get(category.id) ?? 0;
-
-      const group = groups.find((g) => g.id === category.category_group_id);
-      return [
-        {
-          id: category.id,
-          name: category.name,
-          groupName: group?.name,
-          allocated,
-          spent,
-          remaining: allocated - spent,
-          transactionCount,
-          previousSpent,
-          deltaSpent: spent - previousSpent,
-          groupId: category.category_group_id,
-        },
-      ];
-    },
-  );
-
-  const groupRows = groups
+  const groupRows = reportGroups
     .map((group) => {
       const items = categoryRows.filter((row) => row.groupId === group.id);
       const allocated = items.reduce((sum, row) => sum + row.allocated, 0);
@@ -194,7 +175,11 @@ export function computeReportData(
       return left.name.localeCompare(right.name, "zh-Hant");
     });
 
-  const paymentMethodsBreakdown = paymentMethods
+  const methodIds = new Set(paymentMethods.map((method) => method.id));
+  const missingMethodIds = [...new Set([...spentByPaymentMethod.keys(), ...previousSpentByPaymentMethod.keys()])]
+    .filter((id) => !methodIds.has(id));
+  const reportMethods = [...paymentMethods, ...missingMethodIds.map((id) => ({ id, name: "未知支付方式", sort_order: Infinity }))];
+  const paymentMethodsBreakdown = reportMethods
     .map((paymentMethod) => ({
       id: paymentMethod.id,
       name: paymentMethod.name,
@@ -249,23 +234,7 @@ export function computeReportData(
       previousEndMonthId: shiftMonth(incomes[0]?.month_id ?? "1970-01", -1),
     } satisfies ReportPeriod);
 
-  const trend: ReportTrendPoint[] = listMonthIds(
-    normalizedPeriod.startMonthId,
-    normalizedPeriod.endMonthId,
-  ).map((monthId) => {
-    const monthlyIncome = incomeByMonth.get(monthId) ?? 0;
-    const monthlyAllocated = allocatedByMonth.get(monthId) ?? 0;
-    const monthlySpent = spentByMonth.get(monthId) ?? 0;
-
-    return {
-      monthId,
-      label: formatMonthLabel(monthId),
-      income: monthlyIncome,
-      allocated: monthlyAllocated,
-      spent: monthlySpent,
-      unallocated: monthlyIncome - monthlyAllocated,
-    } satisfies ReportTrendPoint;
-  });
+  const trend = computeReportTrend({ incomes, budgets, transactions }, normalizedPeriod.startMonthId, normalizedPeriod.endMonthId);
 
   const groupDetails: ReportGroupDetail[] = groupRows.map(({ sortOrder: _sortOrder, ...group }) => ({
     group,
@@ -295,4 +264,27 @@ export function computeReportData(
     trend,
     recentTransactions,
   };
+}
+
+/** Keep the headline and breakdown restricted to the selected period. */
+export function selectReportPeriod(collections: ReportCollections, startMonthId: string, endMonthId: string): ReportCollections {
+  const { start, end } = getReportRangeBounds(startMonthId, endMonthId);
+  return {
+    ...collections,
+    incomes: collections.incomes.filter((row) => row.month_id >= startMonthId && row.month_id <= endMonthId),
+    budgets: collections.budgets.filter((row) => row.month_id >= startMonthId && row.month_id <= endMonthId),
+    transactions: collections.transactions.filter((row) => row.date >= start && row.date < end),
+  };
+}
+
+export function computeReportTrend(
+  collections: Pick<ReportCollections, "incomes" | "budgets" | "transactions">,
+  startMonthId: string, endMonthId: string,
+): ReportTrendPoint[] {
+  return listMonthIds(startMonthId, endMonthId).map((monthId) => {
+    const income = collections.incomes.filter((row) => row.month_id === monthId).reduce((sum, row) => sum + row.amount, 0);
+    const allocated = collections.budgets.filter((row) => row.month_id === monthId).reduce((sum, row) => sum + row.allocated, 0);
+    const spent = collections.transactions.filter((row) => row.date.slice(0, 7) === monthId).reduce((sum, row) => sum + row.amount, 0);
+    return { monthId, label: formatMonthLabel(monthId), income, allocated, spent, unallocated: income - allocated };
+  });
 }
