@@ -8,7 +8,17 @@ const transaction = (id: string, date = "2026-06-01", category_id = "food"): Tra
   source: "manual", source_text: null, source_id: null, metadata: {},
 });
 type Row = { id: string; user_id: string; [key: string]: unknown };
-function mockClient(transactions: Transaction[], cap = 1000, failAt?: number, duplicate = false) {
+type PageReceipt = {
+  table: string;
+  start: number;
+  data: Row[];
+  count: number | null;
+  error: Error | null;
+};
+type MockOptions = {
+  overrideReceipt?: (receipt: PageReceipt) => PageReceipt;
+};
+function mockClient(transactions: Transaction[], cap = 1000, failAt?: number, duplicate = false, options: MockOptions = {}) {
   const rows: Record<string, Row[]> = {
     category_groups: [{ id: "personal", user_id: "user-1", name: "個人", sort_order: 0 }],
     categories: [{ id: "food", user_id: "user-1", category_group_id: "personal", name: "飲食", sort_order: 0 }],
@@ -32,17 +42,27 @@ function mockClient(transactions: Transaction[], cap = 1000, failAt?: number, du
       range: (start: number, end: number) => {
         requests.push({ table, from: start, to: end, orders, tenant });
         const pageStart = duplicate && table === "transactions" && start > 0 ? 0 : start;
-        return Promise.resolve({
+        const receipt: PageReceipt = {
+          table,
+          start,
           data: selected.slice(pageStart, Math.min(pageStart + cap, pageStart + end - start + 1)),
           count: selected.length,
           error: table === "transactions" && failAt !== undefined && start >= failAt ? new Error("page failed") : null,
-        });
+        };
+        return Promise.resolve(options.overrideReceipt?.(receipt) ?? receipt);
       },
     };
     return query;
   });
   const client = { auth: { getSession: async () => ({ data: { session: { user: { id: "user-1" } } }, error: null }) }, from, rpc };
   return { client: client as unknown as SupabaseClient, requests, rpc, rows };
+}
+
+function expectBreakdownsToReconcile(result: Awaited<ReturnType<typeof fetchReportsData>>) {
+  for (const rows of [result.categoryGroups, result.categories, result.paymentMethods]) {
+    expect(rows.reduce((sum, row) => sum + row.spent, 0)).toBe(result.summary.spent);
+    expect(rows.reduce((sum, row) => sum + row.previousSpent, 0)).toBe(result.summary.previousSpent);
+  }
 }
 
 describe("read-only reports", () => {
@@ -52,7 +72,7 @@ describe("read-only reports", () => {
     const result = await fetchReportsData(mock.client, "2026-06");
     expect(result.summary).toMatchObject({ spent: 10010, previousSpent: 10, transactionCount: 1001, income: 50000, allocated: 0 });
     expect(result.categories[0]).toMatchObject({ name: "飲食", spent: 10010, allocated: 0 });
-    expect(result.categoryGroups.reduce((sum, row) => sum + row.spent, 0)).toBe(result.summary.spent);
+    expectBreakdownsToReconcile(result);
     expect(result.trend.map((point) => [point.monthId, point.spent])).toEqual([
       ["2026-01", 10], ["2026-02", 0], ["2026-03", 0], ["2026-04", 0], ["2026-05", 10], ["2026-06", 10010],
     ]);
@@ -68,8 +88,8 @@ describe("read-only reports", () => {
       expect.objectContaining({ id: "food", spent: 0, previousSpent: 10, deltaSpent: -10 }),
       expect.objectContaining({ id: "deleted", name: "未知分類", spent: 10 }),
     ]));
-    expect(result.categoryGroups.reduce((sum, row) => sum + row.spent, 0)).toBe(10);
     expect(result.paymentMethods.find((row) => row.id === "deleted")).toMatchObject({ previousSpent: 10, deltaSpent: -10 });
+    expectBreakdownsToReconcile(result);
   });
 
   it("paginates metadata, income and budget tables as well as transactions", async () => {
@@ -87,6 +107,19 @@ describe("read-only reports", () => {
     const transactions = Array.from({ length: 3 }, (_, i) => transaction(String(i)));
     await expect(fetchReportsData(mockClient(transactions, 1, 1).client, "2026-06")).rejects.toThrow("page failed");
     await expect(fetchReportsData(mockClient(transactions, 1, undefined, true).client, "2026-06")).rejects.toThrow("重新載入");
+  });
+
+  it.each([
+    ["omits its exact count", [transaction("missing-count")], 1000, (receipt: PageReceipt) =>
+      receipt.table === "transactions" ? { ...receipt, count: null } : receipt, "報表資料已變動，請重新載入。"],
+    ["changes its exact count after the first page", Array.from({ length: 3 }, (_, i) => transaction(`drift-${i}`)), 1, (receipt: PageReceipt) =>
+      receipt.table === "transactions" && receipt.start === 1 ? { ...receipt, count: 4 } : receipt, "報表資料已變動，請重新載入。"],
+    ["returns an empty page before its exact count", Array.from({ length: 2 }, (_, i) => transaction(`empty-${i}`)), 1, (receipt: PageReceipt) =>
+      receipt.table === "transactions" && receipt.start === 1 ? { ...receipt, data: [], count: 2 } : receipt, "報表資料不完整，請重新載入。"],
+    ["returns more rows than its exact count", [transaction("over-count")], 1000, (receipt: PageReceipt) =>
+      receipt.table === "transactions" ? { ...receipt, count: 0 } : receipt, "報表資料不完整，請重新載入。"],
+  ])("fails closed when a transaction page %s", async (_scenario, transactions, cap, overrideReceipt, error) => {
+    await expect(fetchReportsData(mockClient(transactions, cap, undefined, false, { overrideReceipt }).client, "2026-06")).rejects.toThrow(error);
   });
 
   it("keeps range reports and their equally sized previous period working", async () => {
