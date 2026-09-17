@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ReportsPage from "@/app/reports/page";
+import type { ReportData } from "@/lib/types";
 
 const { fetchReportsData, routerValue } = vi.hoisted(() => ({
   fetchReportsData: vi.fn(),
@@ -202,5 +203,29 @@ describe("ReportsPage", () => {
     expect(String(blobParts[0][0])).toContain("'\t=1+1");
     expect(String(blobParts[1][0])).toContain("&#39;\t=1+1");
     clickSpy.mockRestore();
+  });
+
+  it("discards a stale month response and hides exports while changing month", async () => {
+    const fixture = await fetchReportsData();
+    let finishOld!: (data: ReportData) => void;
+    let finishNew!: (data: ReportData) => void;
+    fetchReportsData.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    fetchReportsData.mockImplementationOnce(() => new Promise((resolve) => { finishNew = resolve; }));
+    render(createElement(ReportsPage));
+    fireEvent.click(screen.getByRole("button", { name: "上一個月" }));
+    expect(screen.queryByRole("button", { name: /CSV/i })).not.toBeInTheDocument();
+    await act(async () => finishNew({ ...fixture, summary: { ...fixture.summary, spent: 123, previousSpent: 0, deltaSpent: 123 } }));
+    expect(screen.getByText(/增加.*123.*前月無支出/)).toBeInTheDocument();
+    await act(async () => finishOld(fixture));
+    expect(screen.getByText(/增加.*123.*前月無支出/)).toBeInTheDocument();
+  });
+
+  it("shows a retryable error without displaying stale charts", async () => {
+    fetchReportsData.mockRejectedValueOnce(new Error("page failed"));
+    render(createElement(ReportsPage));
+    expect(await screen.findByRole("button", { name: "重試" })).toBeInTheDocument();
+    expect(screen.queryByText("支出分布")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重試" }));
+    expect(await screen.findByText("支出分布")).toBeInTheDocument();
   });
 });

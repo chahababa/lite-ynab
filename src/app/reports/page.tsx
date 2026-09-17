@@ -8,6 +8,7 @@ import {
   getAmbiguousCategoryNames,
   getCategoryDisplay,
 } from "@/lib/categoryDisplay";
+import { ComparisonBars, ReportCharts, spendingChangeLabel } from "@/components/ReportCharts";
 import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { StateCard } from "@/components/StateCard";
@@ -177,22 +178,21 @@ export default function ReportsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-4 pb-[88px] font-sans text-on-surface">
+    <main className="min-h-screen bg-background px-4 py-6 pb-[100px] sm:px-6 lg:px-8 font-sans text-on-surface">
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
-      <section className="mx-auto w-full max-w-md space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="mx-auto w-full max-w-7xl space-y-5">
+        <header className="grid items-center gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>
-            <p className="text-label-md text-on-surface-variant">報表分析</p>
-            <p className="text-headline-sm">支出與分類概覽</p>
+            <h1 className="text-headline-sm">報表分析</h1>
+            <p className="mt-1 text-body-md text-on-surface-variant">看懂每月花費，再安排下一個月的預算。</p>
           </div>
-        </div>
-
-        <MonthSwitcher
-          monthId={monthId}
-          onPrevious={() => setMonthId((value) => shiftMonth(value, -1))}
-          onNext={() => setMonthId((value) => shiftMonth(value, 1))}
-        />
+          <MonthSwitcher
+            monthId={monthId}
+            onPrevious={() => setMonthId((value) => shiftMonth(value, -1))}
+            onNext={() => setMonthId((value) => shiftMonth(value, 1))}
+          />
+        </header>
 
         {loading ? (
           <LoadingCard label="正在載入報表資料..." />
@@ -205,7 +205,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={exportCsv}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Download className="h-4 w-4" />
                 CSV
@@ -213,7 +213,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={exportExcel}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-outline-variant bg-transparent px-4 text-body-sm text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <FileSpreadsheet className="h-4 w-4" />
                 Excel
@@ -221,22 +221,22 @@ export default function ReportsPage() {
             </div>
 
             {/* 4 summary cards */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-md bg-money-income-container p-4">
                 <p className="text-label-md text-on-surface-variant">收入</p>
-                <p className="mt-1 font-mono text-num-display font-medium text-money-income tabular-nums">
+                <p className="mt-1 break-all font-mono text-num-title font-medium xl:text-num-display text-money-income tabular-nums">
                   ${data.summary.income.toLocaleString("en-US")}
                 </p>
               </div>
               <div className="rounded-md bg-money-expense-container p-4">
                 <p className="text-label-md text-on-surface-variant">已支出</p>
-                <p className="mt-1 font-mono text-num-display font-medium text-money-expense tabular-nums">
+                <p className="mt-1 break-all font-mono text-num-title font-medium xl:text-num-display text-money-expense tabular-nums">
                   ${data.summary.spent.toLocaleString("en-US")}
                 </p>
               </div>
               <div className="rounded-md border border-outline bg-surface p-4">
                 <p className="text-label-md text-on-surface-variant">已分配</p>
-                <p className="mt-1 font-mono text-num-display font-medium tabular-nums">
+                <p className="mt-1 break-all font-mono text-num-title font-medium xl:text-num-display tabular-nums">
                   ${data.summary.allocated.toLocaleString("en-US")}
                 </p>
               </div>
@@ -251,7 +251,7 @@ export default function ReportsPage() {
                 <p className="text-label-md text-on-surface-variant">尚可分配</p>
                 <p
                   className={cn(
-                    "mt-1 font-mono text-num-display font-medium tabular-nums",
+                    "mt-1 break-all font-mono text-num-title font-medium xl:text-num-display tabular-nums",
                     data.summary.unallocated < 0
                       ? "text-money-warn"
                       : "text-money-remain",
@@ -262,21 +262,70 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Categories breakdown */}
-            <section>
-              <h2 className="mb-3 flex items-center gap-2 text-title-md">
-                <BarChart3 className="h-4 w-4" />
-                細項支出總覽
-              </h2>
-              {data.categories.length === 0 ? (
-                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
-                  本期間沒有支出資料
-                </p>
-              ) : (
-                <div className="rounded-md border border-outline bg-surface">
-                  {data.categories.map((item, i) => {
-                    const display = getCategoryDisplay(item, ambiguousReportNames);
-                    return (
+            <ReportCharts data={data} monthId={monthId} currentMonthId={toMonthId(getTodayInTaipei())} />
+
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+              {/* Categories breakdown */}
+              <section className="min-w-0">
+                <h2 className="mb-3 flex items-center gap-2 text-title-md">
+                  <BarChart3 className="h-4 w-4" />
+                  細項支出與前月比較
+                </h2>
+                <p className="mb-3 text-body-sm text-on-surface-variant">藍色：所選月份 · 灰色：前月。每個分類分別依較高金額縮放。</p>
+                {data.categories.length === 0 ? (
+                  <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                    本期間沒有支出資料
+                  </p>
+                ) : (
+                  <div className="rounded-md border border-outline bg-surface">
+                    {data.categories.map((item, i) => {
+                      const display = getCategoryDisplay(item, ambiguousReportNames);
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "space-y-3 px-5 py-4",
+                            i > 0 && "border-t border-outline",
+                          )}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-body-md font-medium">
+                                {display.secondary ? (
+                                  <span className="text-label-sm font-normal text-on-surface-variant">
+                                    {display.secondary} ·{" "}
+                                  </span>
+                                ) : null}
+                                {display.primary}
+                              </p>
+                              <p className="text-body-sm text-on-surface-variant">
+                                交易 {item.transactionCount} 筆 · 預算{" "}
+                                {formatCurrency(item.allocated)}
+                              </p>
+                            </div>
+                            <p className="font-mono text-title-md font-medium tabular-nums">
+                              {formatCurrency(item.spent)}
+                            </p>
+                          </div>
+                          <ComparisonBars spent={item.spent} previousSpent={item.previousSpent} />
+                          <p className="text-body-sm text-on-surface-variant">前月 {formatCurrency(item.previousSpent)} · {spendingChangeLabel(item.spent, item.previousSpent)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Payment methods breakdown */}
+              <section className="min-w-0">
+                <h2 className="mb-3 text-title-md">支付方式</h2>
+                {data.paymentMethods.length === 0 ? (
+                  <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
+                    本期間沒有支付方式統計
+                  </p>
+                ) : (
+                  <div className="rounded-md border border-outline bg-surface">
+                    {data.paymentMethods.map((item, i) => (
                       <div
                         key={item.id}
                         className={cn(
@@ -285,60 +334,20 @@ export default function ReportsPage() {
                         )}
                       >
                         <div className="min-w-0">
-                          <p className="text-body-md font-medium">
-                            {display.secondary ? (
-                              <span className="text-label-sm font-normal text-on-surface-variant">
-                                {display.secondary} ·{" "}
-                              </span>
-                            ) : null}
-                            {display.primary}
-                          </p>
+                          <p className="break-words text-body-md font-medium">{item.name}</p>
                           <p className="text-body-sm text-on-surface-variant">
-                            交易 {item.transactionCount} 筆 · 預算{" "}
-                            {formatCurrency(item.allocated)}
+                            占比 {Math.round(item.share * 100)}%
                           </p>
                         </div>
                         <p className="font-mono text-title-md font-medium tabular-nums">
                           {formatCurrency(item.spent)}
                         </p>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* Payment methods breakdown */}
-            <section>
-              <h2 className="mb-3 text-title-md">支付方式</h2>
-              {data.paymentMethods.length === 0 ? (
-                <p className="rounded-md bg-surface-container px-4 py-3 text-body-sm text-on-surface-variant">
-                  本期間沒有支付方式統計
-                </p>
-              ) : (
-                <div className="rounded-md border border-outline bg-surface">
-                  {data.paymentMethods.map((item, i) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "flex items-center justify-between gap-3 px-5 py-4",
-                        i > 0 && "border-t border-outline",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <p className="text-body-md font-medium">{item.name}</p>
-                        <p className="text-body-sm text-on-surface-variant">
-                          占比 {Math.round(item.share * 100)}%
-                        </p>
-                      </div>
-                      <p className="font-mono text-title-md font-medium tabular-nums">
-                        {formatCurrency(item.spent)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
           </>
         ) : null}
       </section>
