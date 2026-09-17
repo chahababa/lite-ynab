@@ -61,5 +61,8 @@ jobs:
       - name: Reset local database
         run: supabase db reset --local
 
+      - name: Verify S8 duplicate preflight migration regression
+        run: ./scripts/test-local-transaction-source-idempotency-migration.sh
+
       - name: Run pgTAP smoke tests
         run: supabase test db --local

@@ -36,12 +36,17 @@ select ok(
     from pg_constraint c
     join pg_class r on r.oid = c.conrelid
     join pg_namespace n on n.oid = r.relnamespace
+    join pg_index i on i.indexrelid = c.conindid
     where n.nspname = 'public'
       and r.relname = 'transactions'
       and c.conname = 'transactions_user_source_source_id_key'
       and c.contype = 'u'
+      and pg_get_constraintdef(c.oid, true) = 'UNIQUE (user_id, source, source_id)'
+      and i.indisunique
+      and i.indisvalid
+      and i.indpred is null
   ),
-  'named source identity uniqueness constraint exists'
+  'named source identity UNIQUE constraint has the exact tuple and a valid non-partial backing index'
 );
 
 insert into public.transactions (user_id, date, amount, category_id, payment_method_id, source, source_id)
