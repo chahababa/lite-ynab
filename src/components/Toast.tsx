@@ -20,7 +20,8 @@ export function Toast({ message, tone, action }: ToastProps) {
         className={cn(
           "flex items-center rounded-md px-4 py-3 shadow-elev-2 font-sans text-body-md font-medium",
           action ? "justify-between gap-3" : "justify-center",
-          tone === "success" && "bg-money-income-container text-money-income",
+          tone === "success" &&
+            "border border-money-income/30 bg-money-income-container text-on-surface",
           tone === "error" && "bg-money-expense-container text-money-expense",
           tone === "info" && "bg-surface text-on-surface border border-outline",
         )}

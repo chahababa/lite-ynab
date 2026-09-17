@@ -21,7 +21,7 @@ export function MonthSwitcher({
         type="button"
         onClick={onPrevious}
         aria-label="上一個月"
-        className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -35,7 +35,7 @@ export function MonthSwitcher({
         type="button"
         onClick={onNext}
         aria-label="下一個月"
-        className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-on-surface transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10"
       >
         <ChevronRight className="h-5 w-5" />
       </button>

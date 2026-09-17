@@ -167,13 +167,15 @@ describe("ReportsPage", () => {
     render(createElement(ReportsPage));
 
     expect(await screen.findByText("報表分析")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /CSV/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Excel/i })).toBeInTheDocument();
+    const csvButton = screen.getByRole("button", { name: /CSV/i });
+    const excelButton = screen.getByRole("button", { name: /Excel/i });
+    expect(csvButton).toHaveClass("h-11", "min-w-11", "text-on-surface");
+    expect(excelButton).toHaveClass("h-11", "min-w-11", "text-on-surface");
 
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    fireEvent.click(screen.getByRole("button", { name: /CSV/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Excel/i }));
+    fireEvent.click(csvButton);
+    fireEvent.click(excelButton);
 
     await waitFor(() => {
       expect(clickSpy).toHaveBeenCalledTimes(2);
