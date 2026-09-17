@@ -4,9 +4,15 @@ import {
   computeCarryoverByCategory,
   computeDashboardData,
   computeReportData,
+  fetchBudgetAllocationData,
+  fetchBudgetReferenceData,
+  fetchBudgetUsageData,
+  fetchDashboardData,
+  fetchSettingsData,
   getReportRangeBounds,
   sortQuickCategories,
 } from "@/lib/data";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CategoryOption } from "@/lib/types";
 import type {
   Budget,
@@ -590,5 +596,82 @@ describe("computeReportData", () => {
       remaining: 1500,
       transactionCount: 2,
     });
+  });
+});
+
+type Mutation = { table: string; operation: "insert" | "update" | "delete" };
+
+function createLegacyCategoryFetchClient() {
+  const mutations: Mutation[] = [];
+  const rows: Record<string, unknown[]> = {
+    category_groups: [createGroup({ id: "group-1", name: "個人" })],
+    categories: [createCategory({ id: "legacy-food", category_group_id: "group-1", name: "Food" })],
+    payment_methods: [createPaymentMethod({ id: "cash", name: "現金" })],
+    monthly_incomes: [],
+    budgets: [],
+    transactions: [],
+  };
+
+  const from = (table: string) => {
+    let mutation: Mutation["operation"] | null = null;
+    const resultFor = () => ({
+      data: mutation === "insert"
+        ? createCategory({ id: "normalized-food", category_group_id: "group-1", name: "飲食" })
+        : rows[table],
+      error: null,
+    });
+    const query = {
+      select: () => query,
+      order: () => query,
+      eq: () => query,
+      in: () => query,
+      gte: () => query,
+      lt: () => query,
+      maybeSingle: async () => ({ data: null, error: null }),
+      single: async () => resultFor(),
+      insert: () => {
+        mutation = "insert";
+        mutations.push({ table, operation: mutation });
+        return query;
+      },
+      update: () => {
+        mutation = "update";
+        mutations.push({ table, operation: mutation });
+        return query;
+      },
+      delete: () => {
+        mutation = "delete";
+        mutations.push({ table, operation: mutation });
+        return query;
+      },
+      then: <TResult1 = ReturnType<typeof resultFor>, TResult2 = never>(
+        onfulfilled?: ((value: ReturnType<typeof resultFor>) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      ) => Promise.resolve(resultFor()).then(onfulfilled, onrejected),
+    };
+    return query;
+  };
+
+  const client = {
+    auth: { getSession: async () => ({ data: { session: { user: { id: userId } } }, error: null }) },
+    from,
+    rpc: async () => ({ error: null }),
+  };
+  return { client: client as unknown as SupabaseClient, mutations };
+}
+
+describe("legacy categories during public reads", () => {
+  it.each([
+    ["dashboard", (client: SupabaseClient) => fetchDashboardData(client, "2026-09")],
+    ["budget allocation", (client: SupabaseClient) => fetchBudgetAllocationData(client, "2026-09")],
+    ["budget reference", (client: SupabaseClient) => fetchBudgetReferenceData(client, "2026-09")],
+    ["budget usage", (client: SupabaseClient) => fetchBudgetUsageData(client, "2026-09", "month")],
+    ["settings", (client: SupabaseClient) => fetchSettingsData(client)],
+  ])("does not mutate legacy categories while fetching %s", async (_name, fetch) => {
+    const mock = createLegacyCategoryFetchClient();
+
+    await fetch(mock.client);
+
+    expect(mock.mutations).toEqual([]);
   });
 });
