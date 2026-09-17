@@ -19,7 +19,7 @@ describe("report charts", () => {
 
   it("shows an empty donut, six accessible month values, and a partial-month explanation", () => {
     const report = { ...emptyReport, trend: computeReportTrend(emptyCollections, "2025-11", "2026-04") };
-    render(<ReportCharts data={report} monthId="2026-04" isCurrentMonth />);
+    render(<ReportCharts data={report} monthId="2026-04" currentMonthId="2026-04" />);
     expect(screen.getByText("這個月還沒有支出紀錄")).toBeInTheDocument();
     expect(screen.getByText(/本月尚未結束，以下/)).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "每月支出" })).getAllByRole("listitem")).toHaveLength(6);
@@ -33,15 +33,22 @@ describe("report charts", () => {
       transactionCount: 1, previousSpent: 0, deltaSpent: index + 1,
     }));
     const report = { ...emptyReport, categoryGroups: groups };
-    const { container, rerender } = render(<ReportCharts data={report} monthId="2026-04" isCurrentMonth={false} />);
+    const { container, rerender } = render(<ReportCharts data={report} monthId="2026-04" currentMonthId="2026-06" />);
     function legendColors() {
       return new Map(Array.from(container.querySelectorAll('ul[aria-label="各大項支出金額與占比"] li')).map((row) => [row.children[1].textContent, row.children[0].className]));
     }
     const before = legendColors();
     expect(new Set(before.values()).size).toBe(6);
     expect(screen.getByText("28.6%")).toBeInTheDocument();
-    rerender(<ReportCharts data={{ ...report, categoryGroups: groups.map((group) => ({ ...group, spent: 10 - group.spent })) }} monthId="2026-05" isCurrentMonth={false} />);
+    rerender(<ReportCharts data={{ ...report, categoryGroups: groups.map((group) => ({ ...group, spent: 10 - group.spent })) }} monthId="2026-05" currentMonthId="2026-06" />);
     expect(legendColors()).toEqual(before);
     expect(screen.queryByText(/本月尚未結束，以下/)).not.toBeInTheDocument();
+  });
+
+  it("does not label the unfinished previous month as a full month when viewing a future month", () => {
+    render(<ReportCharts data={emptyReport} monthId="2026-05" currentMonthId="2026-04" />);
+    expect(screen.getByText(/所選月份尚未開始/)).toBeInTheDocument();
+    expect(screen.getByText("2026 年 4 月（進行中）")).toBeInTheDocument();
+    expect(screen.getByText("2026 年 5 月（尚未開始）")).toBeInTheDocument();
   });
 });

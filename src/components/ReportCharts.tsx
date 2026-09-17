@@ -8,7 +8,7 @@ const knownColors: Record<string, number> = { 個人: 0, 家庭: 1, 吉他: 5, �
 function groupColors(groups: ReportData["categoryGroups"]) {
   const colors = new Map<string, string>();
   const used = new Set(groups.flatMap((group) => knownColors[group.name] === undefined ? [] : [knownColors[group.name]]));
-  for (const group of groups) {
+  for (const group of [...groups].sort((a, b) => a.id.localeCompare(b.id))) {
     let index = knownColors[group.name];
     if (index === undefined) {
       const hash = Array.from(group.id).reduce((value, letter) => (value * 31 + letter.charCodeAt(0)) >>> 0, 0);
@@ -47,7 +47,11 @@ export function ComparisonBars({ spent, previousSpent }: { spent: number; previo
   );
 }
 
-export function ReportCharts({ data, monthId, isCurrentMonth }: { data: ReportData; monthId: string; isCurrentMonth: boolean }) {
+export function ReportCharts({ data, monthId, currentMonthId }: { data: ReportData; monthId: string; currentMonthId: string }) {
+  const isCurrentMonth = monthId === currentMonthId;
+  const isFutureMonth = monthId > currentMonthId;
+  const previousMonthId = shiftMonth(monthId, -1);
+  const monthStatus = (id: string) => id < currentMonthId ? "全月" : id === currentMonthId ? "進行中" : "尚未開始";
   const groups = data.categoryGroups.filter((group) => group.spent > 0).sort((a, b) => b.spent - a.spent);
   const total = groups.reduce((sum, group) => sum + group.spent, 0);
   const colors = groupColors(data.categoryGroups);
@@ -63,13 +67,13 @@ export function ReportCharts({ data, monthId, isCurrentMonth }: { data: ReportDa
               {spendingChangeLabel(data.summary.spent, data.summary.previousSpent)}
             </p>
             <p className="mt-2 text-body-sm text-on-surface-variant">
-              {isCurrentMonth ? "本月尚未結束，以下以目前已記錄支出與前月全月比較。" : "比較兩個月份的已記錄支出；旅遊等特殊月份可能影響結果。"}
+              {isFutureMonth ? "所選月份尚未開始，僅顯示目前已記錄資料；前月也可能尚未結束。" : isCurrentMonth ? "本月尚未結束，以下以目前已記錄支出與前月全月比較。" : "比較兩個月份的已記錄支出；旅遊等特殊月份可能影響結果。"}
             </p>
           </div>
           <div className="min-w-0 space-y-3">
-            <div className="flex flex-wrap justify-between gap-2 text-body-md"><span>{formatMonthLabel(monthId)}{isCurrentMonth ? "（進行中）" : ""}</span><span className="font-mono tabular-nums text-primary">{formatCurrency(data.summary.spent)}</span></div>
+            <div className="flex flex-wrap justify-between gap-2 text-body-md"><span>{formatMonthLabel(monthId)}{isCurrentMonth || isFutureMonth ? `（${monthStatus(monthId)}）` : ""}</span><span className="font-mono tabular-nums text-primary">{formatCurrency(data.summary.spent)}</span></div>
             <ComparisonBars spent={data.summary.spent} previousSpent={data.summary.previousSpent} />
-            <div className="flex flex-wrap justify-between gap-2 text-body-md text-on-surface-variant"><span>{formatMonthLabel(shiftMonth(monthId, -1))}（全月）</span><span className="font-mono tabular-nums">{formatCurrency(data.summary.previousSpent)}</span></div>
+            <div className="flex flex-wrap justify-between gap-2 text-body-md text-on-surface-variant"><span>{formatMonthLabel(previousMonthId)}（{monthStatus(previousMonthId)}）</span><span className="font-mono tabular-nums">{formatCurrency(data.summary.previousSpent)}</span></div>
             <p className="text-label-md text-on-surface-variant">藍色：所選月份　灰色：前月</p>
           </div>
         </div>
@@ -107,11 +111,11 @@ export function ReportCharts({ data, monthId, isCurrentMonth }: { data: ReportDa
 
       <figure className="min-w-0 rounded-md border border-outline bg-surface p-5">
         <figcaption className="text-title-md">近六個月支出趨勢</figcaption>
-        <p className="mt-1 text-body-sm text-on-surface-variant">截至所選月份 · 無紀錄月份以 0 顯示{isCurrentMonth ? " · 本月尚未結束" : ""}</p>
+        <p className="mt-1 text-body-sm text-on-surface-variant">金額：新臺幣 · 截至所選月份 · 無紀錄月份以 0 顯示{isCurrentMonth ? " · 本月尚未結束" : ""}</p>
         <div className="mt-6 grid grid-cols-6 items-end gap-1.5 sm:gap-3" role="list" aria-label="每月支出">
           {data.trend.map((point) => <div key={point.monthId} role="listitem" aria-label={`${point.label}：${formatCurrency(point.spent)}`} className="min-w-0 text-center">
             <div aria-hidden="true" className="flex h-44 flex-col justify-end">
-              <span className="mb-2 break-all font-mono text-[10px] tabular-nums sm:text-body-sm">{formatCurrency(point.spent)}</span>
+              <span className="mb-2 break-all font-mono text-[10px] tabular-nums sm:text-body-sm" title={formatCurrency(point.spent)}><span className="sm:hidden">{new Intl.NumberFormat("zh-TW", { notation: "compact", maximumFractionDigits: 1 }).format(point.spent)}</span><span className="hidden sm:inline">{formatCurrency(point.spent)}</span></span>
               <div className={cn("mx-auto w-full max-w-12 rounded-t-sm", point.monthId === monthId ? "bg-primary" : "bg-secondary-container")} style={{ height: `${Math.max(0, point.spent) / maxTrend * 120}px`, minHeight: "2px" }} />
             </div>
             <p aria-hidden="true" className={cn("border-t border-outline pt-2 text-body-sm", point.monthId === monthId ? "font-medium text-primary" : "text-on-surface-variant")}>

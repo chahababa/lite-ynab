@@ -262,7 +262,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <ReportCharts data={data} monthId={monthId} isCurrentMonth={monthId === toMonthId(getTodayInTaipei())} />
+            <ReportCharts data={data} monthId={monthId} currentMonthId={toMonthId(getTodayInTaipei())} />
 
             <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
               {/* Categories breakdown */}
@@ -289,23 +289,23 @@ export default function ReportsPage() {
                           )}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="break-words text-body-md font-medium">
-                              {display.secondary ? (
-                                <span className="text-label-sm font-normal text-on-surface-variant">
-                                  {display.secondary} ·{" "}
-                                </span>
-                              ) : null}
-                              {display.primary}
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-body-md font-medium">
+                                {display.secondary ? (
+                                  <span className="text-label-sm font-normal text-on-surface-variant">
+                                    {display.secondary} ·{" "}
+                                  </span>
+                                ) : null}
+                                {display.primary}
+                              </p>
+                              <p className="text-body-sm text-on-surface-variant">
+                                交易 {item.transactionCount} 筆 · 預算{" "}
+                                {formatCurrency(item.allocated)}
+                              </p>
+                            </div>
+                            <p className="font-mono text-title-md font-medium tabular-nums">
+                              {formatCurrency(item.spent)}
                             </p>
-                            <p className="text-body-sm text-on-surface-variant">
-                              交易 {item.transactionCount} 筆 · 預算{" "}
-                              {formatCurrency(item.allocated)}
-                            </p>
-                          </div>
-                          <p className="font-mono text-title-md font-medium tabular-nums">
-                            {formatCurrency(item.spent)}
-                          </p>
                           </div>
                           <ComparisonBars spent={item.spent} previousSpent={item.previousSpent} />
                           <p className="text-body-sm text-on-surface-variant">前月 {formatCurrency(item.previousSpent)} · {spendingChangeLabel(item.spent, item.previousSpent)}</p>
