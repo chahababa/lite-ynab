@@ -1,12 +1,14 @@
 # 中國信託消費成交回報匯入 MVP 規格
 
-狀態：Active / Parser dry-run implemented
+狀態：Phase 1 parser dry-run 已實作；本頁 Phase 2 設計欄位為歷史提案
 日期：2026-07-23
 專案：Lite YNAB
 
+> **2026-09-26 產品決策優先**：後續收集、UI、staging、安全與排程應依 [Phase 2 每日待確認收件匣規格](ctbc-email-import-phase-2-spec.md)；本頁保留 Phase 1 解析器/dry-run 契約供參考。原本「所有卡列皆 staging」、持久化末四碼/raw Gmail ID、手動為最終觸發、泛用匯入路由與批次批准預設，均不再適用。每日 07:00 Asia/Taipei 一次自動收集「昨天」指定卡交易，加有限重疊回看；工作支出排除，私人交易須人為分類、支付方式與確認。此為規格而非 live 授權。
+
 ## 1. 目標
 
-將 Gmail 中的中國信託「信用卡消費成交回報」轉成 Lite YNAB 的待確認交易，讓使用者批次檢查、補分類後才正式匯入。
+將 Gmail 中的中國信託「信用卡消費成交回報」轉成 Lite YNAB 的待確認候選；後續僅指定卡的私人支出，經人工選分類、支付方式並確認後才正式匯入。
 
 第一版只處理 Email 本文，不處理信用卡月結 PDF，不登入網銀，也不自動寫入正式交易。
 
@@ -94,13 +96,13 @@ type CtbcEmailCandidate = {
 
 ### 4.4 去重
 
-候選交易的 `sourceId` 使用：
+目前 Phase 1 記憶體解析器的 `sourceId` 使用（**不可直接持久化**）：
 
 ```text
 ctbc:<gmailMessageId>:<normalized-row-sha256>
 ```
 
-row hash 至少包含：末四碼、交易時間、金額、原始商家與卡別。資料庫對 `(user_id, source, source_id)` 建唯一約束。
+row hash 至少包含：末四碼、交易時間、金額、原始商家與卡別。後續 staging 採不可逆 message hash + row hash；不能把含 raw Gmail ID 的 Phase 1 sourceId 直接寫入資料庫。若同封有兩個完全相同的原始列，現行 Set 可能合併，應在後續 gate 辨明而非宣稱不會漏筆。
 
 同一 Gmail message 重跑不得產生第二筆候選；同日同額但不同卡片、時間或商家不得誤判為重複。
 
@@ -109,15 +111,14 @@ row hash 至少包含：末四碼、交易時間、金額、原始商家與卡�
 ```text
 Gmail 唯讀搜尋
 → 解析成交回報
-→ 建立 import batch
+→ 記憶體逐列篩選指定卡並淨化來源 ID → 建立 import batch
 → 產生候選交易
-→ 待確認收件匣
-→ 使用者補支付方式／分類
-→ 批次批准
-→ 寫入 transactions
+→ 專用待確認收件匣
+→ 使用者標記工作支出／排除（不建個人交易），或私人支出選分類、支付方式
+→ 個別人工確認私人支出 → 寫入 transactions
 ```
 
-候選狀態：
+以下為 Phase 1 歷史狀態草案；後續工作排除、衝突、原子匯入及到期狀態依 Phase 2 規格：
 
 ```text
 discovered → parsed → needs_review → approved → imported
@@ -127,15 +128,15 @@ discovered → parsed → needs_review → approved → imported
 
 ## 6. Lite YNAB UI
 
-新增：`/settings/statement-import` 或 `/imports/transactions`
+後續產品路由：`/settings/email-import`（本頁早期路由提案已廢止）
 
 每筆候選顯示：
 
 - 日期與時間
 - 金額
-- 卡別（只顯示遮罩後末四碼）
+- 卡產品名稱（不顯示末四碼）
 - 正卡／附卡
-- 原始商家名稱
+- 淨化後商家名稱
 - 中信分類與交易通路
 - 建議 Lite YNAB 分類
 - 建議支付方式
@@ -143,10 +144,9 @@ discovered → parsed → needs_review → approved → imported
 
 操作：
 
-- 單筆或批次選擇
-- 批次設定分類／支付方式
-- 批准匯入
-- 忽略
+- 人工逐筆確認私人支出（分類與支付方式均必選）
+- 工作支出／排除（不得進個人帳本、預算、報表或匯出）
+- 略過；可能與手動記帳重複時顯示原因，人工決議
 - 查看來源資訊（不保存完整 Email HTML）
 
 第一版不提供「全部自動批准」。
@@ -158,7 +158,7 @@ discovered → parsed → needs_review → approved → imported
 - `id`
 - `user_id`
 - `source`
-- `source_message_id`
+- `source_message_hash`（不保存 raw Gmail ID）
 - `discovered_at`
 - `status`
 - `candidate_count`
@@ -178,7 +178,7 @@ discovered → parsed → needs_review → approved → imported
 - `merchant_normalized`
 - `card_product_name`
 - `card_role`
-- `card_last4`
+- 不保存 `card_last4` 或可逆卡指紋（Phase 1 記憶體模型仍有此欄，collector 淨化後不得下送）
 - `bank_category_raw`
 - `transaction_channel_raw`
 - `suggested_category_id`
@@ -191,18 +191,17 @@ discovered → parsed → needs_review → approved → imported
 
 ## 8. 整合架構建議
 
-第一版採「Hermes 收件、Lite YNAB 審核」：
+以下「Hermes 收件」是 2026-07-23 的**歷史提案，非最終 production 架構**；後續採受控獨立 collector/provider scheduler，Hermes 僅監控聚合告警：
 
-- Hermes 使用現有 Google Workspace 授權，唯讀取得 Gmail。
-- Hermes parser 產生候選 JSON。
+- 當時提案 Hermes 使用現有 Google Workspace 授權，唯讀取得 Gmail；目前不得據此讀取真實 Gmail。
+- Phase 1 parser 產生記憶體候選；後續 collector 須先過濾指定卡、sanitize 再下送。
 - 透過新的受保護 API 寫入 `transaction_import_candidates`。
 - Lite YNAB 負責登入、顯示、人工確認及正式匯入。
 
-優點：
+歷史提案的優點／待驗假設：
 
 - 不必立即替 Zeabur App 增加 Google OAuth 與 Gmail token。
-- 可沿用現有 Hermes webhook 驗證與 `source_id` 去重模式。
-- 敏感 Gmail 存取維持在既有 Hermes 環境。
+- 是否沿用受保護 API、identity 去重與受限 Gmail 執行環境須 Gate C 審核，不能直接沿用未驗證 token 或環境。
 
 ## 9. 安全與隱私
 
@@ -223,7 +222,7 @@ discovered → parsed → needs_review → approved → imported
 - [ ] `暫無商店資訊`不會被自動誤分類。
 - [ ] 同一封信重跑不新增重複候選。
 - [ ] Dry-run 只輸出遮罩摘要，不寫資料庫。
-- [ ] 待確認 UI 可批次分類、批准及忽略。
+- [ ] 專用待確認 UI 可逐筆標工作排除、人工確認私人交易及略過；必備分類與支付方式、手動重複提示。
 - [ ] 批准後建立 Lite YNAB transaction，並保留來源追蹤。
 - [ ] parser、去重、API 權限與 UI 核心流程有測試。
 - [ ] `npm run typecheck`、`npm run test`與 production build 通過。
@@ -253,6 +252,6 @@ Dry-run CLI 可讀取合成 JSON 檔，或用 `-` 從 stdin 接收一次性資�
 ## 13. 進入實作前的必要決策
 
 - Active／授權開發：已由 Matt 於 2026-07-23 確認；本輪授權範圍僅 CTBC parser dry-run，不含資料庫寫入、Gmail 排程或正式自動匯入。
-- 第一版由手動觸發還是每日排程掃描 Gmail；建議先手動 dry-run，再加入排程。
-- 正卡與附卡是否映射為不同 `payment_methods`；建議分開，避免家庭支出來源混淆。
-- 待確認資料保留期限；建議成功匯入後只留正規化欄位與來源 ID，不保留原始 Email。
+- **已決定**最終產品每日 07:00 Asia/Taipei 自動收集一次；手動合成 dry-run 仍是部署前驗證階段，不是最終收信策略。Gmail/OAuth/env、production DB/data 與 scheduler 啟用各自需要另行 gate。
+- 正卡與附卡是否映射為不同 `payment_methods`；後續以個別 owner 的支付方式供人工選擇，不能由末四碼自動判定。
+- 待確認資料保留期限已由 Phase 2 規格提出 30／7／90 天分層設計；實作與 production retention 尚須獨立 gate。
