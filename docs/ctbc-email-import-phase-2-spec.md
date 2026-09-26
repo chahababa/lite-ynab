@@ -1,8 +1,8 @@
 # CTBC 每日待確認支出收件匣｜Phase 2 產品與安全規格
 
-狀態：2026-09-26 需求補充；僅規格，尚未實作、授權或啟用 live 收件。
+狀態：2026-09-26 需求補充；僅規格，尚未實作或啟用 live 收件。S8 曾取得附條件、單版 production 授權，但 preflight 停止、未套用（見第 6 節）。
 基準：本次文件以 `origin/main` `d115dd8de7ca35e9d4a12d607df285eb281c5bda` 為依據；Phase 1 parser/dry-run 已在 repo，S8 transaction source 唯一鍵已合併至 main，但 **S8-PROD production apply/readback 未完成**，不得據此啟動 S9。
-來源：[Lite YNAB 題目](https://app.notion.com/p/3a66f4831a6181579ec1db50c5801cb4)、[Phase 2 Architecture / Spec 與 2026-09-26 補充](https://app.notion.com/p/3a66f4831a61818f9c51e2a85204afde)、[Phase 1 MVP](ctbc-email-import-mvp-spec.md)。本文是後續開發的設計輸入，不是 live 邊界授權。
+來源：[Lite YNAB 題目](https://app.notion.com/p/3a66f4831a6181579ec1db50c5801cb4)、[Phase 2 Architecture / Spec 與 2026-09-26 補充](https://app.notion.com/p/3a66f4831a61818f9c51e2a85204afde)、[Phase 1 MVP](ctbc-email-import-mvp-spec.md)。S8 唯讀證據見 Kanban `t_752c667e` 的 `s8-reconciliation-decision-package.md`（SHA-256 `529103f0599685b08bde1c35c5b24fbf318aababa93826d315594f39ceb9f722`）。本文是後續開發的設計輸入，不是 live 邊界授權。
 
 ## 1. 定案與覆蓋關係
 
@@ -58,4 +58,10 @@ Gate D: 登入使用者 JWT → /settings/email-import → 挑選工作排除/�
 3. Gate C（另經授權）：帳戶/受保護卡設定/唯讀 scope、可信 Gmail header、server 固定 owner、受保護 API、sanitizer、無敏感 log、單次 dry-run/replay、scheduler 預演證明每日 07:00 台北一次（DST/時間偏移、失敗重試不另開 regular run）、實際延遲樣本是否足以支持窗口；首次真實 Gmail/secret/排程/production staging 均要 exact-scope gate。
 4. Gate D（另經授權）：S8-PROD apply/readback 證據、migration duplicate preflight 零、exact environment/backup/feature-off、RLS adversarial tests、一次人工私人確認 → 一筆交易重試仍一筆；工作排除 → 零交易與零個人報表/匯出；count-only retention readback；CI、獨立 Review/QA/Release typed verdict，任何失敗 hard stop。
 
-未定：Gmail 帳戶與受保護卡 selector 的保管/輪替 owner、合成相同列的可靠區辨、provider scheduler 與 lease 實現、遲到 >2 天的操作 SOP、live retention 承載、首輪是否人工限定回溯。這些是未來設計與權限 gate 問題，不應腦補為本文件已取得 Matt 的 live 授權。S8-PROD `t_0d1321f8` 仍是 S9 前置硬停；本卡只供 PMO 做 Tier-0 文件審查及檢查 merge 的自動部署效果。
+### S8-PROD 授權與實況（截至 2026-09-26）
+
+- Matt 於 2026-09-26 選擇 `t_0d1321f8` 的**附條件 A**：僅限 production ref `ihntzjkrkskztmbfovdt` 的 `20260917050000_transaction_source_idempotency.sql`，且所有 preflight 通過後才可單版套用並讀回；不是其他 migration、history repair、backup restore、Gmail、scheduler、S9 或本 PR 合併的授權。
+- `t_54bcfc8c` preflight 結果 **BLOCKED_NO_APPLY**：remote `20260703112413` 與 repo `202607030001` 版本不同；`20260917040000` S4A 的 SECURITY DEFINER 函式變更在 production 確實未套用（非僅缺 history），目標 `20260917050000` 亦未套用。`t_752c667e` 唯讀逐字比對指出 July 兩版的可執行 SQL 相同，但**版本差異仍在**，不得自行修補 history 或據此推論整體 schema 等效。備份的可還原 checkpoint／具名 operator，以及受支援、指定 ref/version 的單版 preview 路徑仍未證實；先前 duplicate count=0 只是當時快照。`NO_APPLY`、`production_mutation=false`、`S9_implementation=false`。
+- 下一步由 PMO 先做 repo-only provenance/runbook 與唯讀取得備份可還原性、operator、資源／維護窗口及 provider 單版路徑證據；另案釐清 S4A 與 S8 的 production 順序、依賴及精確範圍，fresh Tier-2 gate 與必要的新授權後才可能執行。S4A 是獨立的 migration/history 安全 gate，**不能在未證明產品依賴前宣稱整個 CTBC 產品都必須先套用 S4A**；S9 live 邊界仍不得啟動。PR #56 僅兩份規格文件，合併不代表任何 production 步驟放行。
+
+未定：Gmail 帳戶與受保護卡 selector 的保管/輪替 owner、合成相同列的可靠區辨、provider scheduler 與 lease 實現、遲到 >2 天的操作 SOP、live retention 承載、首輪是否人工限定回溯。這些是未來設計與權限 gate 問題；不能把 S8 附條件 A 或 PR #56 合併解讀為 Gmail、scheduler、DB 或 S9 授權。S8-PROD 仍是 S9 前置硬停；本 PR 只供 PMO 做 Tier-0 文件審查，合併前須檢查 provider 自動部署效果。

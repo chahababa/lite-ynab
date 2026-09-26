@@ -4,7 +4,7 @@
 日期：2026-07-23
 專案：Lite YNAB
 
-> **2026-09-26 產品決策優先**：後續收集、UI、staging、安全與排程應依 [Phase 2 每日待確認收件匣規格](ctbc-email-import-phase-2-spec.md)；本頁保留 Phase 1 解析器/dry-run 契約供參考。原本「所有卡列皆 staging」、持久化末四碼/raw Gmail ID、手動為最終觸發、泛用匯入路由與批次批准預設，均不再適用。每日 07:00 Asia/Taipei 一次自動收集「昨天」指定卡交易，加有限重疊回看；工作支出排除，私人交易須人為分類、支付方式與確認。此為規格而非 live 授權。
+> **2026-09-26 產品決策優先**：後續收集、UI、staging、安全與排程應依 [Phase 2 每日待確認收件匣規格](ctbc-email-import-phase-2-spec.md)；本頁保留 Phase 1 解析器/dry-run 契約供參考。原本「所有卡列皆 staging」、持久化末四碼/raw Gmail ID、手動為最終觸發、泛用匯入路由與批次批准預設，均不再適用。每日 07:00 Asia/Taipei 一次自動收集「昨天」指定卡交易，加有限重疊回看；工作支出排除，私人交易須人為分類、支付方式與確認。此為規格而非 live 授權；S8 的附條件單版授權及 **NO_APPLY** preflight 結果見 Phase 2 第 6 節，PR #56 合併不放行 DB、Gmail、scheduler 或 S9。
 
 ## 1. 目標
 
@@ -252,6 +252,6 @@ Dry-run CLI 可讀取合成 JSON 檔，或用 `-` 從 stdin 接收一次性資�
 ## 13. 進入實作前的必要決策
 
 - Active／授權開發：已由 Matt 於 2026-07-23 確認；本輪授權範圍僅 CTBC parser dry-run，不含資料庫寫入、Gmail 排程或正式自動匯入。
-- **已決定**最終產品每日 07:00 Asia/Taipei 自動收集一次；手動合成 dry-run 仍是部署前驗證階段，不是最終收信策略。Gmail/OAuth/env、production DB/data 與 scheduler 啟用各自需要另行 gate。
+- **已決定**最終產品每日 07:00 Asia/Taipei 自動收集一次；手動合成 dry-run 仍是部署前驗證階段，不是最終收信策略。Matt 於 2026-09-26 對 production ref `ihntzjkrkskztmbfovdt` 的 S8 `20260917050000` 選附條件 A，但 `t_54bcfc8c` preflight 停於 migration version drift、S4A `20260917040000` 實際未套用及可還原備份／單版 preview 證據不足，**NO_APPLY**；詳見 [Phase 2 S8-PROD 實況](ctbc-email-import-phase-2-spec.md#s8-prod-授權與實況截至-2026-09-26) 與唯讀證據 `t_752c667e`。S4A 是另案 migration/history gate，不預設為整個產品的功能依賴。Gmail/OAuth/env、其他 production DB/data 與 scheduler 啟用均未獲本 PR 放行。
 - 正卡與附卡是否映射為不同 `payment_methods`；後續以個別 owner 的支付方式供人工選擇，不能由末四碼自動判定。
 - 待確認資料保留期限已由 Phase 2 規格提出 30／7／90 天分層設計；實作與 production retention 尚須獨立 gate。
