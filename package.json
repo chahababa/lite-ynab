@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:s8-isolated": "node scripts/test-s8-isolated-preflight.mjs",
     "dry-run:ctbc-email": "node scripts/ctbc-email-dry-run.mjs"
   },
   "dependencies": {
