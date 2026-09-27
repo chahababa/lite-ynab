@@ -66,3 +66,23 @@ jobs:
 
       - name: Run pgTAP smoke tests
         run: supabase test db --local
+
+  s8-isolated-preflight:
+    name: S8 isolated executor experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test sealed S8 in owned disposable PostgreSQL
+        run: npm run test:s8-isolated
