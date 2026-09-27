@@ -114,11 +114,11 @@ Gmail 唯讀搜尋
 → 記憶體逐列篩選指定卡並淨化來源 ID → 建立 import batch
 → 產生候選交易
 → 專用待確認收件匣
-→ 使用者標記工作支出／排除（不建個人交易），或私人支出選分類、支付方式
+→ 使用者逐筆選補記、已記過、忽略、稍後處理或工作支出
 → 個別人工確認私人支出 → 寫入 transactions
 ```
 
-以下為 Phase 1 歷史狀態草案；後續工作排除、衝突、原子匯入及到期狀態依 Phase 2 規格：
+以下為 Phase 1 歷史狀態草案；後續五種操作、衝突、原子匯入及到期狀態依 [Phase 2 第 4 節](ctbc-email-import-phase-2-spec.md#41-五種操作的持久語意設計契約)，不得沿用 approved/ignored 草案作為候選 schema：
 
 ```text
 discovered → parsed → needs_review → approved → imported
@@ -144,9 +144,11 @@ discovered → parsed → needs_review → approved → imported
 
 操作：
 
-- 人工逐筆確認私人支出（分類與支付方式均必選）
-- 工作支出／排除（不得進個人帳本、預算、報表或匯出）
-- 略過；可能與手動記帳重複時顯示原因，人工決議
+- 補記：人工逐筆確認私人支出（分類與支付方式均必選）
+- 已記過：人工選同 owner 的既有交易，僅連結，不增改刪舊交易
+- 忽略：終態，保留最小去重狀態，不補記
+- 稍後處理：保持待處理，可回來決議，不延長保留期限
+- 工作支出：排除終態，不得進個人帳本、預算、報表或匯出
 - 查看來源資訊（不保存完整 Email HTML）
 
 第一版不提供「全部自動批准」。
@@ -222,7 +224,7 @@ discovered → parsed → needs_review → approved → imported
 - [ ] `暫無商店資訊`不會被自動誤分類。
 - [ ] 同一封信重跑不新增重複候選。
 - [ ] Dry-run 只輸出遮罩摘要，不寫資料庫。
-- [ ] 專用待確認 UI 可逐筆標工作排除、人工確認私人交易及略過；必備分類與支付方式、手動重複提示。
+- [ ] 專用待確認 UI 分清補記、已記過、忽略、稍後處理、工作支出；必備本人分類與支付方式、人工既有交易連結與重複提示，依 Phase 2 五操作合成驗收清單驗證。
 - [ ] 批准後建立 Lite YNAB transaction，並保留來源追蹤。
 - [ ] parser、去重、API 權限與 UI 核心流程有測試。
 - [ ] `npm run typecheck`、`npm run test`與 production build 通過。

@@ -1,6 +1,6 @@
 # CTBC 每日待確認支出收件匣｜Phase 2 產品與安全規格
 
-狀態：2026-09-26 需求補充；僅規格，尚未實作或啟用 live 收件。S8 曾取得附條件、單版 production 授權，但 preflight 停止、未套用（見第 6 節）。
+狀態：2026-09-27 Codex 接手並補齊五種操作；僅規格，尚未實作或啟用 live 收件。S8 曾取得附條件、單版 production 授權，但 preflight 停止、未套用（見第 6 節及 [本輪唯讀決策包](ctbc-s8-readonly-decision-20260927.md)）。
 基準：本次文件以 `origin/main` `d115dd8de7ca35e9d4a12d607df285eb281c5bda` 為依據；Phase 1 parser/dry-run 已在 repo，S8 transaction source 唯一鍵已合併至 main，但 **S8-PROD production apply/readback 未完成**，不得據此啟動 S9。
 來源：[Lite YNAB 題目](https://app.notion.com/p/3a66f4831a6181579ec1db50c5801cb4)、[Phase 2 Architecture / Spec 與 2026-09-26 補充](https://app.notion.com/p/3a66f4831a61818f9c51e2a85204afde)、[Phase 1 MVP](ctbc-email-import-mvp-spec.md)。S8 唯讀證據見 Kanban `t_752c667e` 的 `s8-reconciliation-decision-package.md`（SHA-256 `529103f0599685b08bde1c35c5b24fbf318aababa93826d315594f39ceb9f722`）。本文是後續開發的設計輸入，不是 live 邊界授權。
 
@@ -27,7 +27,7 @@
 Gate A/B: synthetic fixture → pure model + local ephemeral DB/RLS 驗證 → 內建預覽 UI（零 Gmail/production write）
 Gate C: 受限 Gmail 帳戶唯讀 → Gmail trusted Authentication-Results → Phase 1 parser
         → collector 記憶體逐列目標卡過濾 → sanitize/hashed identity → 固定 owner 的受保護 staging API
-Gate D: 登入使用者 JWT → /settings/email-import → 挑選工作排除/私人確認或略過
+Gate D: 登入使用者 JWT → /settings/email-import → 補記/已記過/忽略/稍後處理/工作支出
         → owner + version + state + category/payment check → 原子 candidate/event/transaction mutation
 ```
 
@@ -39,29 +39,67 @@ Gate D: 登入使用者 JWT → /settings/email-import → 挑選工作排除/�
 
 ## 4. 使用者介面與狀態
 
-- 專用 `/settings/email-import`「Email 待確認交易」頁，設定頁有入口；手機與鍵盤可操作，僅展示遮罩/淨化欄位、來源為 CTBC 授權通知、消費日期與到達/晚到警示、可能重複原因、建議分類/支付方式。使用者可逐筆「私人支出：確認匯入」「工作支出／排除」「略過」；不允許「全部自動批准」。不展示卡末四碼、原始 message ID 或 hash。
-- Batch `received → ready_for_review | partial_failure | rejected → completed | expired`；`partial_failure` 必示失敗列數與明確警示，不能只顯成功列而標記完整。Candidate `needs_review → imported | skipped | work_excluded | conflict | expired`，`conflict → imported | skipped | work_excluded`（需明確人工決議）。`imported/skipped/work_excluded/expired` 終態；`work_excluded` 是新提議的終態及固定原因碼，**不得等同 imported**，event 記錄操作者、時間與固定 code，並走 retention。已存在的 imported candidate 不得改標工作而自動移除 transaction：顯示人工更正流程與硬停，不做隱式 unimport。
+- 專用 `/settings/email-import`「待核對支出」頁，設定頁有入口；手機與鍵盤可操作，僅展示遮罩/淨化欄位、來源為 CTBC 授權通知、消費日期與到達/晚到警示、可能重複原因、建議分類/支付方式。逐筆明示「補記」「已記過」「忽略」「稍後處理」「工作支出」五種操作，不使用含糊的「略過」代替其中任何一種；不允許「全部自動批准」。不展示卡末四碼、原始 message ID 或 hash。
+- Batch `received → ready_for_review | partial_failure | rejected → completed | expired`；`partial_failure` 必示失敗列數與明確警示，不能只顯成功列而標記完整。只有沒有 `needs_review/conflict` 候選時才可結束待處理計數；解析失敗計數與告警獨立保留，不能因人工處理完成功列而清除。`completed` 不代表完整蒐集或月結核帳。
+
+### 4.1 五種操作的持久語意（設計契約）
+
+`needs_review` 即 pending；`conflict` 也屬未結案。以下取代舊 `skipped` 狀態及未定義的 `duplicate` 終態；目前尚無候選 schema，不需要回填既有 production 候選。
+
+| 操作 | 成功後 candidate / 固定 event code | 個人 transactions 影響 | 必要檢查與回饋 |
+| --- | --- | --- | --- |
+| 補記 | `imported` / `personal_imported` | 原子新增恰好一筆，保存 `imported_transaction_id` | 本人 JWT、owner、expected version、本人分類與支付方式必選；明確確認後才提交。回饋「已補記，尚未與月結帳單核對」。 |
+| 已記過 | `already_recorded` / `existing_transaction_linked` | 零新增、零修改、零刪除 | 人選擇一筆仍存在且同 owner 的既有交易並確認；保存候選上的 `linked_transaction_id`，不回寫舊交易的 source/metadata。回饋「已連結既有交易」。 |
+| 忽略 | `ignored` / `candidate_ignored` | 零新增、零修改、零刪除 | 本人明確決議不補記，保存最小處理 shell。回饋「已忽略，不會補記」。不要求也不保存既有交易連結。 |
+| 稍後處理 | 仍為 `needs_review`；原為 `conflict` 則保持 `conflict` / `review_deferred` | 零新增、零修改、零刪除 | 非終態，仍列在待處理清單，可再次開啟執行五種操作；保留衝突警示，不宣稱已解決。回饋「保留待處理」。 |
+| 工作支出 | `work_excluded` / `work_expense_excluded` | 零新增、零修改、零刪除 | 明確確認排除；不要求個人分類/支付方式，只保留必要去重及處理 shell。回饋「已排除，不列入個人帳本」。 |
+
+- 終態為 `imported/already_recorded/ignored/work_excluded/expired`，彼此不可透過一般五種操作轉換。`needs_review` 可進入以上終態或 `conflict`；`conflict` 須明確人工決議才可補記、連結、忽略或工作排除，不能以稍後處理清除衝突。修正證據且解除衝突後可回 `needs_review`，須獨立事件與 version 檢查；來源 identity/payload 未釐清前禁止補記。
+- 已記過的同日同額或 ±1 日提示只提供選項，不自動匹配，不自動結案。無可選交易時保留待處理，提供稍後、忽略或補記選項；不可把無連結的「已記過」寫成忽略。跨 user、已刪除或競態失效的連結一律 fail closed，回傳一般衝突，不洩漏另一 owner 的資訊。候選處理時鎖定並驗證連結交易，交易本身不被修改。
+- 已記過的連結之後若被使用者於一般帳務流程刪除，候選不自動重開或補記；顯示「原連結交易已不存在」供人工檢查。清除連結不得連帶刪除既有交易（禁止 cascade 到 transactions）。已 imported 不得再標工作而自動移除交易，需獨立有審計的人工帳務更正。
+- 所有操作使用 candidate owner lock、expected version 及同一 logical action 的 idempotency key；成功時原子更新 candidate/version + append-only event。補記額外原子建立 transaction；其他四種沒有帳務寫入。相同 key/相同操作重試回原結果且不重複 event；相同 key/不同 payload 拒絕。不同操作搶同一 version 只能有一個成功，輸家 reload 後由人再決議；即使稍後不改 status，首次成功仍增加 version 並記事件。UI 提交中停用五種操作，後端不能依賴停用按鈕保證安全。
+- 本版稍後處理不新增提醒排程、不設定永久隱藏或自動重開日期，亦不延長 30 天 retention。最小 event 僅候選/操作者 ID、時間、版本與固定 code，不保存金額、商家或自由文字原因。可能重複、已記過、忽略、稍後與工作排除分別計數，不能統稱「已匯入」。
+
+### 4.2 呈現與個人帳本邊界
+
 - 加載中、空（「本次未收到符合條件通知，非零支出證明」）、無成功 run、部分失敗、解析失敗、缺分類/支付方式、可能重複、stale version、重試、提交中防雙擊、成功/排除回饋皆須獨立呈現。兩人/雙分頁同時處理以版本衝突提示 reload；Gate B 預覽固定標示「預覽模式，不會讀取 Email 或新增正式交易」。
 - `work_excluded` 絕不進 `transactions`；現有個人預算/交易列表/分析/報表/CSV/備份等只讀正式交易的通道不得從 staging 聯表或將排除筆列入。人工私人確認後才會出現在這些個人視圖。檢查後續所有匯出/報表使用相同邊界。
 
 ## 5. 保留、失敗、關閉與回復
 
-- Pending 必要業務欄位最多 30 天，逾期 `expired` 並清除敏感欄位；`imported/skipped/work_excluded/duplicate` 終態 7 天後清除金額、商家、卡產品/類別、建議等；最小 shell/event 90 天後清除。原信及末四碼從不持久化。retention worker 另經 live gate，支援 idempotent/batched、先 count-only dry-run；時間到期不是自動刪正式帳務。
+- Pending（`needs_review/conflict`）必要業務欄位自候選首次建立起最多 30 天，稍後處理/重掃/衝突不重設期限；逾期 `expired` 並清除敏感欄位。`imported/already_recorded/ignored/work_excluded` 自結案起 7 天後清除金額、商家、卡產品/類別、建議等；到期狀態立即清除。最小去重 shell（owner/source identity/status/時間、必要的 transaction link）及 event 自結案或到期起 90 天後清除，不延長保存 linked transaction 的金融內容。刪除 candidate/link/event 不修改或刪除正式帳務。
+- 重掃命中任何未清除 shell 均回原狀態：已記過、忽略、工作排除及到期不得復活，稍後仍待處理。90 天後不再承諾 shell 可去重；每日有界窗口不能重新引入舊消費，超窗人工補捕須另授權並說明處理 shell 已清除的風險，不可當作一般 replay。原信及末四碼從不持久化。retention worker 另經 live gate，支援 idempotent/batched、先 count-only dry-run。
 - 允許觀測僅 run 日期/狀態、批次數、解析失敗/非目標/窗口外/去重/衝突/排除計數、延遲 bucket 與固定錯誤碼；禁止日期級交易明細、金額、商家、卡、郵件地址/message/hash、body/header/token。監測失敗或零訊息只能回報「未能確認」或「未找到」，不能回報「全部入帳」。
 - Gmail 讀取/信任驗證失敗、設定缺失、owner 不符、RLS 失敗、parse 部分失敗、staging 寫入失敗、重試額度耗盡、排程漏跑須 fail closed：不建交易、不靜默跳列；保留可稽核非敏感狀態與操作告警。失敗 batch 經修復後只允許受控 idempotent replay；missed day 的補跑是**人工核准的獨立例外**，界定窗口與 run key，不能假冒每天第二次 scheduled run。
 - 回復：Gate A/B revert PR/停 fixture；Gate C/D feature-off 先停止新收信/匯入並保留既有候選以供人工安全處置。不能自動刪 staging/已記個人交易；錯帳由有審計的人工 forward-fix。production schema 僅 expand-only、先 backup/preflight/readback；環境、feature-off 或 rollback 不明一律停下。不得藉此文件啟用 scheduler、secret 或 migration。
 
 ## 6. 後續 Tier-2 graph 驗收／交棒門檻
 
-1. Gate A：合成多卡同封僅目標列 staging；raw ID/末四碼不入 DB/log/API；run key、邊界日時區、D-3/D-2/D-1、晚到與窗口外的固定碼；同訊息同列/同訊息兩個相同列/跨訊息重送；payload conflict、同額手動交易衝突；RLS 跨 user、RPC race、版本/owner/分類/支付方式檢查；exclude 終態及 retention；全程本地/ephemeral DB，不 apply production。
-2. Gate B：合成 inbox 覆蓋工作排除後零個人交易/預算/報表/匯出、私人缺分類或支付方式不能確認、同額手動可能重複必人工、雙擊/錯誤/空/部分失敗/無 run/晚到/stale、360px 與 keyboard/a11y；網路 spy 零 Gmail request/正式 DB write。
+1. Gate A：合成多卡同封僅目標列 staging；raw ID/末四碼不入 DB/log/API；run key、邊界日時區、D-3/D-2/D-1、晚到與窗口外的固定碼；同訊息同列/同訊息兩個相同列/跨訊息重送；payload conflict、同額手動交易衝突；RLS 跨 user、RPC race、版本/owner/分類/支付方式檢查；五種操作、終態重掃與 retention（見下表）；全程本地/ephemeral DB，不 apply production。
+2. Gate B：合成 inbox 覆蓋五種操作分流，工作排除後零個人交易/預算/報表/匯出、私人缺分類或支付方式不能確認、已記過必人工選同 owner 交易、忽略與稍後不同回饋且稍後可回來、同額手動可能重複必人工、雙擊/錯誤/空/部分失敗/無 run/晚到/stale、360px 與 keyboard/a11y；網路 spy 零 Gmail request/正式 DB write。
 3. Gate C（另經授權）：帳戶/受保護卡設定/唯讀 scope、可信 Gmail header、server 固定 owner、受保護 API、sanitizer、無敏感 log、單次 dry-run/replay、scheduler 預演證明每日 07:00 台北一次（DST/時間偏移、失敗重試不另開 regular run）、實際延遲樣本是否足以支持窗口；首次真實 Gmail/secret/排程/production staging 均要 exact-scope gate。
 4. Gate D（另經授權）：S8-PROD apply/readback 證據、migration duplicate preflight 零、exact environment/backup/feature-off、RLS adversarial tests、一次人工私人確認 → 一筆交易重試仍一筆；工作排除 → 零交易與零個人報表/匯出；count-only retention readback；CI、獨立 Review/QA/Release typed verdict，任何失敗 hard stop。
+
+S8 未 `APPLIED_VERIFIED` 前，Gate A/B 僅可做文件、既有合成回歸或明標隔離且不接 app/production 的實驗，不能把上述未來驗收表當作 S9 開工授權。本輪沒有新增候選模型/API/RPC/UI/collector/retention/scheduler 實作。
+
+### 五種操作的合成驗收清單（未實作，不宣稱已通過）
+
+| 案例 | 必須觀察到的結果 |
+| --- | --- |
+| 補記成功、雙擊、timeout 重試、兩分頁同時補記 | 只有一筆本人 transaction、一個成功 event、同一 imported ID；缺本人分類或支付方式為零新增。 |
+| 已記過：人選同 owner 既有交易；兩筆同日同額 | 只有人選那筆 linked ID；既有交易逐欄不變、交易數不變；未選不可提交，同日同額不自動結案。 |
+| 已記過：跨 user ID、刪除競態、終態後原交易被刪 | 越權/失效 fail closed；零帳務寫入；後續刪除不自動補記或重開。 |
+| 忽略 vs 稍後；重掃、reload、回到清單 | 忽略為 ignored 終態且不再待處理；稍後仍 needs_review/conflict，保留警示，可再次決議；均零交易寫入。 |
+| 補記與工作排除/已記過/忽略/稍後搶同一版本 | 一個成功，其餘版本衝突；不得出現排除終態卻有新增個人交易，或 terminal 被稍後重開。 |
+| 工作支出；嘗試將 imported 改工作 | 前者零 transactions/預算/列表/分析/報表/CSV/帳務備份污染；後者拒絕且原交易不變。 |
+| 五操作相同 key replay；不同 payload 重用 key | replay 不新增 event/transaction，不重設 retention；不同 payload 拒絕。 |
+| 30/7/90 天邊界；重掃終態與 shell 清除 | 稍後不延長 30 天；7 天清敏感欄、90 天清 shell/event/link，正式交易保留；超窗補捕需獨立 gate。 |
+| 部分解析失敗；所有成功列都忽略或已記過 | 成功列待處理數可為零，但失敗警示仍可見，不顯示完整收集/全部入帳/已核帳。 |
 
 ### S8-PROD 授權與實況（截至 2026-09-26）
 
 - Matt 於 2026-09-26 選擇 `t_0d1321f8` 的**附條件 A**：僅限 production ref `ihntzjkrkskztmbfovdt` 的 `20260917050000_transaction_source_idempotency.sql`，且所有 preflight 通過後才可單版套用並讀回；不是其他 migration、history repair、backup restore、Gmail、scheduler、S9 或本 PR 合併的授權。
 - `t_54bcfc8c` preflight 結果 **BLOCKED_NO_APPLY**：remote `20260703112413` 與 repo `202607030001` 版本不同；`20260917040000` S4A 的 SECURITY DEFINER 函式變更在 production 確實未套用（非僅缺 history），目標 `20260917050000` 亦未套用。`t_752c667e` 唯讀逐字比對指出 July 兩版的可執行 SQL 相同，但**版本差異仍在**，不得自行修補 history 或據此推論整體 schema 等效。備份的可還原 checkpoint／具名 operator，以及受支援、指定 ref/version 的單版 preview 路徑仍未證實；先前 duplicate count=0 只是當時快照。`NO_APPLY`、`production_mutation=false`、`S9_implementation=false`。
-- 下一步由 PMO 先做 repo-only provenance/runbook 與唯讀取得備份可還原性、operator、資源／維護窗口及 provider 單版路徑證據；另案釐清 S4A 與 S8 的 production 順序、依賴及精確範圍，fresh Tier-2 gate 與必要的新授權後才可能執行。S4A 是獨立的 migration/history 安全 gate，**不能在未證明產品依賴前宣稱整個 CTBC 產品都必須先套用 S4A**；S9 live 邊界仍不得啟動。PR #56 僅兩份規格文件，合併不代表任何 production 步驟放行。
+- 2026-09-27 Codex 重新唯讀確認 duplicate identity groups=0、S8 constraint 不存在、舊非唯一 index 存在、July 版本差異及 S4A tenant 函式未套用；詳見 [決策包](ctbc-s8-readonly-decision-20260927.md)。新讀回不解除 `BLOCKED_NO_APPLY`。Codex 是唯一工程 writer，負責 repo-only provenance/runbook 與唯讀補證；Matt 指定 operator、checkpoint 與窗口，獨立 reviewer/QA 只讀審查。S4A/history 另案釐清順序、相容性與精確授權，fresh Tier-2 gate 後才可能執行。**不能在未證明產品依賴前宣稱整個 CTBC 產品都必須先套用 S4A**；S9 仍不得啟動。PR #56 僅文件，合併不代表任何 production 步驟放行。
 
-未定：Gmail 帳戶與受保護卡 selector 的保管/輪替 owner、合成相同列的可靠區辨、provider scheduler 與 lease 實現、遲到 >2 天的操作 SOP、live retention 承載、首輪是否人工限定回溯。這些是未來設計與權限 gate 問題；不能把 S8 附條件 A 或 PR #56 合併解讀為 Gmail、scheduler、DB 或 S9 授權。S8-PROD 仍是 S9 前置硬停；本 PR 只供 PMO 做 Tier-0 文件審查，合併前須檢查 provider 自動部署效果。
+未定：Gmail 帳戶與受保護卡 selector 的保管/輪替 owner、合成相同列的可靠區辨、provider scheduler 與 lease 實現、遲到 >2 天的操作 SOP、live retention 承載、首輪是否人工限定回溯。這些是未來設計與權限 gate 問題；不能把 S8 附條件 A 或 PR #56 合併解讀為 Gmail、scheduler、DB 或 S9 授權。S8-PROD 仍是 S9 前置硬停；本 PR 僅 Tier-0 文件交付，由 Codex 提供獨立唯讀審查及 CI 證據，合併前須檢查 provider 自動部署效果。
