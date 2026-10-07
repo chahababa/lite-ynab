@@ -16,7 +16,7 @@
 
 寫入經 private schema 的 SECURITY DEFINER 函式：owner 是 NOLOGIN/NOBYPASSRLS、不是 table owner 的 executor，固定 search_path、完全限定表名、PUBLIC EXECUTE 撤銷、窄範圍 grant 且 RLS 仍生效。這是隔離 fixture 的受限角色方案，不是可直接部署的 RPC。
 
-link 只驗證仍存在且同 owner 的 ledger ID，使用 `FOR KEY SHARE` 阻擋 delete/key change 至處置交易提交；不驗證或修改 ledger 金融欄位。PostgreSQL 的 row-lock SELECT 需要 UPDATE 權限，因此另設不可登入、非 table-owner 的 `synthetic_link_locker`，僅 SELECT + UPDATE(id)，沒有 INSERT/DELETE 或金融欄位 UPDATE。只有 executor 可執行其固定唯讀 lock helper，login 不能直接呼叫或切換到該角色。executor 保持原 SELECT/INSERT，不新增任何 ledger UPDATE/DELETE 權限。helper 的 UPDATE(id) 是鎖定所需的內部權限，並非宣稱 PostgreSQL 有獨立 lock privilege；SQL函式沒有 UPDATE/DELETE 帳本語句。
+link 只驗證仍存在且同 owner 的 ledger ID，使用 `FOR SHARE` 阻擋 delete及所有update至處置交易提交，包含 non-key owner變更；不驗證或修改 ledger 金融欄位。PostgreSQL 的 row-lock SELECT 需要 UPDATE 權限，因此另設不可登入、非 table-owner 的 `synthetic_link_locker`，僅 SELECT + UPDATE(id)，沒有 INSERT/DELETE 或金融欄位 UPDATE。只有 executor 可執行其固定唯讀 lock helper，login 不能直接呼叫或切換到該角色。executor 保持原 SELECT/INSERT，不新增任何 ledger UPDATE/DELETE 權限。helper 的 UPDATE(id) 是鎖定所需的內部權限，並非宣稱 PostgreSQL 有獨立 lock privilege；SQL函式沒有 UPDATE/DELETE 帳本語句。
 
 單次處置先取 owner/key advisory transaction lock，再鎖 candidate row；驗證 exact version、open/detail/30-day期限、風險核對、owner/category/payment/link。帳本 insert、candidate update、event insert 同交易；same key/request 回傳同 event/ledger ID，same key 不同 request 拒絕。四個非 import 動作不修改帳本。defer 不清風險或重設 created_at。風險四結案均需 resolve_risk=true；NULL 亦拒絕。
 
@@ -30,7 +30,7 @@ link 只驗證仍存在且同 owner 的 ledger ID，使用 `FOR KEY SHARE` 阻�
 | 五操作/風險 | 四風險結案 false 拒絕、true 成功；NULL拒絕；defer保持風險/期限；link/ignore/work/defer整張ledger不變 |
 | version race | 兩條真 psql 連線：第一條交易未提交時第二條在 pg_stat_activity 顯示 Lock wait；提交後不同操作同version只有一勝、一event、一ledger |
 | idempotency race | 相同key/request兩連線確認真Lock wait；retry回同event/ledger ID，event/ledger各一；不同payload拒絕 |
-| link/delete race | delete先鎖且提交：login link真等待後拒絕，candidate/event不變；link先鎖：admin delete真等待到link提交後才完成；先刪missing拒絕、後刪同key回原結果、不同key不可重開/補記。受測act一律synthetic login；admin僅故障注入 |
+| link/delete race | delete或non-key owner變更先鎖且提交：login link真等待後拒絕，candidate/event不變；link先鎖：admin delete真等待到link提交後才完成；先刪missing拒絕、後刪同key回原結果、不同key不可重開/補記。受測act一律synthetic login；admin僅故障注入 |
 | rollback | ledger insert trigger故障；event insert故障（已新增ledger並更新candidate）；candidate/ledger/event全回到操作前 |
 | batch | known safe/risk正反序唯讀預覽拒絕零提交；安全雙列逐筆成功/retry；預覽全safe→前筆commit→次筆與另一login連線defer競態且確認Lock wait→success/conflict/not_submitted；原key retry保留前筆、可續第三筆、不得重入 |
 | retention | pending/conflict各D30-1秒保留明細、D30立即expire+清amount/detail+設scrubbed，晚跑仍立即清除、重跑冪等；四正常終態仍7天、shell/event仍90天且界線前1秒保留；ledger完全不變 |

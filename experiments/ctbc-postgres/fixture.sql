@@ -55,7 +55,8 @@ SECURITY DEFINER SET search_path=pg_catalog,synthetic AS $fn$
 DECLARE found_id uuid;
 BEGIN
  IF session_user NOT IN ('synthetic_a','synthetic_b') THEN RAISE EXCEPTION 'owner_denied'; END IF;
- SELECT id INTO found_id FROM synthetic.ledger WHERE id=target AND owner=session_user FOR KEY SHARE;
+ -- Validate owner as well as ID: SHARE also blocks non-key owner updates.
+ SELECT id INTO found_id FROM synthetic.ledger WHERE id=target AND owner=session_user FOR SHARE;
  RETURN found_id;
 END $fn$;
 ALTER FUNCTION synthetic.lock_link(uuid) OWNER TO synthetic_link_locker;

@@ -218,19 +218,20 @@ def tests():
           value("SELECT count(*) FROM synthetic.ledger WHERE candidate_id='race-key';") == '1')
     deny('key_payload_mismatch',act('race-key','work','same-key'),'race-key','idempotency_mismatch')
     # Separate administrative deletion is fault injection; every act uses the login role.
-    for cid in ('link-missing','delete-first','link-first'):
+    for cid in ('link-missing','delete-first','link-first','owner-change-first'):
         seed(cid)
         target=value("INSERT INTO synthetic.ledger(owner,amount,category,payment) VALUES "
                      "('synthetic_a',55,'cat-a','pay-a') RETURNING id;")
         if cid=='link-missing':
             sql(f"DELETE FROM synthetic.ledger WHERE id='{target}';")
             deny('missing_link_fail_closed',act(cid,'link',cid,link=target),cid,'link_denied')
-        elif cid=='delete-first':
+        elif cid in ('delete-first','owner-change-first'):
             before=value(f"SELECT jsonb_build_array((SELECT to_jsonb(c) FROM synthetic.candidates c WHERE id='{cid}'),"
                          f"(SELECT jsonb_agg(e) FROM synthetic.events e WHERE candidate_id='{cid}'));")
-            _,outcome=simultaneous(f"DELETE FROM synthetic.ledger WHERE id='{target}' RETURNING id;",
-                                  act(cid,'link',cid,link=target),'delete_first_link_waits',first_role='postgres')
-            check('delete_first_link_rejected_unchanged',outcome.returncode!=0 and 'link_denied' in outcome.stderr and before==
+            mutation=(f"DELETE FROM synthetic.ledger WHERE id='{target}' RETURNING id;" if cid=='delete-first' else
+                      f"UPDATE synthetic.ledger SET owner='synthetic_b' WHERE id='{target}' RETURNING id;")
+            _,outcome=simultaneous(mutation,act(cid,'link',cid,link=target),cid+'_link_waits',first_role='postgres')
+            check(cid+'_link_rejected_unchanged',outcome.returncode!=0 and 'link_denied' in outcome.stderr and before==
                   value(f"SELECT jsonb_build_array((SELECT to_jsonb(c) FROM synthetic.candidates c WHERE id='{cid}'),"
                         f"(SELECT jsonb_agg(e) FROM synthetic.events e WHERE candidate_id='{cid}'));"))
         else:
