@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.mjs"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.mjs", "experiments/ctbc-synthetic/**/*.test.ts", "experiments/ctbc-synthetic/**/*.test.tsx"],
     exclude: ["**/.claude/**", "**/node_modules/**"],
   },
 });

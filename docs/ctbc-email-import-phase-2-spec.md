@@ -37,6 +37,7 @@
 ### 2.4 來源去重與人工比對
 
 - 接收窗口／來源信任／目標卡驗證後，先查既有來源 shell，再對**新來源列**套交易日 cohort。已知來源重掃回原狀態、不重開、不重設 retention；即使本日已變成 D-4，也不能再當新超窗待辦。相同 identity 的 payload 不一致另報衝突，不能用此順序覆寫資料或避開 ambiguous-row 阻擋；不存在 shell 的過舊列才計 `outside_window`。
+- 「回原狀態」不表示丟棄重掃的新風險：相同來源與相同金融 payload 新增 `partial_batch` 等警告時，只單向追加風險並增加 version；pending 應轉為 conflict、拒絕批次批准。相同警告再次重掃冪等，正常重掃不自動清警告；不覆寫金融 payload、不延長首次期限、不重開終態，也不補回已按 retention 清除的明細。此補充由隔離原型回歸驗證，並非正式 collector/RPC 已實作。
 - 同一來源：不可持久化 raw Gmail message ID；在可信 collector 端對 canonical ID 做非可逆 hash，逐列 row hash 包含足以分辨同訊息內兩筆真實不同交易的穩定欄位，`source_id=ctbc:v1:<message-hash>:<row-hash>`；`(user_id, source, source_id)` 唯一，重送回 existing 而不重建。對**完全相同列出現兩筆**的銀行通知，現行 parser 使用 Set 合併且 hash 相同；Gate C 必須先驗證此情境並定義可信列序/交易識別或阻擋 ambiguous batch，不可默默折成一筆或無證據拆成兩筆。相同 source ID 但 payload 不同應衝突、不可覆寫；跨封重複通知如 identity 不同仍可能重複，需衝突提示而非假定唯一。
 - 比對既有交易：限同 user、相同支付來源，台北同日／±1 日、金額作主要線索，商家輔助。支付來源不明不宣稱相同；同商家但不同額顯示「金額需核對」，同日同額也僅「可能已記過」。不同來源或兩筆真實相同消費不得自動消除，由人選連結／決議。source-identity 去重與人工帳務比對分開；終態保留最小 shell 防止重掃復活。
 
