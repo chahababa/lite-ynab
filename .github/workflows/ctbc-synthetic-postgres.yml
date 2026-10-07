@@ -1,0 +1,20 @@
+name: CTBC synthetic PostgreSQL
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ctbc-synthetic-postgres-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-postgres:
+    name: Ephemeral synthetic PostgreSQL atomicity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static boundary check
+        run: python3 experiments/ctbc-postgres/run.py --check
+      - name: Own-container database and real concurrent sessions
+        run: python3 experiments/ctbc-postgres/run.py
