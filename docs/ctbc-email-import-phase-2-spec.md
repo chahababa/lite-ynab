@@ -1,25 +1,44 @@
 # CTBC 每日待確認支出收件匣｜Phase 2 產品與安全規格
 
-狀態：2026-09-27 Codex 接手並補齊五種操作；僅規格，尚未實作或啟用 live 收件。S8 曾取得附條件、單版 production 授權，但 preflight 停止、未套用（見第 6 節及 [本輪唯讀決策包](ctbc-s8-readonly-decision-20260927.md)）。
+狀態：2026-10-07 Codex 依 PR #59 對齊約 17:00 收集、持久收件匣與安全批次；僅規格，尚未實作或啟用 live 收件。[需求差異、日期案例與最新唯讀查證](ctbc-review-alignment-20261007.md)。S8 仍 `BLOCKED_NO_APPLY`（歷史 [S8 決策包](ctbc-s8-readonly-decision-20260927.md) 不作當前授權）。
 基準：本次文件以 `origin/main` `d115dd8de7ca35e9d4a12d607df285eb281c5bda` 為依據；Phase 1 parser/dry-run 已在 repo，S8 transaction source 唯一鍵已合併至 main，但 **S8-PROD production apply/readback 未完成**，不得據此啟動 S9。
 來源：[Lite YNAB 題目](https://app.notion.com/p/3a66f4831a6181579ec1db50c5801cb4)、[Phase 2 Architecture / Spec 與 2026-09-26 補充](https://app.notion.com/p/3a66f4831a61818f9c51e2a85204afde)、[Phase 1 MVP](ctbc-email-import-mvp-spec.md)。S8 唯讀證據見 Kanban `t_752c667e` 的 `s8-reconciliation-decision-package.md`（SHA-256 `529103f0599685b08bde1c35c5b24fbf318aababa93826d315594f39ceb9f722`）。本文是後續開發的設計輸入，不是 live 邊界授權。
 
 ## 1. 定案與覆蓋關係
 
 - 僅 CTBC「信用卡消費成交回報」、一張受保護設定選定的卡。**每封信逐交易列**用末四碼在 collector 的短暫記憶體比對；混合卡別信只產生目標列候選，非目標列不可入 staging、API、log 或 telemetry。選擇值、原始末四碼及任何可逆卡指紋不得保存到 Git/Notion/Kanban/DB/log；設定來源與金鑰保護方式在 Gate C 另審，不能以本文件直接修改 env/OAuth。
-- 正式產品每天 `07:00 Asia/Taipei` **只排一次**；以執行日的前一個台北曆日之交易發生時間作主 cohort。取代任何「每小時」及「手動觸發為最終方案」說法；保留手動、合成資料 dry-run 作上線前安全驗證階段，不代表另開每日排程。單次失敗的受控重試是同一 logical run，不是第二次日掃描。
+- 產品目標每天約 `17:00 Asia/Taipei` **只排一次**，取代舊 07:00 設計；以前一台北曆日之交易時間作主 cohort。名義截止時間固定 17:00，provider 準時性仍待 Gate C 證明。日報可能下午才到，樣本不是銀行 SLA；不保證 17:00 已收到全部通知。保留合成 dry-run；同槽失敗的受控重試不是第二次日掃描。
 - 收信自動化只建立待確認候選；不自動批准、不自動入個人交易。工作支出由人標記「工作支出／排除」後成終態，絕不新建個人交易，也不進個人預算、交易列表、分析、報表或匯出。已存在的正式交易不因標記被自動刪除或修改。
 - 私人支出須人選擇**本人擁有**的分類與支付方式並逐筆確認，才可原子寫交易；建議值不能代替人工選擇。批次操作仍逐筆通過 ownership、缺值、重複與狀態驗證，衝突筆不得無警示批准。
 - 授權通知不是已結算帳單：商家、匯率及實際入帳額可能改變。介面寫「待確認／尚未與月結帳單核對」，不得聲稱某日支出已完整蒐集或已核帳；月結 PDF 核對是未來獨立工作。
 
 ## 2. 時間窗、晚到、去重與欠缺狀態
 
-- 提案的**精確窗口**：每日 07:00 以 Asia/Taipei 的執行日 `D` 計，Gmail 唯讀搜尋接收時間 `[D-4 天 00:00, D 07:00)`（左閉右開）；解析後只接受交易發生日屬 `D-3、D-2、D-1` 台北曆日的目標列。`D-1` 是主要 cohort；`D-2/D-3` 為 2 天重疊補捕（`晚到通知`標籤）。例如前一日已收的訊息在本次重掃會以 identity dedupe，不增加候選。此為有界設計假設：給晚寄通知最多約 2 個完整曆日的重掃餘裕，額外 1 天接收邊界緩衝郵件與交易日期跨日；不是銀行 SLA，晚於窗口仍可能漏列。
-- Gmail 搜尋時間依 **接收時間**，不能只按信內交易日或搜尋日期判定；取回後按解析的 `occurredAt` 台北日期篩 cohort。若接收時間尚在本輪窗口但交易日期超過 `D-3`，不得悄悄丟棄：只記無個資的 `outside_window` aggregate/count + operator 警示，經獨立授權的人工一次性補捕流程再決定，不自動擴大至全信箱。未來時間、無法解析日期或被拒信進固定錯誤碼與聚合告警，不能誤入主 cohort。
-- **不宣稱完整性**：通知可能未寄、延誤超窗、Gmail API 無法取得、解析部分失敗。07:00 尚未到達的「昨天」通知若仍在上限內由次日重掃補入，標示晚到；窗口外需人工對帳/明確補捕，不因「零候選」宣稱零支出。
-- 每次排程以 `D` 為 logical run key，provider scheduler 禁止同日第二次 regular run；同 run 可採 lease/鎖及有限次有退避重試，重試保留相同查詢範圍與身份，逾期或連續失敗停止並告警。禁止延遲重試與隔日新 run 併發造成交錯寫入；候選 unique constraint 是最終安全層。次日正常 run 重疊回看未完成窗口，仍不能保證超窗消息。
+### 2.1 固定窗口與兩種時間
+
+- `D` 是排程槽的台北日期，由可信 scheduler envelope 決定，**不是 retry/worker 實際啟動的日期**。接收窗口 `S=D-4 天 00:00+08:00`、`E=D 17:00+08:00`，接受 `[S,E)`；解析後只接受 `occurredAt` 的台北日期為 `D-3、D-2、D-1`。D-1 為主要 cohort，D-2/D-3 標示「晚到通知」。日期按曆日運算，包含週末、假日、跨月／年、閏日；不能用主機 UTC 日期或工作日替代。
+- [Gmail 搜尋日期字串按 PST 解讀](https://developers.google.com/workspace/gmail/api/guides/filtering)，因此使用 epoch 秒；搜尋範圍採 `after:(S_seconds-1) before:(E_seconds+1)` 作 1 秒外包，再先以 [Gmail `internalDate` 毫秒](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages) 嚴格驗證 `S <= receivedAt < E` 才解析／建候選。信內 Date header 與交易日都不能代替接收時間；自行匯入／非一般 SMTP 信件的 internalDate 可信性留 Gate C 驗證。搜尋命中不是銀行來源驗證；固定 sender/subject allowlist、trusted header、逐列單卡過濾不變。
+- Gmail 搜尋所有分頁、metadata/body 取得、解析與寫入是同槽內分階段工作；任何頁失敗不得標為完整成功。索引延遲即使 receivedAt 在窗口內也可能本輪找不到，依同槽重試／次日有界重掃補抓，不能宣稱列表完整等於該日消費完整。
+- 合成例 `D=2026-10-07`：S 為 `2026-10-02T16:00:00Z`，E 為 `2026-10-07T09:00:00Z`；主交易日 10-06、補抓 10-04/10-05。14:00 到的昨日通知可以主掃取得；恰好 17:00 收到的通知留到次日，不能由 17:10 的 worker 偷換 E 納入。
+
+### 2.2 晚到、超窗與未完成
+
+- 17:00 後收到 D-1 的信，D+1 regular run 仍在 cohort 時才補入一次；重掃以來源 identity 去重。D-3 的信若在 D 17:00 之後才到，D+1 已超交易日窗口，**不保證會自動補入**。接收窗口多一天只是邊界緩衝，不能延長三個交易曆日的範圍。
+- 接收時間合格但交易日在 D-3 之前：不建候選，記 `outside_window` 聚合告警。人工補捕須另給明確 owner／收信及交易起訖／最大訊息數／一次性 exception run key／預覽與去重風險／授權；不得自動讀全信箱或延長窗口。尚未收到或接收時間也在窗外的信無法逐封偵測，頁面保留覆蓋限制與 missed-run 警示，不宣稱「所有超窗信都有抓到」。
+- 交易日為 D 且時間不在未來：`current_day_deferred`，不算解析失敗，留下一日主 cohort；未來時間或無效日期為固定錯誤碼告警。被拒信／解析錯誤各自計數，無候選不等於沒有消費。
+
+### 2.3 logical run、重試與排程 gate
+
+- 受保護作用域內 `(owner, mailbox_binding, D, regular)` 唯一；selector/schedule 版本記為 metadata，不能放進唯一 key 讓同日換版本再跑第二次。D、S、E、cohort、設定版本在建立時固定；設定輪替或舊 07:00 槽當日已執行時，不以新版 17:00 假裝新增 regular run。歷史補跑須獨立授權 exception。
+- 合成基線：首次嘗試後最多重試 2 次，退避 5／15 分鐘，每次 attempt 最多 15 分鐘，且一律在 D+1 00:00 前停止。worker 開始過早（E 前）拒絕；跨午夜才收到 trigger/retry 標 `missed_run` 或 `retry_expired`，不重算 D。重試使用原 key／窗口；相同 run 的部分成果回 existing，失敗告警仍保留。
+- 每個受保護 collector scope 同時只准一個 lease；候選寫入端驗證單調 fencing token／lease deadline，逾期 worker 不能續寫；鎖住跨日新舊 run 交錯。unique constraint 只負責最後去重，不能代替 lease 或承諾整批完成。next-day run 不會把前日失敗標成已修復。
+- provider 未選定／未驗證，因此 **17:00 是待實現的目標，不是已證明的 SLA**。若用 GitHub Actions，[官方文件明示可能延遲或丟棄 schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)，repo 既有備份 workflow 不能證明 CTBC 的可靠性。可評估 17:05 觸發、仍固定 17:00 cutoff 以避整點，但要提出延遲／missed-run 偵測與恢復證據再決定，不能默默改回 07:00；此 PR 不改任何 workflow。
+
+### 2.4 來源去重與人工比對
+
+- 接收窗口／來源信任／目標卡驗證後，先查既有來源 shell，再對**新來源列**套交易日 cohort。已知來源重掃回原狀態、不重開、不重設 retention；即使本日已變成 D-4，也不能再當新超窗待辦。相同 identity 的 payload 不一致另報衝突，不能用此順序覆寫資料或避開 ambiguous-row 阻擋；不存在 shell 的過舊列才計 `outside_window`。
 - 同一來源：不可持久化 raw Gmail message ID；在可信 collector 端對 canonical ID 做非可逆 hash，逐列 row hash 包含足以分辨同訊息內兩筆真實不同交易的穩定欄位，`source_id=ctbc:v1:<message-hash>:<row-hash>`；`(user_id, source, source_id)` 唯一，重送回 existing 而不重建。對**完全相同列出現兩筆**的銀行通知，現行 parser 使用 Set 合併且 hash 相同；Gate C 必須先驗證此情境並定義可信列序/交易識別或阻擋 ambiguous batch，不可默默折成一筆或無證據拆成兩筆。相同 source ID 但 payload 不同應衝突、不可覆寫；跨封重複通知如 identity 不同仍可能重複，需衝突提示而非假定唯一。
-- 比對現有**手動**交易：同 user、台北同日同額（可提示 ±1 日），商家/支付方式作輔助；標記「可能重複」而非直接排除或自動匯入，由人決定。source-identity 去重 ≠ business duplicate 偵測；即使跳過或排除仍保留最小、非敏感的處理 shell 以免重掃再次成為待審。
+- 比對既有交易：限同 user、相同支付來源，台北同日／±1 日、金額作主要線索，商家輔助。支付來源不明不宣稱相同；同商家但不同額顯示「金額需核對」，同日同額也僅「可能已記過」。不同來源或兩筆真實相同消費不得自動消除，由人選連結／決議。source-identity 去重與人工帳務比對分開；終態保留最小 shell 防止重掃復活。
 
 ## 3. 權限與資料流（設計，未實作）
 
@@ -39,7 +58,8 @@ Gate D: 登入使用者 JWT → /settings/email-import → 補記/已記過/忽�
 
 ## 4. 使用者介面與狀態
 
-- 專用 `/settings/email-import`「待核對支出」頁，設定頁有入口；手機與鍵盤可操作，僅展示遮罩/淨化欄位、來源為 CTBC 授權通知、消費日期與到達/晚到警示、可能重複原因、建議分類/支付方式。逐筆明示「補記」「已記過」「忽略」「稍後處理」「工作支出」五種操作，不使用含糊的「略過」代替其中任何一種；不允許「全部自動批准」。不展示卡末四碼、原始 message ID 或 hash。
+- 專用 `/settings/email-import`「待確認交易」頁，首頁及設定皆有清楚入口；首頁顯示本人可操作的 `needs_review + conflict` 筆數，包含稍後，排除終態與過期列，不只計本輪新增數。手機與鍵盤可操作，展示必要淨化資訊、通知非月結狀態、日期／晚到／衝突、非敏感卡產品／正附卡表示；逐筆明示五操作，不允許「全部自動批准」，不展示卡末四碼、原始 message ID 或 hash。
+- 優先呈現待人工決策的衝突／警告；建議分類與支付方式顯示原因及不確定性，可採用或改選，本人確認前都不是批准。無可靠依據顯示「請選擇」或「商家未明」，不能假裝知道商家。帳戶內分類／支付方式在提交時重新驗證。
 - Batch `received → ready_for_review | partial_failure | rejected → completed | expired`；`partial_failure` 必示失敗列數與明確警示，不能只顯成功列而標記完整。只有沒有 `needs_review/conflict` 候選時才可結束待處理計數；解析失敗計數與告警獨立保留，不能因人工處理完成功列而清除。`completed` 不代表完整蒐集或月結核帳。
 
 ### 4.1 五種操作的持久語意（設計契約）
@@ -62,8 +82,15 @@ Gate D: 登入使用者 JWT → /settings/email-import → 補記/已記過/忽�
 
 ### 4.2 呈現與個人帳本邊界
 
-- 加載中、空（「本次未收到符合條件通知，非零支出證明」）、無成功 run、部分失敗、解析失敗、缺分類/支付方式、可能重複、stale version、重試、提交中防雙擊、成功/排除回饋皆須獨立呈現。兩人/雙分頁同時處理以版本衝突提示 reload；Gate B 預覽固定標示「預覽模式，不會讀取 Email 或新增正式交易」。
+- 載入中、`never_run`（尚未成功執行）、`missed_run`（應跑但未跑）、`no_message`（搜尋完成但沒有符合來源條件通知）、`zero_new_candidates`（有信、目標列零／全 existing 等）、`partial_failure/failed`（分頁／解析／寫入失敗）分開顯示。被拒信必有警告，不能包成無信；部分失敗可與成功候選並存。只說「未找到符合條件通知／本次沒有新增候選」，不說零支出／完整核帳；本輪結果不得清空前次待辦。顯示最近嘗試、最近成功 run 與涵蓋的交易日期。
+- 缺分類/支付方式、可能重複、stale version、重試、提交中防雙擊、成功/排除皆須回饋；兩人/雙分頁競態 reload。Gate B 標示「合成預覽，不會讀取 Email 或新增正式交易」，若記憶體 demo 重整會重置須明示，不能假裝已實現持久收件匣。
 - `work_excluded` 絕不進 `transactions`；現有個人預算/交易列表/分析/報表/CSV/備份等只讀正式交易的通道不得從 staging 聯表或將排除筆列入。人工私人確認後才會出現在這些個人視圖。檢查後續所有匯出/報表使用相同邊界。
+
+### 4.3 批次與通知
+
+- 使用者明確勾選可安全處理的普通候選，提交前看所選筆數、動作、分類與支付方式；建議值可採用或改選，不預先勾選／自動批准。第一版批次補記僅同分類／同支付方式；其餘四操作先逐筆，不擴大語意。每筆仍 owner/version/state/有效分類支付方式/idempotency 驗證。
+- 可能重複、金額不符、商家未明、解析警告（包含所屬 partial batch）、工作／私人歸屬不明、版本衝突均不得進批次批准。服務端也重查，不能只靠勾選框 disabled。存在任何已知風險選項即阻擋預覽；送出後發生競態則逐筆回成功／衝突／未提交，不能用單一「全成功」遮蔽部分結果。每筆交易原子、不是整批 DB 原子；重試沿用原逐筆 action key，成功筆不重入。
+- Telegram／長門僅在另獲推送授權後提供一次 run 的聚合摘要與入口；沒有授權或通道時不發送。通知失敗不回滾已保存候選、也不重跑 collector；通知按 run key 去重。漏看通知仍可進網頁待辦，不進逐題詢問流程。摘要不含金融明細、卡、郵件或 hash。
 
 ## 5. 保留、失敗、關閉與回復
 
@@ -77,10 +104,10 @@ Gate D: 登入使用者 JWT → /settings/email-import → 補記/已記過/忽�
 
 1. Gate A：合成多卡同封僅目標列 staging；raw ID/末四碼不入 DB/log/API；run key、邊界日時區、D-3/D-2/D-1、晚到與窗口外的固定碼；同訊息同列/同訊息兩個相同列/跨訊息重送；payload conflict、同額手動交易衝突；RLS 跨 user、RPC race、版本/owner/分類/支付方式檢查；五種操作、終態重掃與 retention（見下表）；全程本地/ephemeral DB，不 apply production。
 2. Gate B：合成 inbox 覆蓋五種操作分流，工作排除後零個人交易/預算/報表/匯出、私人缺分類或支付方式不能確認、已記過必人工選同 owner 交易、忽略與稍後不同回饋且稍後可回來、同額手動可能重複必人工、雙擊/錯誤/空/部分失敗/無 run/晚到/stale、360px 與 keyboard/a11y；網路 spy 零 Gmail request/正式 DB write。
-3. Gate C（另經授權）：帳戶/受保護卡設定/唯讀 scope、可信 Gmail header、server 固定 owner、受保護 API、sanitizer、無敏感 log、單次 dry-run/replay、scheduler 預演證明每日 07:00 台北一次（DST/時間偏移、失敗重試不另開 regular run）、實際延遲樣本是否足以支持窗口；首次真實 Gmail/secret/排程/production staging 均要 exact-scope gate。
+3. Gate C（另經授權）：帳戶/受保護卡設定/唯讀 scope、可信 Gmail header、server 固定 owner、受保護 API、sanitizer、無敏感 log、單次 dry-run/replay；scheduler 預演證明約 17:00 台北每日一次、固定 cutoff、排程槽 D、午夜停止、fencing、延遲／漏跑可見與有界恢復（第 2 節及日期案例），不能只驗 cron 字串；實際延遲樣本是否足以支持窗口。首次真實 Gmail/secret/排程/production staging 均要 exact-scope gate。
 4. Gate D（另經授權）：S8-PROD apply/readback 證據、migration duplicate preflight 零、exact environment/backup/feature-off、RLS adversarial tests、一次人工私人確認 → 一筆交易重試仍一筆；工作排除 → 零交易與零個人報表/匯出；count-only retention readback；CI、獨立 Review/QA/Release typed verdict，任何失敗 hard stop。
 
-S8 未 `APPLIED_VERIFIED` 前，Gate A/B 僅可做文件、既有合成回歸或明標隔離且不接 app/production 的實驗，不能把上述未來驗收表當作 S9 開工授權。本輪沒有新增候選模型/API/RPC/UI/collector/retention/scheduler 實作。
+S8 未 `APPLIED_VERIFIED` 前，Gate A/B 僅可做文件、既有合成回歸或明標隔離且不接 app/production 的實驗，不能把上述未來驗收表當作 S9 開工授權。本 docs-only 切片沒有新增候選模型/API/RPC/UI/collector/retention/scheduler；後續隔離原型另開 feature branch。新增 [17:00 邊界矩陣](ctbc-review-alignment-20261007.md) 為必測；純日期測試不是 live scheduler 驗收。
 
 ### 五種操作的合成驗收清單（未實作，不宣稱已通過）
 
@@ -102,4 +129,4 @@ S8 未 `APPLIED_VERIFIED` 前，Gate A/B 僅可做文件、既有合成回歸或
 - `t_54bcfc8c` preflight 結果 **BLOCKED_NO_APPLY**：remote `20260703112413` 與 repo `202607030001` 版本不同；`20260917040000` S4A 的 SECURITY DEFINER 函式變更在 production 確實未套用（非僅缺 history），目標 `20260917050000` 亦未套用。`t_752c667e` 唯讀逐字比對指出 July 兩版的可執行 SQL 相同，但**版本差異仍在**，不得自行修補 history 或據此推論整體 schema 等效。備份的可還原 checkpoint／具名 operator，以及受支援、指定 ref/version 的單版 preview 路徑仍未證實；先前 duplicate count=0 只是當時快照。`NO_APPLY`、`production_mutation=false`、`S9_implementation=false`。
 - 2026-09-27 Codex 重新唯讀確認 duplicate identity groups=0、S8 constraint 不存在、舊非唯一 index 存在、July 版本差異及 S4A tenant 函式未套用；詳見 [決策包](ctbc-s8-readonly-decision-20260927.md)。新讀回不解除 `BLOCKED_NO_APPLY`。Codex 是唯一工程 writer，負責 repo-only provenance/runbook 與唯讀補證；Matt 指定 operator、checkpoint 與窗口，獨立 reviewer/QA 只讀審查。S4A/history 另案釐清順序、相容性與精確授權，fresh Tier-2 gate 後才可能執行。**不能在未證明產品依賴前宣稱整個 CTBC 產品都必須先套用 S4A**；S9 仍不得啟動。PR #56 僅文件，合併不代表任何 production 步驟放行。
 
-未定：Gmail 帳戶與受保護卡 selector 的保管/輪替 owner、合成相同列的可靠區辨、provider scheduler 與 lease 實現、遲到 >2 天的操作 SOP、live retention 承載、首輪是否人工限定回溯。這些是未來設計與權限 gate 問題；不能把 S8 附條件 A 或 PR #56 合併解讀為 Gmail、scheduler、DB 或 S9 授權。S8-PROD 仍是 S9 前置硬停；本 PR 僅 Tier-0 文件交付，由 Codex 提供獨立唯讀審查及 CI 證據，合併前須檢查 provider 自動部署效果。
+2026-10-07 fresh readback 仍無 S8 constraint、duplicate groups=0、同一 history drift；見 [本輪查證](ctbc-review-alignment-20261007.md)。未定：Gmail 帳戶與受保護卡 selector、相同兩列可信識別、provider 17:00 可靠性與 lease/fencing、超窗補捕 operator／範圍、live retention 承載。這些須未來 gate，不能把 S8 附條件 A 或 PR 合併解讀為 Gmail、scheduler、DB 或 S9 授權；獨立 Review/QA 與 provider auto-deploy/rollback 未讀回前不 merge。
