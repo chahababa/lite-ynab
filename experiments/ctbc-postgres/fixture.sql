@@ -3,9 +3,11 @@ REVOKE ALL ON SCHEMA public FROM PUBLIC;
 CREATE ROLE synthetic_a LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
 CREATE ROLE synthetic_b LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
 CREATE ROLE synthetic_executor NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
+CREATE ROLE synthetic_link_locker NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
 CREATE SCHEMA synthetic;
 REVOKE ALL ON SCHEMA synthetic FROM PUBLIC;
 GRANT USAGE ON SCHEMA synthetic TO synthetic_a, synthetic_b, synthetic_executor;
+GRANT USAGE ON SCHEMA synthetic TO synthetic_link_locker;
 CREATE TABLE synthetic.marker (value text PRIMARY KEY CHECK (value = 'ctbc-ephemeral-only'));
 INSERT INTO synthetic.marker VALUES ('ctbc-ephemeral-only');
 CREATE TABLE synthetic.categories (id text PRIMARY KEY, owner text NOT NULL);
@@ -37,13 +39,28 @@ BEGIN
  FOREACH t IN ARRAY ARRAY['categories','payments','candidates','ledger','events'] LOOP
   EXECUTE format('ALTER TABLE synthetic.%I ENABLE ROW LEVEL SECURITY',t);
   EXECUTE format('ALTER TABLE synthetic.%I FORCE ROW LEVEL SECURITY',t);
-  EXECUTE format('CREATE POLICY own_rows ON synthetic.%I TO synthetic_a,synthetic_b,synthetic_executor USING (owner = session_user) WITH CHECK (owner = session_user)',t);
+  EXECUTE format('CREATE POLICY own_rows ON synthetic.%I TO synthetic_a,synthetic_b,synthetic_executor,synthetic_link_locker USING (owner = session_user) WITH CHECK (owner = session_user)',t);
  END LOOP;
 END $setup$;
 GRANT SELECT ON synthetic.categories,synthetic.payments,synthetic.candidates,synthetic.ledger,synthetic.events TO synthetic_a,synthetic_b;
 GRANT SELECT,UPDATE ON synthetic.candidates TO synthetic_executor;
 GRANT SELECT ON synthetic.categories,synthetic.payments TO synthetic_executor;
 GRANT SELECT,INSERT ON synthetic.ledger,synthetic.events TO synthetic_executor;
+
+-- PostgreSQL row-lock SELECT needs an UPDATE privilege. Isolate that minimal
+-- column privilege in a separate unreachable login role; do not widen executor.
+GRANT SELECT,UPDATE(id) ON synthetic.ledger TO synthetic_link_locker;
+CREATE FUNCTION synthetic.lock_link(target uuid) RETURNS uuid LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,synthetic AS $fn$
+DECLARE found_id uuid;
+BEGIN
+ IF session_user NOT IN ('synthetic_a','synthetic_b') THEN RAISE EXCEPTION 'owner_denied'; END IF;
+ SELECT id INTO found_id FROM synthetic.ledger WHERE id=target AND owner=session_user FOR KEY SHARE;
+ RETURN found_id;
+END $fn$;
+ALTER FUNCTION synthetic.lock_link(uuid) OWNER TO synthetic_link_locker;
+REVOKE ALL ON FUNCTION synthetic.lock_link(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION synthetic.lock_link(uuid) TO synthetic_executor;
 
 -- Definer is a non-owner, non-login, non-bypass role with narrow grants and RLS.
 -- Identity is session_user (actual DB login), never caller-provided owner or GUC.
@@ -78,8 +95,8 @@ BEGIN
   INSERT INTO synthetic.ledger(owner,candidate_id,amount,category,payment)
    VALUES(session_user,cid,c.amount,category,payment) RETURNING id INTO ledger_id;
  ELSIF action='link' THEN
-  SELECT id INTO ledger_id FROM synthetic.ledger WHERE id=link AND owner=session_user;
-  IF NOT FOUND THEN RAISE EXCEPTION 'link_denied'; END IF;
+  ledger_id := synthetic.lock_link(link);
+  IF ledger_id IS NULL THEN RAISE EXCEPTION 'link_denied'; END IF;
  END IF;
  UPDATE synthetic.candidates SET version=version+1,
   status=CASE action WHEN 'import' THEN 'imported' WHEN 'link' THEN 'linked' WHEN 'ignore' THEN 'ignored' WHEN 'work' THEN 'excluded' ELSE status END,
@@ -93,24 +110,5 @@ ALTER FUNCTION synthetic.act(text,integer,text,text,text,text,uuid,boolean,boole
 REVOKE ALL ON FUNCTION synthetic.act(text,integer,text,text,text,text,uuid,boolean,boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION synthetic.act(text,integer,text,text,text,text,uuid,boolean,boolean) TO synthetic_a,synthetic_b;
 
-CREATE FUNCTION synthetic.import_batch(ids text[], versions integer[], key text, category text,payment text)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,synthetic AS $fn$
-DECLARE i integer; results jsonb := '[]';
-BEGIN
- IF ids IS NULL OR cardinality(ids)=0 OR cardinality(ids)>20 OR cardinality(ids) IS DISTINCT FROM cardinality(versions)
-  OR (SELECT count(DISTINCT x) FROM unnest(ids) x)<>cardinality(ids) THEN RAISE EXCEPTION 'invalid_batch'; END IF;
- -- Same order as single act: keys first, then sorted rows (avoid key/row inversion).
- FOR i IN SELECT n FROM generate_subscripts(ids,1) n ORDER BY ids[n] LOOP
-  PERFORM pg_advisory_xact_lock(hashtextextended(session_user || ':' || key || ':' || ids[i],0));
- END LOOP;
- -- Lock all member rows in deterministic order before applying any decisions.
- PERFORM id FROM synthetic.candidates WHERE id=ANY(ids) AND owner=session_user ORDER BY id FOR UPDATE;
- FOR i IN 1..cardinality(ids) LOOP
-  results := results || jsonb_build_array(synthetic.act(ids[i],versions[i],'import',key || ':' || ids[i],category,payment,NULL,false,true));
- END LOOP;
- RETURN results;
-END $fn$;
-ALTER FUNCTION synthetic.import_batch(text[],integer[],text,text,text) OWNER TO synthetic_executor;
-REVOKE ALL ON FUNCTION synthetic.import_batch(text[],integer[],text,text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION synthetic.import_batch(text[],integer[],text,text,text) TO synthetic_a,synthetic_b;
-GRANT EXECUTE ON FUNCTION synthetic.act(text,integer,text,text,text,text,uuid,boolean,boolean) TO synthetic_executor;
+-- No whole-batch SQL function: preview is read-only, submit is one act/transaction
+-- per candidate in run.py, with individual success/conflict/not_submitted results.
