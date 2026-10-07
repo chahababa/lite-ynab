@@ -44,12 +44,20 @@ npm run build
 
 完整測試／CI／UI 實測結果記在本 PR。相同兩列阻擋、跨訊息不自動消除、來源防偽、單卡、窗口、既有來源優先、五操作、本人既有帳比對、owner/category/payment、double-click/retry/stale、risk batch、工作排除各 projection 零污染、30/7/90、bounded retry/lease expiry/fence/midnight 皆有自動化案例。沒有調大 timeout 或略過舊測試。
 
-本機修正後：lint 0 errors／17 個既有 warnings；typecheck 通過；實驗 4 files／71 tests（model 32、collector 27、UI 8、isolation 4）；全 repo 44 files／376 tests 通過；Next build 通過且無 CTBC route，.next/server/static JavaScript 搜尋實驗 marker 零命中。本機 HTTP probe：不存在的合成 env 路徑、production src 路徑、collector、parser snapshot 全部 403。前一次 376-tests 全套有 Windows worker 結束逾時 warnings（exit 0），保留曾出現的事實；修正 scope 後原指令重跑 376 通過且無該 warnings。最終 release head 的 Linux CI 另於 PR 讀回，不繼承 #60 綠燈。
+初版 b78463b 本機驗證：lint 0 errors／17 個既有 warnings；typecheck 通過；實驗 4 files／71 tests（model 32、collector 27、UI 8、isolation 4）；全 repo 44 files／376 tests 通過；Next build 通過且無 CTBC route，.next/server/static JavaScript 搜尋實驗 marker 零命中。本機 HTTP probe：不存在的合成 env 路徑、production src 路徑、collector、parser snapshot 全部 403。前一次 376-tests 全套有 Windows worker 結束逾時 warnings（exit 0），保留曾出現的事實；修正 scope 後原指令重跑 376 通過且無該 warnings。第二輪 head 的 Linux CI 另於 PR 讀回，不繼承初版綠燈。
 
 本 writer 的 UI QA 與自檢不是獨立 reviewer；independent code/security/UX review、Postgres/RLS/RPC QA、手機真機、live Gmail/provider/retention/release 均 NOT_RUN。控管 chat 另行協調獨立驗證。
 
 控管唯讀 review 曾重現 P2：相同來源新 partial_batch 警告被 existing 去重吞掉，且 fence helper 與 collector 寫入分離。已修為風險單向追加、collector 必要 lease，新增首次正常→重掃 partial→版本/批次/稍後/retention/終態/清除明細，以及 expired/old/wrong-scope lease 寫入拒絕回歸。修正後 verdict 仍需控管重新讀回，不自稱獨立 reviewer 通過。
 
-Writer 本機瀏覽器 QA：360px viewport 內容 scrollWidth 約 345px（垂直 scrollbar），沒有水平溢位；原生 select 與 44 CSS px 按鈕可操作。實際瀏覽器以 Space/Enter 完成五操作：180 已記過連既有、35 私人補記、230 忽略、120 未明商家稍後保持 conflict、260 工作排除；待辦 5→1，帳本 1/180→2/215，只增加私人 35；partial_failure 警示仍保留，reload 回 5 筆合成候選。jsdom 八個 UI 案例補分類改選／建議／批次摘要／五操作 keyboard／零網路 spy。Browser console error/warn = 0（本次受測操作）。這不是獨立 UX 或手機真機驗收。截图只存本機 .git/ctbc-evidence，不上傳私人 evidence 目錄。
+Writer 本機瀏覽器 QA：360px viewport 內容 scrollWidth 約 345px（垂直 scrollbar），沒有水平溢位；原生 select 與 44 CSS px 按鈕可操作。初版實際瀏覽器以 Space/Enter 完成五操作：180 已記過連既有、35 私人補記、230 忽略、120 未明商家稍後保持 conflict、260 工作排除；待辦 5→1，帳本 1/180→2/215，只增加私人 35；partial_failure 警示仍保留，reload 回 5 筆合成候選。jsdom 案例補分類改選／建議／批次摘要／五操作 keyboard／零網路 spy。Browser console error/warn = 0（本次受測操作）。這不是獨立 UX 或手機真機驗收。截圖只存本機 .git/ctbc-evidence，不上傳私人 evidence 目錄。
+
+## 第二輪 P2 修正
+
+獨立控管於初版 exact head `b78463b129cbbcd32fde260876a40ae35b64519f` 發現：conflict 的 ignore/work 未驗 resolveRisk，違反 Phase 2 四個結案動作都要明確決議。已修 model 對 import/link/ignore/work 一致拒絕未核對風險，UI 四操作也停用；defer 例外仍保持 conflict、警告及首次期限。四操作 model/UI 反例確認拒絕後候選/version/event/ledger 不變，勾選後才成功；defer 例外另測。沒有降低 spec。
+
+本實驗 batch 明定為同一 inbox scope／排程槽 D 的完整 logical run（非每封或每次 attempt 各自 batch），所有 collect 重試共享候選 ID membership 與單向 partial_failure。先收集／解析所有訊息，再處理候選，最後對 run 所屬存活明細單向追加 partial_batch。一封成功＋一封失敗的正／反序、新候選／existing 重掃皆阻擋批次；原先成功來源現為完全 malformed 或 ambiguous 也會標其舊 shell。第二次 attempt 只見失敗信仍會標前次成功列；後續全正常或零新增不清 run 失敗，summary.priorFailure 與本次 failures 分開，新增列也繼承風險。不同 run 的未涉及來源不受影響，終態不復活、已清明細不補回。非金融 run metadata（D、candidate IDs、flag、建立時間）在建立起 120 天（pending+shell 最長壽命）清除，candidate purge 先移除 membership。這是同步實驗 grouping，沒有 production batch schema／持久 registry／長 I/O／多 process 證據。新版 SHA／必要檢查／CI 另於 PR 精確讀回，不沿用初版綠燈。
+
+第二輪本機結果（2026-10-08 台北）：lint 0 errors／17 個既有 warnings，typecheck/build 通過，全 repo 44 files／393 tests（model 37、collector 34、UI 13、isolation 4，實驗合計 88）。Windows 全套仍有 worker 結束逾時 warnings，exit 0，沒有改 timeout／skip；新 head Linux CI 要另讀回。新測試曾有 it.each table 型別及收信 fixture 位於 cutoff 後的 setup 錯誤，修正後真實 malformed/ambiguous 兩案均執行通過，沒有修改時間窗契約。實際 360px Browser：一般確認已勾但風險未勾時四结案 isEnabled=false、defer=true；稍後保持 conflict/待辦 5，核對後 work/ignore 成功、待辦 3，帳本仍 1/180；scrollWidth≈345、console error/warn=0。截圖與 logs 留本機 .git/ctbc-evidence。此 writer 的 QA 不代表獨立 approval。
 
 回復：停 Vite、revert 本實驗 commit；没有 production schema/data write，不需要 DB rollback。正式 Gmail/OAuth/env/secrets/DB/history/排程/部署/通知/merge 都未執行、未獲本輪授權。provider current SHA/auto-deploy/rollback 仍 UNKNOWN。下一步只能 review 此隔離 PR；S8 未 APPLIED_VERIFIED 前不可開 S9。

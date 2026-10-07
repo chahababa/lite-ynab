@@ -35,6 +35,28 @@ describe('synthetic inbox accessible operations and network spy', () => {
     expect(screen.queryByText('其他人的分類')).not.toBeInTheDocument();
     expect(screen.queryByText('其他人的支付方式')).not.toBeInTheDocument();
   });
+  it.each(['import', 'link', 'ignore', 'work'] as Action[])('UI conflict %s is disabled until risk checkbox is confirmed', async action => {
+    const inbox = single(true); render(<App initialInbox={inbox} />); const user = userEvent.setup(); const row = within(screen.getByRole('article'));
+    await user.selectOptions(row.getByLabelText('分類'), 'food'); await user.selectOptions(row.getByLabelText('支付方式'), 'synthetic-card');
+    await user.selectOptions(row.getByLabelText('已記過：選擇本人既有交易'), history[0].id);
+    await user.click(row.getByLabelText('確認本次所選操作'));
+    const before = { candidates: inbox.snapshot(OWNER), events: inbox.eventSnapshot(), ledger: inbox.personalViews(OWNER) };
+    const label = { import: '補記私人支出', link: '已記過', ignore: '忽略', work: '工作支出／排除', defer: '稍後處理' }[action];
+    expect(row.getByRole('button', { name: label })).toBeDisabled();
+    await user.click(row.getByRole('button', { name: label }));
+    expect({ candidates: inbox.snapshot(OWNER), events: inbox.eventSnapshot(), ledger: inbox.personalViews(OWNER) }).toEqual(before);
+    await user.click(row.getByLabelText('我已核對上述警告，單筆決議'));
+    expect(row.getByRole('button', { name: label })).toBeEnabled();
+    await user.click(row.getByRole('button', { name: label })); expect(inbox.eventSnapshot()).toHaveLength(1);
+    expect(inbox.snapshot(OWNER)[0].status).toBe({ import: 'imported', link: 'already_recorded', ignore: 'ignored', work: 'work_excluded', defer: 'conflict' }[action]);
+  });
+  it('UI permits defer without resolving warnings, keeps pending count and expiry', async () => {
+    const inbox = single(true); render(<App initialInbox={inbox} />); const user = userEvent.setup(); const row = within(screen.getByRole('article'));
+    await user.click(row.getByLabelText('確認本次所選操作'));
+    expect(row.getByRole('button', { name: '稍後處理' })).toBeEnabled(); await user.click(row.getByRole('button', { name: '稍後處理' }));
+    expect(inbox.snapshot(OWNER)[0]).toMatchObject({ status: 'conflict', createdAt: NOW, version: 2, detail: { warnings: ['merchant_unknown'] } });
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('1 筆'); expect(inbox.personalTransactions(OWNER)).toHaveLength(1);
+  });
   it('suggestions can be adopted and overridden without writing; only explicit batch summary confirms', async () => {
     const inbox = demo(); render(<App initialInbox={inbox} />); const user = userEvent.setup();
     const risk = within(screen.getByRole('article', { name: '合成餐館 NT$ 180 需人工核對' }));

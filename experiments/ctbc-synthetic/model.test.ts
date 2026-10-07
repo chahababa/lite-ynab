@@ -84,6 +84,24 @@ describe('synthetic ownership, five operations and idempotency', () => {
     expect(inbox.act(command(inbox, 'import', { key: 'resolve' }), NOW + DAY).ok).toBe(false);
     expect(inbox.act(command(inbox, 'import', { key: 'resolve', resolveRisk: true }), NOW + DAY).ok).toBe(true);
   });
+  it.each(['import', 'link', 'ignore', 'work'] as Action[])('conflict %s requires a distinct risk decision; rejection has zero mutations', action => {
+    const inbox = fresh(true); inbox.add(draft('risk', { merchant: null, warnings: ['merchant_unknown'] }), NOW);
+    const c = command(inbox, action, { transactionId: history[0].id, resolveRisk: false });
+    const before = { candidates: inbox.snapshot(OWNER), events: inbox.eventSnapshot(), ledger: inbox.personalViews(OWNER) };
+    expect(inbox.act(c, NOW)).toEqual({ ok: false, code: 'risk_confirmation_required' });
+    expect({ candidates: inbox.snapshot(OWNER), events: inbox.eventSnapshot(), ledger: inbox.personalViews(OWNER) }).toEqual(before);
+    expect(inbox.act({ ...c, resolveRisk: true }, NOW).ok).toBe(true);
+    expect(inbox.eventSnapshot()).toHaveLength(1);
+    expect(inbox.personalTransactions(OWNER)).toHaveLength(action === 'import' ? 2 : 1);
+  });
+  it('defer without risk decision retains conflict, warning and original expiry', () => {
+    const inbox = fresh(); inbox.add(draft('risk', { warnings: ['partial_batch'] }), NOW);
+    const c = command(inbox, 'defer', { resolveRisk: false });
+    expect(inbox.act(c, NOW + DAY)).toMatchObject({ ok: true, status: 'conflict' });
+    expect(inbox.snapshot(OWNER)[0]).toMatchObject({ status: 'conflict', version: 2, createdAt: NOW, detail: { warnings: ['partial_batch'] } });
+    expect(inbox.eventSnapshot()).toHaveLength(1); expect(inbox.personalTransactions(OWNER)).toEqual([]);
+    inbox.retain(NOW + 30 * DAY); expect(inbox.snapshot(OWNER)[0].status).toBe('expired');
+  });
   it('payload conflict preserves payload, blocks import even with risk decision, no repeated version increment', () => {
     const inbox = seeded(); const changed = draft('synthetic-source-1', { amount: 999 });
     expect(inbox.add(changed, NOW)).toBe('payload_conflict');

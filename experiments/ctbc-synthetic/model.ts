@@ -38,11 +38,24 @@ export class SyntheticInbox {
   private replay = new Map<string, { command: string; result: Result; candidateId: string }>();
   private ledger: Transaction[];
   private sequence = 0;
+  private runBatches = new Map<string, { members: Set<string>; partial: boolean; createdAt: number }>();
   constructor(readonly owner: string, readonly categories: Owned[], readonly payments: Owned[], transactions: Transaction[] = []) {
     this.ledger = structuredClone(transactions);
   }
   snapshot(owner: string) { return structuredClone(this.candidates.filter(c => c.owner === owner)); }
   eventSnapshot() { return structuredClone(this.events); }
+  // One protected inbox object + scheduler D is one logical synthetic run batch.
+  // Retries share membership and sticky risk; only IDs/flags/time are retained here.
+  finishRunBatch(date: string, sourceIds: string[], failed: boolean, now: number) {
+    const batch = this.runBatches.get(date) ?? { members: new Set<string>(), partial: false, createdAt: now };
+    for (const c of this.candidates) if (sourceIds.includes(c.sourceId)) batch.members.add(c.id);
+    batch.partial ||= failed;
+    this.runBatches.set(date, batch);
+    if (batch.partial) for (const c of this.candidates) {
+      if (batch.members.has(c.id) && c.detail) this.existing({ sourceId: c.sourceId, detail: { ...c.detail, warnings: [...new Set([...c.detail.warnings, 'partial_batch'])] } });
+    }
+    return batch.partial;
+  }
   personalTransactions(owner: string) { return structuredClone(this.ledger.filter(t => t.owner === owner)); }
   deletePersonalTransaction(owner: string, id: string) { this.ledger = this.ledger.filter(t => t.owner !== owner || t.id !== id); }
   // Every mock personal surface derives exclusively from ledger, never candidates.
@@ -105,7 +118,7 @@ export class SyntheticInbox {
     if (c.version !== command.version) return { ok: false, code: 'stale_version' };
     if (!pending(c)) return { ok: false, code: 'terminal' };
     if (command.action === 'import' && c.identityConflict) return { ok: false, code: 'identity_unresolved' };
-    if ((command.action === 'import' || command.action === 'link') && c.status === 'conflict' && !command.resolveRisk) return { ok: false, code: 'risk_confirmation_required' };
+    if (command.action !== 'defer' && c.status === 'conflict' && !command.resolveRisk) return { ok: false, code: 'risk_confirmation_required' };
     if (command.action === 'import' && (!this.categories.some(x => x.owner === command.owner && x.id === command.categoryId) || !this.payments.some(x => x.owner === command.owner && x.id === command.paymentId))) return { ok: false, code: 'category_payment_required' };
     if (command.action === 'link' && !this.ledger.some(t => t.owner === command.owner && t.id === command.transactionId)) return { ok: false, code: 'conflict' };
     // Synchronous in-memory critical section. This is NOT a Postgres/RPC race proof.
@@ -147,5 +160,10 @@ export class SyntheticInbox {
     this.candidates = this.candidates.filter(c => !purged.has(c.id));
     this.events = this.events.filter(e => !purged.has(e.candidateId));
     for (const [key, value] of this.replay) if (purged.has(value.candidateId)) this.replay.delete(key);
+    for (const [date, batch] of this.runBatches) {
+      for (const id of purged) batch.members.delete(id);
+      // Bound non-financial mock run metadata to maximum pending + shell lifetime.
+      if (now >= batch.createdAt + 120 * DAY) this.runBatches.delete(date);
+    }
   }
 }

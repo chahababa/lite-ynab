@@ -57,8 +57,47 @@ describe('isolated parser snapshot and sanitized collector', () => {
     const inbox = fresh(); const result = collect(inbox, '2026-10-07', [mail([row(), '損壞列'])], '1234', 'synthetic-card', NOW, false);
     expect(result).toMatchObject({ status: 'partial_failure', failures: 2, added: 1 });
     expect(inbox.snapshot(OWNER)[0].detail?.warnings).toContain('partial_batch');
-    const c = inbox.snapshot(OWNER)[0]; inbox.act({ owner: OWNER, candidateId: c.id, version: 1, key: 'ignore', action: 'ignore', confirm: true }, NOW);
+    const c = inbox.snapshot(OWNER)[0]; inbox.act({ owner: OWNER, candidateId: c.id, version: c.version, key: 'ignore', action: 'ignore', confirm: true, resolveRisk: true }, NOW);
     expect(inbox.count(OWNER, NOW)).toBe(0); expect(result.status).toBe('partial_failure');
+  });
+  it.each([false, true])('run-scoped partial batch marks successful rows regardless message order (reverse=%s)', reverse => {
+    const inbox = fresh(); const good = mail(); const bad = mail(['損壞列']); bad.input.messageId = 'synthetic-broken-email';
+    const messages = reverse ? [bad, good] : [good, bad];
+    const result = collect(inbox, '2026-10-07', messages, '1234', 'synthetic-card', NOW);
+    expect(result).toMatchObject({ status: 'partial_failure', added: 1 });
+    const c = inbox.snapshot(OWNER)[0]; expect(c.status).toBe('conflict'); expect(c.detail?.warnings).toContain('partial_batch');
+    expect(inbox.batchPreview([{ owner: OWNER, candidateId: c.id, version: c.version, key: 'batch', action: 'import', categoryId: 'food', paymentId: 'synthetic-card', confirm: true }], NOW)).toBe(false);
+  });
+  it.each([false, true])('multi-message partial rescan upgrades existing success monotonically (reverse=%s)', reverse => {
+    const inbox = fresh(); const good = mail(); collect(inbox, '2026-10-07', [good], '1234', 'synthetic-card', NOW);
+    const initial = inbox.snapshot(OWNER)[0]; const bad = mail(['損壞列']); bad.input.messageId = 'synthetic-broken-email';
+    const messages = reverse ? [bad, good] : [good, bad];
+    expect(collect(inbox, '2026-10-07', messages, '1234', 'synthetic-card', NOW + 60_000)).toMatchObject({ status: 'partial_failure', existing: 1, added: 0 });
+    expect(inbox.snapshot(OWNER)[0]).toMatchObject({ status: 'conflict', version: 2, createdAt: initial.createdAt, payload: initial.payload, sourceId: initial.sourceId, detail: { warnings: ['partial_batch'] } });
+    collect(inbox, '2026-10-07', messages, '1234', 'synthetic-card', NOW + 120_000); expect(inbox.snapshot(OWNER)[0].version).toBe(2);
+    collect(inbox, '2026-10-07', [good], '1234', 'synthetic-card', NOW + 180_000); expect(inbox.snapshot(OWNER)[0].detail?.warnings).toEqual(['partial_batch']);
+  });
+  it.each([{ rows: ['損壞列'] }, { rows: [row(), row()] }])('a now fully malformed/ambiguous accepted source marks its prior shell but no unrelated source: %j', ({ rows }) => {
+    const inbox = fresh(); const good = mail();
+    // Other run's source uses that run's past-day cohort.
+    const otherSource = mail([row('1234', '2026/10/05 10:00', 35)], Date.parse('2026-10-06T14:00:00+08:00')); otherSource.input.messageId = 'synthetic-unrelated-email';
+    collect(inbox, '2026-10-06', [otherSource], '1234', 'synthetic-card', NOW - DAY);
+    collect(inbox, '2026-10-07', [good], '1234', 'synthetic-card', NOW);
+    const before = inbox.snapshot(OWNER);
+    expect(collect(inbox, '2026-10-07', [mail(rows)], '1234', 'synthetic-card', NOW + 60_000)).toMatchObject({ status: 'partial_failure', added: 0 });
+    expect(inbox.snapshot(OWNER)[1]).toMatchObject({ status: 'conflict', createdAt: before[1].createdAt, sourceId: before[1].sourceId, detail: { warnings: ['partial_batch'] } });
+    expect(inbox.snapshot(OWNER)[0]).toEqual(before[0]);
+  });
+  it('partial retry marks previous run members even when omitted, and clean retry/new rows inherit sticky failure', () => {
+    const inbox = fresh(); collect(inbox, '2026-10-07', [mail()], '1234', 'synthetic-card', NOW);
+    const initial = inbox.snapshot(OWNER)[0]; const bad = mail(['損壞列']); bad.input.messageId = 'synthetic-failed-new-message';
+    expect(collect(inbox, '2026-10-07', [bad], '1234', 'synthetic-card', NOW + 60_000).status).toBe('partial_failure');
+    expect(inbox.snapshot(OWNER)[0]).toMatchObject({ status: 'conflict', version: 2, createdAt: initial.createdAt, detail: { warnings: ['partial_batch'] } });
+    const next = mail([row('1234', '2026/10/06 10:00', 35)]); next.input.messageId = 'synthetic-new-success';
+    expect(collect(inbox, '2026-10-07', [next], '1234', 'synthetic-card', NOW + 120_000)).toMatchObject({ status: 'partial_failure', priorFailure: true, failures: 0, added: 1 });
+    expect(inbox.snapshot(OWNER)[1].detail?.warnings).toContain('partial_batch');
+    expect(collect(inbox, '2026-10-07', [], '1234', 'synthetic-card', NOW + 180_000)).toMatchObject({ status: 'partial_failure', priorFailure: true });
+    expect(inbox.snapshot(OWNER)[0].version).toBe(2);
   });
   it('no message, all existing/zero new, missed and failed states are distinct and preserve prior todo', () => {
     const inbox = fresh(); collect(inbox, '2026-10-07', [mail()], '1234', 'synthetic-card', NOW);

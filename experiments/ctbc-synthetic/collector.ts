@@ -12,14 +12,18 @@ export function slot(date: string) {
     query: `after:${midnight / 1000 - 4 * DAY / 1000 - 1} before:${midnight / 1000 + 17 * 3600 + 1}` };
 }
 export type Envelope = { synthetic: true; internalDate: number; trustedHeader: boolean; input: CtbcEmailInput };
-export type Summary = { status: 'no_message' | 'zero_new_candidates' | 'ready_for_review' | 'partial_failure' | 'failed'; added: number; existing: number; rejected: number; outsideWindow: number; deferred: number; failures: number; payloadConflict: number };
+export type Summary = { status: 'no_message' | 'zero_new_candidates' | 'ready_for_review' | 'partial_failure' | 'failed'; added: number; existing: number; rejected: number; outsideWindow: number; deferred: number; failures: number; payloadConflict: number; priorFailure: boolean };
 export function collect(inbox: SyntheticInbox, date: string, messages: Envelope[], target: string, paymentId: string, now: number, lease: { runs: SyntheticRuns; token: number }, complete = true): Summary {
   const window = slot(date);
-  const summary: Summary = { status: 'zero_new_candidates', added: 0, existing: 0, rejected: 0, outsideWindow: 0, deferred: 0, failures: complete ? 0 : 1, payloadConflict: 0 };
+  const summary: Summary = { status: 'zero_new_candidates', added: 0, existing: 0, rejected: 0, outsideWindow: 0, deferred: 0, failures: complete ? 0 : 1, payloadConflict: 0, priorFailure: false };
   // Required mock capability at mutation boundary, not merely a standalone helper.
   if (now < window.end || now >= window.stop || !lease.runs.canWrite(date, lease.token, now, inbox)) { summary.status = 'failed'; summary.failures++; return summary; }
   inbox.retain(now);
   let acceptedMessages = 0;
+  // All calls for this inbox + D share one logical run batch, including retries.
+  // Resolve aggregate risks before exposing rows; message order cannot hide failures.
+  const drafts: Draft[] = [];
+  const batchSources = new Set<string>();
   for (const envelope of messages) {
     if (envelope.synthetic !== true || !Number.isFinite(envelope.internalDate)) { summary.rejected++; continue; }
     if (envelope.internalDate < window.start || envelope.internalDate >= window.end) continue;
@@ -27,6 +31,7 @@ export function collect(inbox: SyntheticInbox, date: string, messages: Envelope[
     const parsed = parseCtbcEmail(envelope.input);
     if (!parsed.accepted) { summary.rejected++; continue; }
     acceptedMessages++;
+    batchSources.add(`synthetic:ctbc:v1:${hash(parsed.messageId)}:`);
     summary.failures += parsed.errors.length;
     // Filter per row BEFORE sanitized candidate creation. Raw parser output stays local.
     const selected = parsed.candidates.filter(c => c.cardLast4 === target);
@@ -40,17 +45,28 @@ export function collect(inbox: SyntheticInbox, date: string, messages: Envelope[
         product: c.cardProductName, role: c.cardRole, bankCategory: c.bankCategoryRaw,
         paymentId, warnings: [...(c.merchantNormalized ? [] : ['merchant_unknown']), ...(parsed.errors.length || !complete ? ['partial_batch'] : [])], late: occurredDate !== window.cohorts[2],
       } };
-      const known = inbox.existing(draft);
-      if (known === 'existing') { summary.existing++; continue; }
-      if (known === 'payload_conflict') { summary.payloadConflict++; continue; }
-      if (Date.parse(c.occurredAt) > now) { summary.failures++; continue; }
-      if (occurredDate === date) { summary.deferred++; continue; }
-      if (!window.cohorts.includes(occurredDate)) { summary.outsideWindow++; continue; }
-      inbox.add(draft, now);
-      summary.added++;
+      drafts.push(draft);
     }
   }
-  summary.status = summary.failures || summary.rejected || summary.payloadConflict ? 'partial_failure' : summary.added ? 'ready_for_review' : acceptedMessages ? 'zero_new_candidates' : 'no_message';
+  for (const draft of drafts) {
+    if ((summary.failures || summary.rejected) && !draft.detail.warnings.includes('partial_batch')) draft.detail.warnings.push('partial_batch');
+    const known = inbox.existing(draft);
+    if (known === 'existing') { summary.existing++; continue; }
+    if (known === 'payload_conflict') { summary.payloadConflict++; continue; }
+    const occurredDate = draft.detail.occurredAt.slice(0, 10);
+    if (Date.parse(draft.detail.occurredAt) > now) { summary.failures++; continue; }
+    if (occurredDate === date) { summary.deferred++; continue; }
+    if (!window.cohorts.includes(occurredDate)) { summary.outsideWindow++; continue; }
+    inbox.add(draft, now);
+    summary.added++;
+  }
+  // Cohort/identity checks can discover failures after earlier writes. This
+  // synchronous pass only appends risk to surviving shells, never refills data.
+  const failed = !!(summary.failures || summary.rejected || summary.payloadConflict);
+  const sources = inbox.snapshot(inbox.owner).filter(c => [...batchSources].some(prefix => c.sourceId.startsWith(prefix))).map(c => c.sourceId);
+  const partial = inbox.finishRunBatch(date, sources, failed, now);
+  summary.priorFailure = partial && !failed;
+  summary.status = partial ? 'partial_failure' : summary.added ? 'ready_for_review' : acceptedMessages ? 'zero_new_candidates' : 'no_message';
   return summary;
 }
 
