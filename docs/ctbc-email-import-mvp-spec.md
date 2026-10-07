@@ -4,7 +4,7 @@
 日期：2026-07-23
 專案：Lite YNAB
 
-> **2026-09-26 產品決策優先**：後續收集、UI、staging、安全與排程應依 [Phase 2 每日待確認收件匣規格](ctbc-email-import-phase-2-spec.md)；本頁保留 Phase 1 解析器/dry-run 契約供參考。原本「所有卡列皆 staging」、持久化末四碼/raw Gmail ID、手動為最終觸發、泛用匯入路由與批次批准預設，均不再適用。每日 07:00 Asia/Taipei 一次自動收集「昨天」指定卡交易，加有限重疊回看；工作支出排除，私人交易須人為分類、支付方式與確認。此為規格而非 live 授權；S8 的附條件單版授權及 **NO_APPLY** preflight 結果見 Phase 2 第 6 節，PR #56 合併不放行 DB、Gmail、scheduler 或 S9。
+> **2026-10-07 產品決策優先**：後續收集、UI、staging、安全與排程依 [Phase 2 每日待確認收件匣規格](ctbc-email-import-phase-2-spec.md)及[本輪對齊](ctbc-review-alignment-20261007.md)；本頁保留 Phase 1 parser/dry-run 契約。舊所有卡列 staging、末四碼/raw ID 持久化、手動作最終方案、泛用匯入、批次自動批准與 07:00 皆不再適用。產品目標約 17:00 Asia/Taipei 每日一次；名義排程日 D 固定接收窗 `[D-4 00:00,D 17:00)`、交易日 D-3/D-2/D-1，重試不改窗口，provider 可靠性尚待驗證。網頁持久待辦、首頁筆數、可改選建議與五操作為主，Telegram 僅另經授權的摘要。此為規格而非 live 授權；S8 仍 **BLOCKED_NO_APPLY**，不放行 DB、Gmail、scheduler、merge/deploy 或 S9。
 
 ## 1. 目標
 
