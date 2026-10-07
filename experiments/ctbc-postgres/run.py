@@ -27,6 +27,8 @@ def command(args, input_text=None, ok=True):
     if ok and result.returncode:
         # All contents are synthetic; still avoid SQL/log dumps in CI.
         error = next((line for line in result.stderr.splitlines() if 'ERROR:' in line), '')
+        if not error and result.stderr.strip():
+            error = result.stderr.splitlines()[0]
         raise AssertionError('command_failed:' + args[0] + ':' + error[:160])
     return result
 
@@ -364,6 +366,13 @@ def main():
         inspect_owned()
         command(DOCKER+['start',CID])
         for _ in range(120):
+            # pg_isready alone can succeed against the temporary init server,
+            # which stops before final postgres starts. Do not race that shutdown.
+            init_logs=command(DOCKER+['logs',CID],ok=False)
+            initialized='PostgreSQL init process complete; ready for start up.' in init_logs.stdout
+            if not initialized:
+                time.sleep(0.25)
+                continue
             result=command(DOCKER+['exec',CID,'pg_isready','-U','postgres','-d','synthetic_ctbc'],ok=False)
             if result.returncode==0: break
             time.sleep(0.25)
