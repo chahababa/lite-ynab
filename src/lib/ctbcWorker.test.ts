@@ -5,7 +5,7 @@ import { CtbcGmailClient, mailboxHash, type CtbcWorkerConfig } from "./ctbcGmail
 import { runCtbcAttempt, runCtbcRetentionOnce, runCtbcWorkerOnce, tickCtbcWorker } from "./ctbcWorker";
 const config: CtbcWorkerConfig = { scope: randomUUID(), owner: randomUUID(), mailboxBinding: randomUUID(), mailboxSha256: mailboxHash("fixture@example.invalid"),
   targetLast4: "1234", armedDate: "2026-10-08", provenance: { policy: "gmail-smtp-reviewed-v1", evidenceSha256: "a".repeat(64), mailboxSha256: mailboxHash("fixture@example.invalid") } };
-const attempt = () => ({ code: "started", batchId: randomUUID(), fence: 1, deadline: new Date(Date.now() + 900_000).toISOString(), slotDate: "2026-10-08" });
+const attempt = () => ({ code: "started", batchId: randomUUID(), fence: 1, deadline: new Date(Date.now() + 900_000).toISOString(), serverNow: new Date().toISOString(), slotDate: "2026-10-08" });
 const emptyMailbox = () => new CtbcGmailClient("fixture", new AbortController().signal,
   vi.fn(async input => new Response(JSON.stringify(String(input).endsWith("/profile") ? { emailAddress: "fixture@example.invalid" } : {}))) as typeof fetch);
 const client = (handler: (name: string, args: Record<string, unknown>) => unknown) => ({ rpc: vi.fn(async (name, args) => handler(name, args)) }) as unknown as Pick<SupabaseClient, "rpc">;
@@ -55,6 +55,13 @@ describe("CTBC execution reconciliation", () => {
     const db = client(name => { calls.push(name); return { data: { code: name === "ctbc_worker_probe" ? "running" : "failed" } }; });
     expect(await runCtbcAttempt({ client: db, config, gmail }, { ...attempt(), deadline: new Date(Date.now() - 1).toISOString() })).toEqual({ code: "failed" });
     expect(gmail).not.toHaveBeenCalled(); expect(calls).toEqual(["ctbc_worker_probe", "ctbc_worker_finish"]);
+  });
+  it("uses the DB clock budget even if the host clock is skewed", async () => {
+    const a = attempt(); const now = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 6 * 3600000);
+    try {
+      const db = client(() => ({ data: { status: "no_message" } }));
+      expect((await runCtbcAttempt({ client: db, config, gmail: async () => emptyMailbox() }, a)).code).toBe("committed");
+    } finally { now.mockRestore(); }
   });
   it("retention counts without collection config or mail access", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {

@@ -144,7 +144,7 @@ begin
  if begun->>'code'='started' then
   insert into public.ctbc_worker_attempts(scope_id,fence,batch_id,status) values(p_scope,(begun->>'fence')::bigint,(begun->>'batchId')::uuid,'running');
  end if;
- return begun;
+ return begun||jsonb_build_object('serverNow',clock_timestamp());
 end $$;
 revoke all on function public.ctbc_worker_poll(uuid,uuid,uuid,date) from public,anon,authenticated;
 grant execute on function public.ctbc_worker_poll(uuid,uuid,uuid,date) to service_role;

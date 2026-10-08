@@ -108,7 +108,7 @@ try {
  // Existing successful fence is replayed by SQL; full Gmail fixture is covered
  // by provider tests. Provider failure here verifies live RPC finalization.
  const actualFailure=await runCtbcAttempt({client:wrapped,config:{scope:cleanScope.id,owner:user,mailboxBinding:cleanScope.mailbox_binding},gmail:async()=>{throw new Error('synthetic');}},
-  {batchId:cleanBatch.id,fence:1,slotDate:today,deadline:new Date(Date.now()+900000).toISOString()});
+  {batchId:cleanBatch.id,fence:1,slotDate:today,deadline:new Date(Date.now()+900000).toISOString(),serverNow:new Date().toISOString()});
  assert.equal(actualFailure.code,'failed');proof.workerRpcFailurePath=true;
  ok(await admin.from('ctbc_batches').update({attempts:2,status:'received',next_attempt_at:null}).eq('id',cleanBatch.id));
  ok(await admin.from('ctbc_collector_scopes').update({fence:2,active_batch:cleanBatch.id,lease_until:new Date(Date.now()+900000).toISOString()}).eq('id',cleanScope.id));
@@ -116,7 +116,7 @@ try {
  const noNetwork=async(input)=>new Response(JSON.stringify(String(input).endsWith('/profile')?{emailAddress:'synthetic@example.invalid'}:{}));
  const lostCommit=await runCtbcAttempt({client:wrapped,config:{scope:cleanScope.id,owner:user,mailboxBinding:cleanScope.mailbox_binding,mailboxSha256:mailboxHash('synthetic@example.invalid'),targetLast4:'1234'},
   gmail:async(signal)=>new CtbcGmailClient('synthetic',signal,noNetwork)},
-  {batchId:cleanBatch.id,fence:2,slotDate:today,deadline:new Date(Date.now()+900000).toISOString()});
+  {batchId:cleanBatch.id,fence:2,slotDate:today,deadline:new Date(Date.now()+900000).toISOString(),serverNow:new Date().toISOString()});
  assert.equal(lostCommit.code,'committed');
  assert.equal(lostCommit.result.status,'partial_failure'); // prior failure cannot become no_message
  assert.equal(ok(await admin.rpc('ctbc_worker_finish',{...cleanBound,p_fence:2,p_code:'commit_unknown'})).code,'committed');

@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createCtbcGmailClient, CtbcWorkerError, readCtbcGmailSlot, readCtbcWorkerConfig, type CtbcGmailClient, type CtbcWorkerConfig } from "./ctbcGmail";
 
 type RpcClient = Pick<SupabaseClient, "rpc">;
-type Attempt = { code: string; batchId: string; fence: number; deadline: string; slotDate: string };
+type Attempt = { code: string; batchId: string; fence: number; deadline: string; slotDate: string; serverNow: string };
 type Runtime = {
   client: RpcClient; config: CtbcWorkerConfig;
   gmail: (signal: AbortSignal) => Promise<CtbcGmailClient>;
@@ -19,7 +19,9 @@ async function rpc(client: RpcClient, name: string, args: Record<string, unknown
 }
 export async function runCtbcAttempt(runtime: Runtime, attempt: Attempt) {
   const { client, config: c } = runtime, args = { ...binding(c), p_fence: attempt.fence };
-  const ms = Date.parse(attempt.deadline) - Date.now();
+  // DB clock also bounds provider work; host clock skew must not extend a run
+  // beyond its original midnight. 30s reserve covers the bounded RPC roundtrip.
+  const ms = Date.parse(attempt.deadline) - Date.parse(attempt.serverNow);
   if (!Number.isFinite(ms) || ms <= 0) {
     const receipt = await rpc(client, "ctbc_worker_probe", args);
     if (!receipt) return { code: "commit_unknown" };
