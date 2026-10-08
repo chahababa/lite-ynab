@@ -81,6 +81,17 @@ jobs:
           S9_LOCAL_POSTGREST: '1'
         run: npm test -- src/lib/ynabImport.postgrest.test.ts
 
+      - name: Verify CTBC worker fault handling in isolated PostgREST
+        run: npm run build:ctbc-worker && node scripts/test-ctbc-worker-local.mjs
+
+      - name: Upload CTBC worker fault evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctbc-worker-acceptance
+          path: test-results/ctbc-worker/
+          if-no-files-found: ignore
+
       - name: Install Chromium for actual CTBC app acceptance
         run: npx playwright install --with-deps chromium
 

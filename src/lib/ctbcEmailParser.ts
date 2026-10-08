@@ -412,6 +412,15 @@ export function parseCtbcEmail(input: CtbcEmailInput, options: { preserveRows?: 
     };
   }
 
+  return parseCtbcContent(input, options);
+}
+
+// Content parsing only. Runtime callers must first authenticate the original
+// MIME bytes cryptographically; this function does not assert provenance.
+export function parseCtbcContent(input: Pick<CtbcEmailInput, "messageId" | "html" | "text">, options: { preserveRows?: boolean } = {}): CtbcEmailParseResult {
+  const messageId = input.messageId.trim();
+  if (!messageId) throw new Error("invalid_message_id");
+
   const htmlRows = input.html?.trim() ? candidateHtmlRows(input.html) : [];
   const textRows = input.text?.trim() ? candidateTextRows(input.text) : [];
 

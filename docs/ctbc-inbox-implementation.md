@@ -24,7 +24,21 @@
 
 `CTBC_INBOX_ENABLED` 未設為字串 `true` 時入口隱藏、API 回 404、頁面不可開啟；收集範圍亦預設停用。未修改任何環境檔或憑證。
 
-本分支提供合成收集入口與實際應用流程，**尚未接通 Gmail、OAuth、可信郵件來源驗證或排程服務**。正式 migration、provider 啟用、部署及本人操作驗收仍需後續獨立授權；CI 通過不代表這些工作已完成。
+相依 worker 切片另提供可執行的 Gmail 接線與持久排程判斷，但**沒有讀取真 Gmail、修改 OAuth／設定、建立服務或啟用排程**。正式 migration、provider 啟用、部署及本人操作驗收仍需後續獨立授權；CI 通過不代表這些工作已完成。
+
+## Worker 接線與操作界線
+
+既有 Node 22 容器在 build 時編譯 `.ctbc-worker`，需 Node 22.19 以上。容器啟動仍是既有 web；worker 可用 `npm run worker:ctbc -- daemon` 作為獨立服務入口，每 30 秒向 DB 判斷是否到台北 17:00。`once` 為一次判斷。這裡沒有新增正式服務、GitHub schedule 或 provider 設定。
+
+`CTBC_COLLECTOR_ENABLED` 預設停用。啟用後先讀取受保護的 `CTBC_WORKER_CONFIG`：固定 scope／owner／mailboxBinding、mailboxSha256、targetLast4、armedDate，以及 `gmail-smtp-reviewed-v1` 的來源審查 evidenceSha256／mailboxSha256。日期、帳戶或來源設定缺漏即拒絕；scope／owner／opaque mailbox binding 亦由每個 worker RPC 檢查，排程 armedDate 寫入後不可改。設定內容不得進前端、PR、Notion 或操作 log。
+
+Gmail 憑證只從 server 的 `CTBC_GMAIL_CLIENT_ID`、`CTBC_GMAIL_CLIENT_SECRET`、`CTBC_GMAIL_REFRESH_TOKEN` 讀取，runtime 檢查回傳只讀 scope 和实际 profile 帳戶 hash。此程式不建立 OAuth 授權。每輪最多 3 頁、100 封、每封原始 MIME 1 MB、累積 10 MB，使用 list／get raw；internalDate 精確二次篩選，MIME 只在記憶體解碼。驗證原始郵件完整 body 的銀行 DKIM、必要簽名欄位、唯一標頭及既有 SPF／DMARC policy，不使用 `synthetic:true` 或自行製造 Authentication-Results。
+
+數位簽章證明内容來源，但不能單獨證明 Gmail internalDate 是 SMTP 收信時間、或收到的 Authentication-Results 來自 Gmail。因此 live 前必須獨立確認該 mailbox 的收信／匯入路徑、Google 的標頭處置與实际標頭排列，產生受保護審查證據。合成簽章／證據 hash 只是程式測試，不能充當真實來源驗收。未知或不符合規則的信拒絕；有界讀取中斷保留已解析安全候選並警示，不能標全成功。
+
+新增小 migration `20261008013654_ctbc_worker_lifecycle` 提供 durable cursor、每個 fence 的 attempt 收據與限定 RPC。DB 原生時間決定 D；同槽最多 3 attempts，每次最多 15 分鐘，失敗後 5／15 分鐘退避、午夜截止。worker 重啟後每次最多補判斷 31 個已截止日期，持久標示漏跑／重試到期；不補讀舊日信或把舊 D 改成今天。租約逾期由 poll 收尾；失敗先查 receipt，失去回覆且查不到結果時保留 UNKNOWN，之後由 DB 租約判斷。commit 與 receipt 同一交易，finalizer 重查且舊 fence 不能關閉新 attempt。部分成果及警示不會因重試成功變成無信。
+
+`npm run worker:ctbc -- retention` 為獨立清理入口；`retention-daemon` 每小時執行，不依賴收集啟用／Gmail 設定。`CTBC_RETENTION_ENABLED` 預設停用，先 count-only；另有明確 `CTBC_RETENTION_APPLY=true` 才每次處理最多 200 筆。這次沒有設定任何旗標或啟用清理。正式啟用收集時，清理 applying 的服務可靠性也須一起驗收；停止收集後清理可維持。
 
 ## 驗證
 

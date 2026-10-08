@@ -1,7 +1,7 @@
 // Server-only parsing/sanitizing boundary. No Gmail client or scheduler.
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseCtbcEmail, type CtbcEmailInput } from "./ctbcEmailParser";
+import { parseCtbcEmail, type CtbcEmailInput, type CtbcEmailParseResult } from "./ctbcEmailParser";
 
 const DAY = 86_400_000;
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -14,6 +14,10 @@ export function ctbcSlot(date: string) {
 }
 export type CtbcSyntheticEnvelope = { synthetic: true; internalDate: number; trustedHeader: boolean; input: CtbcEmailInput };
 export function prepareCtbcSyntheticBatch(date: string, messages: CtbcSyntheticEnvelope[], target: string, complete: boolean) {
+  return prepareCtbcParsedBatch(date, messages.map(message => ({ internalDate: message.internalDate,
+    parsed: message.synthetic === true && message.trustedHeader ? parseCtbcEmail(message.input, { preserveRows: true }) : null })), target, complete);
+}
+export function prepareCtbcParsedBatch(date: string, messages: Array<{ internalDate: number; parsed: CtbcEmailParseResult | null }>, target: string, complete: boolean, bounded = false) {
   if (!/^\d{4}$/.test(target) || messages.length > 100) throw new Error("invalid_input");
   const window = ctbcSlot(date);
   let failures = complete ? 0 : 1;
@@ -22,9 +26,9 @@ export function prepareCtbcSyntheticBatch(date: string, messages: CtbcSyntheticE
   const rows: Array<{ source_id: string; payload_hash: string; received_at: string; occurred_at: string; amount: number; merchant: string | null; product: string | null; card_role: string; bank_category: string | null; warnings: string[] }> = [];
   const clean = (value: string | null) => value?.replace(/[^\p{L}\p{N} .\-/]/gu, " ").replace(/\b\d{4,}\b/g, " ").replaceAll(target, " ").replace(/\s+/g, " ").trim().slice(0, 100) || null;
   for (const message of messages) {
-    if (message.synthetic !== true || !Number.isFinite(message.internalDate) || !message.trustedHeader) { rejected++; continue; }
+    if (!Number.isFinite(message.internalDate) || !message.parsed) { rejected++; continue; }
     if (message.internalDate < window.start || message.internalDate >= window.end) continue;
-    const parsed = parseCtbcEmail(message.input, { preserveRows: true });
+    const parsed = message.parsed;
     if (!parsed.accepted) { rejected++; continue; }
     accepted++;
     failures += parsed.errors.length;
@@ -36,8 +40,11 @@ export function prepareCtbcSyntheticBatch(date: string, messages: CtbcSyntheticE
       rows.push({ source_id, payload_hash: sha(JSON.stringify([source_id, detail])), received_at: new Date(message.internalDate).toISOString(), ...detail, warnings: [] });
     }
   }
+  if (rows.length > 200) {
+    if (!bounded) throw new Error("batch_too_large");
+    rows.length = 200; failures++;
+  }
   if (failures || rejected) for (const row of rows) row.warnings.push("partial_batch");
-  if (rows.length > 200) throw new Error("batch_too_large");
   return { rows, counts: { failures, rejected, messages: accepted } };
 }
 

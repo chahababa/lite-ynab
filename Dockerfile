@@ -15,6 +15,8 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.ctbc-worker ./.ctbc-worker
+COPY --from=builder /app/scripts/ctbc-worker.mjs ./scripts/ctbc-worker.mjs
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 EXPOSE 3000
