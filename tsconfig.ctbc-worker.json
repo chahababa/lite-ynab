@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "CommonJS", "moduleResolution": "Node",
+    "lib": ["ES2023", "DOM"], "strict": true, "esModuleInterop": true,
+    "skipLibCheck": true, "rootDir": "src/lib", "outDir": ".ctbc-worker"
+  },
+  "include": ["src/lib/ctbcWorker.ts"]
+}
