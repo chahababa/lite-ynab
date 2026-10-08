@@ -80,7 +80,7 @@ execFileSync('npm',['run','build'],{env:buildEnv,stdio:'inherit',timeout:180000}
 const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','4179'],{
  env:{...buildEnv,CTBC_INBOX_ENABLED:'true',CTBC_INBOX_TEST_MODE:'true'},stdio:['ignore','ignore','inherit'],
 });
-let browser;
+let browser,page;
 try{
  for(let i=0;i<100;i++){try{if((await fetch(`${appOrigin}/api/ctbc/status`)).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
  const request=async(token,body)=>fetch(`${appOrigin}/api/ctbc/inbox`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -95,7 +95,7 @@ try{
  const origins=new Set(),paths=new Set();
  context.on('request',req=>{const u=new URL(req.url());origins.add(u.origin);paths.add(u.pathname);});
  await context.route('**/*',route=>{const u=new URL(route.request().url());if(![appOrigin,apiOrigin].includes(u.origin))return route.abort();return route.continue();});
- const page=await context.newPage(); await page.goto(`${appOrigin}/login`);
+ page=await context.newPage(); await page.goto(`${appOrigin}/login`);
  await page.getByLabel('電子郵件').fill(a.email);await page.getByLabel('密碼').fill(a.password);
  await page.locator('form').getByRole('button',{name:'登入',exact:true}).click();await page.waitForURL('**/quick-entry');
  await page.getByRole('link',{name:/待確認交易/}).waitFor();
@@ -157,9 +157,30 @@ try{
  assert.equal(sql(`select count(*) from public.ctbc_candidates where id='${deferred.id}';`),'0');
  assert.equal(sql(`select count(*) from public.ctbc_events where candidate_id='${deferred.id}';`),'0');
  assert.equal(ok(await a.client.from('transactions').select('id').eq('id',tid)).length,1);
+ // Known terminal identity is read before the cohort filter and never reopened.
+ const workSource=prepared.rows.find(r=>r.merchant==='合成工作');
+ await lease(3);
+ const terminalReplay=ok(await admin.rpc('ctbc_ingest',{p_scope:scope.id,p_batch:batch.id,p_fence:3,p_rows:[{...workSource,occurred_at:new Date(window.start).toISOString()}],p_counts:{messages:1},p_complete:true}));
+ assert.equal(terminalReplay.existing,1);assert.equal(terminalReplay.added,0);
+ assert.equal(sql(`select status||':'||(amount is null)::text from public.ctbc_candidates where id='${work.id}';`),'work_excluded:true');
+ await lease(4);
+ const conflict=ok(await admin.rpc('ctbc_ingest',{p_scope:scope.id,p_batch:batch.id,p_fence:4,p_rows:[{...prepared.rows[0],payload_hash:'d'.repeat(64),amount:990}],p_counts:{messages:1},p_complete:true}));
+ assert.equal(conflict.conflicts,1);assert.equal(conflict.added,0);
+ assert.equal(ok(await a.client.from('transactions').select('amount').eq('id',(await snapshot()).candidates.find(c=>c.merchant==='合成補記').imported_transaction_id).single()).amount,101);
+ assert.equal(sql(`select amount from public.ctbc_candidates where user_id='${a.user}' and source_id='${prepared.rows[0].source_id}';`),'101');
+ await lease(5);
+ const dupRows=[1,2].map(n=>({...prepared.rows[0],source_id:`ctbc:v1:${String(n).repeat(64)}:${'e'.repeat(64)}`,payload_hash:String(n).repeat(64),amount:880,merchant:'合成跨信重複'}));
+ const duplicates=ok(await admin.rpc('ctbc_ingest',{p_scope:scope.id,p_batch:batch.id,p_fence:5,p_rows:dupRows,p_counts:{messages:2},p_complete:true}));
+ assert.equal(duplicates.added,2);
+ const duplicateCandidates=(await snapshot()).candidates.filter(c=>c.merchant==='合成跨信重複');assert.equal(duplicateCandidates.length,2);
+ assert.ok(duplicateCandidates.every(c=>c.status==='conflict'&&c.warnings.includes('cross_message_duplicate')));
  // Partial failures survive human closure and do not turn into no-message.
  const partial=(await snapshot()).candidates.find(c=>c.status==='ignored');
  sql(`update public.ctbc_batches set status='partial_failure',failures=1 where id='${partial.batch_id}';`);
  assert.equal((await snapshot()).latestRun.status,'partial_failure');
  console.log('PASS CTBC real RPC: action race/replay, stale/owner/foreign-reference rejection, 30/7/90 retention, accounting retained, partial warning retained');
+ await writeFile('test-results/ctbc-inbox/rpc-proof.json',JSON.stringify({ownerIsolation:true,atomicReplayRace:true,staleVersionDenied:true,foreignReferencesDenied:true,retentionDays:[30,7,90],ledgerRetained:true,terminalReplayBeforeCohort:true,payloadConflictNoOverwrite:true,crossMessageDuplicatesPreserved:true,partialFailureRetained:true},null,2));
+}catch(error){
+ if(page){await mkdir('test-results/ctbc-inbox',{recursive:true});await page.screenshot({path:'test-results/ctbc-inbox/failure.png',fullPage:true}).catch(()=>{});}
+ throw error;
 }finally{if(browser)await browser.close();child.kill('SIGTERM');}

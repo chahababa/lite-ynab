@@ -6,8 +6,16 @@ do $$ declare r text; begin
   elsif exists(select 1 from pg_roles where rolname=r and (rolcanlogin or rolinherit or rolbypassrls or rolsuper or rolcreaterole or rolcreatedb)) then raise exception 'ctbc_role_drift'; end if;
  end loop;
 end $$;
-grant usage on schema public, auth to ctbc_executor, ctbc_link_locker;
-grant execute on function auth.uid() to ctbc_executor, ctbc_link_locker;
+-- Supabase's migration role is not a superuser. Give it temporary membership
+-- and the new owners temporary schema CREATE solely for ownership transfer.
+do $$ begin execute format('grant ctbc_executor, ctbc_link_locker to %I',current_user); end $$;
+grant usage,create on schema public to ctbc_executor, ctbc_link_locker;
+-- The migration role cannot grant privileges on the managed auth schema. This
+-- fixed helper evaluates actual Supabase auth.uid(), with no caller owner input.
+create function public.ctbc_request_owner() returns uuid language sql security definer
+set search_path=pg_catalog as $$ select auth.uid() $$;
+revoke all on function public.ctbc_request_owner() from public,anon,authenticated;
+grant execute on function public.ctbc_request_owner() to ctbc_executor,ctbc_link_locker;
 
 create table public.ctbc_collector_scopes (
  id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id),
@@ -61,9 +69,9 @@ alter table public.ctbc_events enable row level security;
 alter table public.ctbc_batches force row level security;
 alter table public.ctbc_candidates force row level security;
 alter table public.ctbc_events force row level security;
-create policy ctbc_batches_own on public.ctbc_batches using(user_id=auth.uid());
-create policy ctbc_candidates_own on public.ctbc_candidates using(user_id=auth.uid()) with check(user_id=auth.uid());
-create policy ctbc_events_own on public.ctbc_events using(user_id=auth.uid()) with check(user_id=auth.uid());
+create policy ctbc_batches_own on public.ctbc_batches using(user_id=public.ctbc_request_owner());
+create policy ctbc_candidates_own on public.ctbc_candidates using(user_id=public.ctbc_request_owner()) with check(user_id=public.ctbc_request_owner());
+create policy ctbc_events_own on public.ctbc_events using(user_id=public.ctbc_request_owner()) with check(user_id=public.ctbc_request_owner());
 revoke all on public.ctbc_collector_scopes,public.ctbc_batches,public.ctbc_candidates,public.ctbc_events from public,anon,authenticated;
 -- Browser reads only the redacted snapshot RPC, which scrubs overdue details
 -- before returning. Direct table reads cannot bypass retention or expose hashes.
@@ -78,7 +86,7 @@ grant all on public.ctbc_collector_scopes,public.ctbc_batches,public.ctbc_candid
 -- action executor any ability to update existing accounting rows.
 create function public.ctbc_lock_references(p_category uuid,p_payment uuid,p_link uuid)
 returns uuid language plpgsql security definer set search_path=pg_catalog,public as $$
-declare found_id uuid; u uuid:=auth.uid();
+declare found_id uuid; u uuid:=public.ctbc_request_owner();
 begin
  if u is null then raise exception 'owner_denied'; end if;
  if p_link is not null then
@@ -100,7 +108,7 @@ create function public.ctbc_act(p_id uuid,p_expected integer,p_action text,p_key
  p_category uuid default null,p_payment uuid default null,p_link uuid default null,
  p_resolve boolean default false,p_batch boolean default false)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
-declare u uuid:=auth.uid(); c public.ctbc_candidates%rowtype; e public.ctbc_events%rowtype;
+declare u uuid:=public.ctbc_request_owner(); c public.ctbc_candidates%rowtype; e public.ctbc_events%rowtype;
  req jsonb; res jsonb; tid uuid; eid uuid:=gen_random_uuid(); event_code text;
 begin
  if u is null or p_key is null then raise exception 'owner_denied'; end if;
@@ -163,7 +171,7 @@ begin
   suggested_payment_id=null,warnings='{}',late=false,scrubbed_at=now()
   where id=any(ids) and scrubbed_at is null and (status='expired' or closed_at+interval '7 days'<=now());
  delete from public.ctbc_candidates where id=any(ids) and closed_at+interval '90 days'<=now();
- delete from public.ctbc_batches b where b.created_at+interval '120 days'<=now() and not exists(select 1 from public.ctbc_candidates c where c.batch_id=b.id);
+ delete from public.ctbc_batches where id in (select b.id from public.ctbc_batches b where b.created_at+interval '120 days'<=now() and not exists(select 1 from public.ctbc_candidates c where c.batch_id=b.id) order by b.created_at,b.id limit p_limit for update skip locked);
  return jsonb_build_object('expire',expire_count,'scrub',scrub_count,'purge',purge_count,'limit',p_limit);
 end $$;
 revoke all on function public.ctbc_retain(boolean,integer) from public,anon,authenticated;
@@ -270,7 +278,7 @@ grant execute on function public.ctbc_ingest(uuid,uuid,bigint,jsonb,jsonb,boolea
 -- worker runs. No source hashes or event receipts are returned to the browser.
 create function public.ctbc_snapshot() returns jsonb
 language plpgsql security definer set search_path=pg_catalog,public as $$
-declare u uuid:=auth.uid(); rows_json jsonb; latest jsonb; pending integer;
+declare u uuid:=public.ctbc_request_owner(); rows_json jsonb; latest jsonb; pending integer;
 begin
  if u is null then raise exception 'owner_denied'; end if;
  update public.ctbc_candidates set status='expired',version=version+1,closed_at=created_at+interval '30 days'
@@ -293,3 +301,5 @@ end $$;
 alter function public.ctbc_snapshot() owner to ctbc_executor;
 revoke all on function public.ctbc_snapshot() from public,anon;
 grant execute on function public.ctbc_snapshot() to authenticated;
+revoke create on schema public from ctbc_executor,ctbc_link_locker;
+do $$ begin execute format('revoke ctbc_executor, ctbc_link_locker from %I',current_user); end $$;
