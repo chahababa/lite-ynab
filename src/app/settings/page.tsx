@@ -1,4 +1,5 @@
 "use client";
+import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -93,6 +94,7 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen bg-background font-sans text-on-surface">
       <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-4 pb-[88px]">
+        <CtbcInboxShortcut />
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <Link

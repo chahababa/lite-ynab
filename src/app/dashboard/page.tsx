@@ -1,4 +1,5 @@
 "use client";
+import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -201,6 +202,7 @@ export default function DashboardPage() {
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-4 pb-[88px]">
+        <CtbcInboxShortcut />
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <p className="text-headline-sm">主控臺</p>

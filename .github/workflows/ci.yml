@@ -80,3 +80,17 @@ jobs:
         env:
           S9_LOCAL_POSTGREST: '1'
         run: npm test -- src/lib/ynabImport.postgrest.test.ts
+
+      - name: Install Chromium for actual CTBC app acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify CTBC persistent inbox in the actual isolated app
+        run: node scripts/test-ctbc-inbox-local.mjs
+
+      - name: Upload synthetic CTBC acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctbc-inbox-acceptance
+          path: test-results/ctbc-inbox/
+          if-no-files-found: ignore

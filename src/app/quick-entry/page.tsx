@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { CategoryPickerModal } from "@/components/CategoryPickerModal";
+import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 import { PaymentMethodModal } from "@/components/PaymentMethodModal";
 import { Toast } from "@/components/Toast";
 import { Button as M3Button } from "@/components/m3/Button";
@@ -408,6 +409,7 @@ export default function QuickEntryPage() {
       {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
 
       <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-3 pb-[88px]">
+        <CtbcInboxShortcut />
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <button

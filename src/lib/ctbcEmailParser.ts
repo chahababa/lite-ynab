@@ -370,7 +370,7 @@ function toCandidate(messageId: string, row: ParsedRow): CtbcEmailCandidate {
   };
 }
 
-function parseCandidateRows(messageId: string, rows: string[][]) {
+function parseCandidateRows(messageId: string, rows: string[][], preserveRows = false) {
   const candidates: CtbcEmailCandidate[] = [];
   const errors: string[] = [];
   const seenSourceIds = new Set<string>();
@@ -378,7 +378,7 @@ function parseCandidateRows(messageId: string, rows: string[][]) {
   rows.forEach((cells, index) => {
     try {
       const candidate = toCandidate(messageId, parseRow(cells));
-      if (!seenSourceIds.has(candidate.sourceId)) {
+      if (preserveRows || !seenSourceIds.has(candidate.sourceId)) {
         seenSourceIds.add(candidate.sourceId);
         candidates.push(candidate);
       }
@@ -390,7 +390,7 @@ function parseCandidateRows(messageId: string, rows: string[][]) {
   return { candidates, errors };
 }
 
-export function parseCtbcEmail(input: CtbcEmailInput): CtbcEmailParseResult {
+export function parseCtbcEmail(input: CtbcEmailInput, options: { preserveRows?: boolean } = {}): CtbcEmailParseResult {
   const messageId = input.messageId.trim();
   if (!messageId) {
     return {
@@ -425,10 +425,10 @@ export function parseCtbcEmail(input: CtbcEmailInput): CtbcEmailParseResult {
     };
   }
 
-  const htmlResult = parseCandidateRows(messageId, htmlRows);
+  const htmlResult = parseCandidateRows(messageId, htmlRows, options.preserveRows);
   const result =
     htmlResult.candidates.length === 0 && textRows.length > 0
-      ? parseCandidateRows(messageId, textRows)
+      ? parseCandidateRows(messageId, textRows, options.preserveRows)
       : htmlResult;
 
   return {
