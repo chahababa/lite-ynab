@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: '22'
       - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
       - name: Prepare public-only local baseline
         run: node scripts/test-ctbc-wrapper-local.mjs --prepare
       - name: Provision disposable local Supabase
