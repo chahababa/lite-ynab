@@ -85,6 +85,77 @@ function rawHeaders(raw: Buffer) {
   });
   return headers;
 }
+function mimeValue(value: string) {
+  const [type, ...fields] = value.split(";");
+  const params: Record<string, string> = {};
+  for (const field of fields) {
+    const match = /^\s*([a-z-]+)\s*=\s*(?:"([^"\\\r\n]+)"|([^\s"\\]+))\s*$/i.exec(field);
+    if (!match || Object.hasOwn(params, match[1].toLowerCase())) return null;
+    params[match[1].toLowerCase()] = match[2] ?? match[3];
+  }
+  return { type: type.trim().toLowerCase(), params };
+}
+
+function multipart(body: string, boundary: string) {
+  if (!/^[a-z0-9_=.-]{1,80}$/i.test(boundary)) return null;
+  const delimiter = `--${boundary}`;
+  const chunks = body.split(`\r\n${delimiter}`);
+  // Allow an empty preamble only; derive the same delimiter from signed bytes.
+  if (!chunks[0].startsWith(delimiter + "\r\n")) return null;
+  chunks[0] = chunks[0].slice(delimiter.length);
+  if (chunks.length !== 3 || !/^--\r\n\s*$/.test(chunks[2])) return null;
+  return chunks.slice(0, 2).map(part => part.startsWith("\r\n") ? part.slice(2) : "");
+}
+
+function mimePart(part: string, allowedHeaders: string[]) {
+  const bytes = Buffer.from(part, "latin1");
+  const end = part.indexOf("\r\n\r\n");
+  if (end < 0 || end > 4096) return null;
+  const headers = rawHeaders(bytes);
+  if (headers.some(h => !allowedHeaders.includes(h.name)) || new Set(headers.map(h => h.name)).size !== headers.length) return null;
+  return { headers: Object.fromEntries(headers.map(h => [h.name, h.value])), body: part.slice(end + 4) };
+}
+
+async function isBankSignedMime(raw: Buffer, outerType: string, outerHeaders: ReturnType<typeof rawHeaders>) {
+  const type = mimeValue(outerType);
+  if (outerHeaders.some(h => h.name === "content-transfer-encoding") || type?.type !== "multipart/signed" || Object.keys(type.params).length !== 3 ||
+      type.params.protocol !== "application/x-pkcs7-signature" || type.params.micalg !== "sha256") return false;
+  const body = raw.subarray(raw.indexOf("\r\n\r\n") + 4).toString("latin1").replace(/^\r\n/, "");
+  const pair = multipart(body, type.params.boundary ?? "");
+  if (!pair) return false;
+  const mirrored = ["from", "message-id", "mime-version", "date", "to", "reply-to"];
+  const content = mimePart(pair[0], [...mirrored, "subject", "precedence", "list-unsubscribe", "content-type"]);
+  const signature = mimePart(pair[1], ["content-type", "content-disposition", "content-transfer-encoding"]);
+  const inner = mimeValue(content?.headers["content-type"] ?? "");
+  const sigType = mimeValue(signature?.headers["content-type"] ?? "");
+  const disposition = mimeValue(signature?.headers["content-disposition"] ?? "");
+  // The bank repeats these fields inside the DKIM-authenticated body. Outer
+  // Subject is only a filter; the signed inner copy must match every mirror.
+  if (!content || mirrored.some(name => {
+    const outer = outerHeaders.filter(h => h.name === name);
+    return outer.length !== 1 || !content.headers[name] || outer[0].value !== content.headers[name];
+  }) || content.headers["mime-version"] !== "1.0" || (content.headers.precedence && content.headers.precedence !== "bulk") ||
+      !signature || inner?.type !== "multipart/alternative" || Object.keys(inner.params).length !== 1 ||
+      sigType?.type !== "application/x-pkcs7-signature" || Object.keys(sigType.params).length !== 1 || sigType.params.name !== "smime.p7s" ||
+      disposition?.type !== "attachment" || Object.keys(disposition.params).length !== 1 || disposition.params.filename !== "smime.p7s" ||
+      signature.headers["content-transfer-encoding"]?.toLowerCase() !== "base64") return false;
+  const signatureText = signature.body.replace(/\r\n/g, "");
+  if (!/^[a-z0-9+/]+={0,2}$/i.test(signatureText) || signatureText.length % 4 || signatureText.length > 32_000 || Buffer.from(signatureText, "base64")[0] !== 0x30) return false;
+  const alternatives = multipart(content.body, inner.params.boundary ?? "");
+  if (!alternatives) return false;
+  if (!alternatives.every((part, index) => {
+    const parsed = mimePart(part, ["content-type", "content-transfer-encoding"]);
+    const format = mimeValue(parsed?.headers["content-type"] ?? "");
+    return !!parsed && format?.type === (index === 0 ? "text/plain" : "text/html") && Object.keys(format.params).length === 1 &&
+      ["big5", "utf-8"].includes(format.params.charset?.toLowerCase()) &&
+      ["quoted-printable", "base64"].includes(parsed.headers["content-transfer-encoding"]?.toLowerCase());
+  })) return false;
+  // RFC 2047 encodings may differ; compare the signed inner subject after MIME
+  // decoding, never trust an unsigned outer subject to establish provenance.
+  const innerMail = await simpleParser(Buffer.from(pair[0], "latin1"), { skipHtmlToText: true, skipTextToHtml: true, skipImageLinks: true });
+  return innerMail.subject?.trim() === CTBC_ALERT_SUBJECT;
+}
+
 export async function parseCtbcGmailMime(raw: Buffer, id: string, internalDate: number, resolver?: DNSResolver) {
   if (raw.length > 1_000_000) throw new CtbcWorkerError("limit_exceeded");
   const headers = rawHeaders(raw);
@@ -94,25 +165,45 @@ export async function parseCtbcGmailMime(raw: Buffer, id: string, internalDate: 
   };
   const auth = one("authentication-results");
   for (const name of ["from", "subject", "content-type", ...["content-transfer-encoding", "mime-version"].filter(h => headers.some(v => v.name === h))]) one(name);
-  const received = headers.find(h => h.name === "received")?.value;
+  // Only the first SMTP ingress, optionally preceded by Gmail's internal hop.
+  // Never search arbitrary lower Received fields supplied by the sender.
+  const hops = headers.filter(h => h.name === "received");
+  const internalHop = /^by\s+2002:[0-9a-f:]+\s+with\s+SMTP\b/i.test(hops[0]?.value ?? "");
+  const ingress = hops[internalHop ? 1 : 0];
+  const received = ingress?.value;
+  const ingressIndex = ingress ? headers.indexOf(ingress) : -1;
+  const authIndex = headers.findIndex(h => h.name === "authentication-results");
+  const signatureIndex = headers.findIndex(h => h.name === "dkim-signature");
+  const traceNames = new Set(["delivered-to", "received", "x-received", "arc-seal", "arc-message-signature", "arc-authentication-results", "return-path", "received-spf", "authentication-results"]);
   const receiptTime = received ? Date.parse(received.slice(received.lastIndexOf(";") + 1)) : NaN;
-  if (!received || !/\bby\s+[^\s;]*google\.com\b/i.test(received) || !/\bwith\s+(?:ESMTPS|SMTP)/i.test(received) ||
+  if (hops.length !== (internalHop ? 2 : 1) || !received || !/^from\s+[^;]+\s+by\s+mx\.google\.com\s+with\s+ESMTPS\b/i.test(received) ||
+      authIndex <= ingressIndex || signatureIndex <= authIndex || headers.slice(0, authIndex).some(h => !traceNames.has(h.name)) ||
       !Number.isFinite(receiptTime) || Math.abs(receiptTime - internalDate) > 300_000 || !/^mx\.google\.com\s*;/i.test(auth)) throw new CtbcWorkerError("source_denied");
   if (headers.filter(h => h.name === "dkim-signature").length > 8) throw new CtbcWorkerError("limit_exceeded");
   // No trustReceived, no string-based DKIM pass. Verify the complete body and
   // exact bank signing domain using DNS, rejecting limited-body signatures.
-  const verified = await dkimVerify(raw, { strict: true, rejectRsaSha1: true, minBitLength: 2048, resolver });
-  if (!verified.results.some(r => r.status.result === "pass" && r.signingDomain?.toLowerCase() === "inib.ctbcbank.com" &&
+  const verified = await dkimVerify(raw, { strict: true, rejectRsaSha1: true, minBitLength: 1024, resolver });
+  const bankSigned = verified.results.some(r => r.status.result === "pass" && r.signingDomain?.toLowerCase() === "inib.ctbcbank.com" &&
+      r.selector === "s1024" && r.algo === "rsa-sha256" && (r.modulusLength ?? 0) >= 1024 &&
+      r.signatureTimeValid !== false && !r.canonBodyLengthLimited && !r.status.testing && !r.status.warnings?.length &&
+      ["from", "message-id", "mime-version"].every(h => r.signingHeaders?.keys.toLowerCase().split(":").map(v => v.trim()).includes(h)));
+  // RFC 8301 permits 1024-bit verification. The bank's observed selector may
+  // use unsigned outer MIME only when it agrees with its authenticated body.
+  const bankMime = bankSigned && await isBankSignedMime(raw, one("content-type"), headers);
+  if (bankMime) { one("message-id"); if (one("mime-version") !== "1.0") throw new CtbcWorkerError("source_denied"); }
+  if (!bankMime && !verified.results.some(r => r.status.result === "pass" && r.signingDomain?.toLowerCase() === "inib.ctbcbank.com" &&
+      (r.modulusLength ?? 0) >= 2048 &&
       r.signatureTimeValid !== false && !r.canonBodyLengthLimited && !r.status.testing && !r.status.warnings?.length &&
       ["from", "subject", "content-type", ...["content-transfer-encoding", "mime-version"].filter(h => headers.some(v => v.name === h))]
         .every(h => r.signingHeaders?.keys.toLowerCase().split(":").map(v => v.trim()).includes(h)))) throw new CtbcWorkerError("source_denied");
   const mail = await simpleParser(raw, { skipHtmlToText: true, skipTextToHtml: true, skipImageLinks: true });
-  if (mail.from?.value.length !== 1 || mail.from.value[0].address?.toLowerCase() !== CTBC_ALERT_SENDER || mail.subject?.trim() !== CTBC_ALERT_SUBJECT || mail.attachments.length) throw new CtbcWorkerError("source_denied");
+  if (mail.from?.value.length !== 1 || mail.from.value[0].address?.toLowerCase() !== CTBC_ALERT_SENDER || mail.subject?.trim() !== CTBC_ALERT_SUBJECT ||
+      (bankMime ? mail.attachments.length !== 1 || mail.attachments[0].contentType !== "application/x-pkcs7-signature" || mail.attachments[0].filename !== "smime.p7s" : mail.attachments.length > 0)) throw new CtbcWorkerError("source_denied");
   // Require all three results from the audited Gmail boundary as in the prior
   // source policy, AND the independent cryptographic verification above.
   const a = auth.toLowerCase();
   if (!/(?:^|;)\s*dkim=pass\s[^;]*header\.(?:i=@|d=)inib\.ctbcbank\.com(?=[;\s]|$)/.test(a) ||
-      !/(?:^|;)\s*spf=pass\s[^;]*smtp\.mailfrom=bank\.csc@inib\.ctbcbank\.com(?=[;\s]|$)/.test(a) ||
+      !/(?:^|;)\s*spf=pass\s[^;]*smtp\.mailfrom=(?:bank\.csc|return\+eid[0-9a-f]+\+[a-z0-9._-]+)@inib\.ctbcbank\.com(?=[;\s]|$)/.test(a) ||
       !/(?:^|;)\s*dmarc=pass\s[^;]*header\.from=inib\.ctbcbank\.com(?=[;\s]|$)/.test(a) ||
       /(?:^|;)\s*(?:dkim|spf|dmarc)=(?!pass(?:[;\s]|$))/.test(a)) throw new CtbcWorkerError("source_denied");
   return parseCtbcContent({ messageId: id, html: typeof mail.html === "string" ? mail.html : null, text: mail.text }, { preserveRows: true });
