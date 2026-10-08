@@ -1,0 +1,47 @@
+{
+  "state": "PASS_LOCAL_BYTE_EQUALITY_AFTER_REVERSING_ALLOWED_SUBSTITUTIONS",
+  "differencesOnly": [
+    "target_comments",
+    "baseline_history_fixture",
+    "event_catalog_fixture",
+    "synthetic_event_review_receipt"
+  ],
+  "files": [
+    {
+      "file": "apply.sql",
+      "substitutionCounts": {
+        "target_comments": 1,
+        "baseline_history_fixture": 2,
+        "event_catalog_fixture": 1,
+        "synthetic_event_review_receipt": 2
+      },
+      "templateBytes": 189188,
+      "templateSha256": "82edb3de4ae3faf024ba7c729ee8c7149898e72fdd8439efa2c62abd758d92de",
+      "roundTripByteIdentical": true
+    },
+    {
+      "file": "phase1.sql",
+      "substitutionCounts": {
+        "target_comments": 1,
+        "baseline_history_fixture": 4,
+        "event_catalog_fixture": 1,
+        "synthetic_event_review_receipt": 0
+      },
+      "templateBytes": 11935,
+      "templateSha256": "f379518f339b53fbaad19706031936acb09a1b2f8d79aa608c2f835a88e18fd6",
+      "roundTripByteIdentical": true
+    },
+    {
+      "file": "phase2.sql",
+      "substitutionCounts": {
+        "target_comments": 1,
+        "baseline_history_fixture": 1,
+        "event_catalog_fixture": 0,
+        "synthetic_event_review_receipt": 0
+      },
+      "templateBytes": 9228,
+      "templateSha256": "e695c17ce94a8f118630f91cec7be99ebc6a717cdefd417cc9cbd4fe7233e247",
+      "roundTripByteIdentical": true
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+name: CTBC wrapper isolated once
+
+on:
+  push:
+    branches: [test/ctbc-wrapper-isolated-20261008]
+
+permissions:
+  contents: read
+
+jobs:
+  wrapper-only:
+    if: github.ref == 'refs/heads/test/ctbc-wrapper-isolated-20261008'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: supabase/setup-cli@v1
+      - name: Prepare public-only local baseline
+        run: node scripts/test-ctbc-wrapper-local.mjs --prepare
+      - name: Provision disposable local Supabase
+        run: supabase start
+      - name: Verify wrapper rollback, partial STOP and success readbacks
+        run: node scripts/test-ctbc-wrapper-local.mjs
+      - name: Upload synthetic wrapper evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctbc-wrapper-isolated
+          path: test-results/ctbc-wrapper/
+          if-no-files-found: error
