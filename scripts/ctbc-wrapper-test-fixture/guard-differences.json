@@ -15,8 +15,8 @@
         "event_catalog_fixture": 1,
         "synthetic_event_review_receipt": 2
       },
-      "templateBytes": 189188,
-      "templateSha256": "82edb3de4ae3faf024ba7c729ee8c7149898e72fdd8439efa2c62abd758d92de",
+      "templateBytes": 190053,
+      "templateSha256": "b60e64279a40d3aa2a88922be77c2ec291e528d46e3e136302373417dd48caae",
       "roundTripByteIdentical": true
     },
     {
@@ -39,8 +39,8 @@
         "event_catalog_fixture": 0,
         "synthetic_event_review_receipt": 0
       },
-      "templateBytes": 9228,
-      "templateSha256": "e695c17ce94a8f118630f91cec7be99ebc6a717cdefd417cc9cbd4fe7233e247",
+      "templateBytes": 9437,
+      "templateSha256": "84d4d7c707452c74e826791e7317857e4448be33989ab14aaf36ac75078a8ea0",
       "roundTripByteIdentical": true
     }
   ]

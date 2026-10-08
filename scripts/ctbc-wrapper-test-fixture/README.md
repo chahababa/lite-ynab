@@ -23,6 +23,18 @@ catalog rows. The rollback case adds one exception immediately before COMMIT.
 The half-present case creates only a synthetic `ctbc_events` table and confirms
 the phase-1 STOP state and apply guard without executing phase 2.
 
+The original zero-membership postcondition rejected PostgreSQL 17's automatic
+bootstrap grant. Actual local evidence confirms the two created roles are granted
+to existing `postgres` by `supabase_admin` (OID 10, superuser), ADMIN true / SET
+false / INHERIT false. The private and synthetic wrappers now require precisely
+those two rows and reject missing/extra memberships or effective SET/INHERIT.
+The original role DDL remains unchanged. Retained ADMIN permits role management
+and regranting membership; it does not protect against the trusted executor.
+See [PostgreSQL 17 role attributes](https://www.postgresql.org/docs/17/role-attributes.html).
+The readback includes grantor/member OIDs and flags. A separate diagnostic
+transaction reads both sealed public migrations, captures these fields and rolls
+back before the three wrapper cases. It is not a substitute for their PASS.
+
 Passing this test proves only the isolated wrapper. Native SQL Editor identity,
 event effects, and transport of the larger production payload remain unverified.
 No application, full CI, S8/S9 acceptance, Gmail, OAuth or production operation is
