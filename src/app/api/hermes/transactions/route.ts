@@ -345,7 +345,16 @@ export async function POST(request: Request) {
 
     const insertResult = await supabase.from("transactions").insert(insertPayload).select("id").single();
 
-    if (insertResult.error) throw insertResult.error;
+    if (insertResult.error) {
+      if (insertResult.error.code === "23505" && body.sourceId) {
+        const existing = await findExistingHermesTransaction(supabase, userId, body.sourceId);
+        if (existing?.id) {
+          return NextResponse.json({ ok: true, duplicate: true, transactionId: existing.id });
+        }
+        throw new HttpError(409, "來源衝突，但無法確認既有交易，請重新載入後確認");
+      }
+      throw insertResult.error;
+    }
 
     return NextResponse.json({
       ok: true,

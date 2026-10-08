@@ -66,3 +66,17 @@ jobs:
 
       - name: Run pgTAP smoke tests
         run: supabase test db --local
+
+      - name: Set up Node.js for S9 PostgREST proof
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies for S9 PostgREST proof
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify S9 source race through real local PostgREST
+        env:
+          S9_LOCAL_POSTGREST: '1'
+        run: npm test -- src/lib/ynabImport.postgrest.test.ts
