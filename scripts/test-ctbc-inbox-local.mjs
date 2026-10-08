@@ -97,7 +97,7 @@ try{
  await context.route('**/*',route=>{const u=new URL(route.request().url());if(![appOrigin,apiOrigin].includes(u.origin))return route.abort();return route.continue();});
  const page=await context.newPage(); await page.goto(`${appOrigin}/login`);
  await page.getByLabel('電子郵件').fill(a.email);await page.getByLabel('密碼').fill(a.password);
- await page.locator('form').getByRole('button',{name:'登入',exact:true}).click();await page.waitForURL('**/dashboard');
+ await page.locator('form').getByRole('button',{name:'登入',exact:true}).click();await page.waitForURL('**/quick-entry');
  await page.getByRole('link',{name:/待確認交易/}).waitFor();
  await page.getByRole('link',{name:/待確認交易/}).click();await page.getByRole('heading',{name:'待確認交易（7）',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
