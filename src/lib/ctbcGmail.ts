@@ -22,6 +22,9 @@ export function readCtbcWorkerConfig(env: Readonly<Record<string, string | undef
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!c || ![c.scope, c.owner, c.mailboxBinding].every(v => typeof v === "string" && uuid.test(v)) ||
       typeof c.targetLast4 !== "string" || !/^\d{4}$/.test(c.targetLast4) || !/^[a-f0-9]{64}$/.test(c.mailboxSha256 ?? "")) throw new CtbcWorkerError("selector_denied");
+  // Reuse the existing application's fixed server tenant, rather than allowing
+  // a collector config to select a different user even with service credentials.
+  if (c.owner.toLowerCase() !== env.LITEYNAB_USER_ID?.toLowerCase()) throw new CtbcWorkerError("account_denied");
   try { ctbcSlot(c.armedDate); } catch { throw new CtbcWorkerError("selector_denied"); }
   if (c.provenance?.policy !== "gmail-smtp-reviewed-v1" || !/^[a-f0-9]{64}$/.test(c.provenance.evidenceSha256 ?? "") ||
       c.provenance.mailboxSha256 !== c.mailboxSha256) throw new CtbcWorkerError("source_denied");

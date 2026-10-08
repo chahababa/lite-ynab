@@ -37,10 +37,11 @@ const provider = (handler: (url: URL) => unknown) => new CtbcGmailClient("synthe
 
 describe("bounded Gmail adapter (synthetic signed MIME, no real network)", () => {
   it("requires a protected account/selector and reviewed receipt boundary", () => {
-    expect(readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify(config) })).toEqual(config);
+    expect(readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify(config), LITEYNAB_USER_ID: config.owner })).toEqual(config);
     expect(() => readCtbcWorkerConfig({})).toThrow("selector_denied");
-    expect(() => readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify({ ...config, provenance: { policy: "mx.google.com" } }) })).toThrow("source_denied");
-    expect(() => readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify({ ...config, provenance: { ...config.provenance, mailboxSha256: "b".repeat(64) } }) })).toThrow("source_denied");
+    expect(() => readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify(config), LITEYNAB_USER_ID: randomUUID() })).toThrow("account_denied");
+    expect(() => readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify({ ...config, provenance: { policy: "mx.google.com" } }), LITEYNAB_USER_ID: config.owner })).toThrow("source_denied");
+    expect(() => readCtbcWorkerConfig({ CTBC_WORKER_CONFIG: JSON.stringify({ ...config, provenance: { ...config.provenance, mailboxSha256: "b".repeat(64) } }), LITEYNAB_USER_ID: config.owner })).toThrow("source_denied");
   });
   it("cryptographically verifies full-body DKIM then decodes nested/base64 MIME", async () => {
     const result = await parseCtbcGmailMime(raw, "synthetic-id", received, resolver);

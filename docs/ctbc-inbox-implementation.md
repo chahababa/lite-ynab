@@ -30,7 +30,7 @@
 
 既有 Node 22 容器在 build 時編譯 `.ctbc-worker`，需 Node 22.19 以上。容器啟動仍是既有 web；worker 可用 `npm run worker:ctbc -- daemon` 作為獨立服務入口，每 30 秒向 DB 判斷是否到台北 17:00。`once` 為一次判斷。這裡沒有新增正式服務、GitHub schedule 或 provider 設定。
 
-`CTBC_COLLECTOR_ENABLED` 預設停用。啟用後先讀取受保護的 `CTBC_WORKER_CONFIG`：固定 scope／owner／mailboxBinding、mailboxSha256、targetLast4、armedDate，以及 `gmail-smtp-reviewed-v1` 的來源審查 evidenceSha256／mailboxSha256。日期、帳戶或來源設定缺漏即拒絕；scope／owner／opaque mailbox binding 亦由每個 worker RPC 檢查，排程 armedDate 寫入後不可改。設定內容不得進前端、PR、Notion 或操作 log。
+`CTBC_COLLECTOR_ENABLED` 預設停用。啟用後先讀取受保護的 `CTBC_WORKER_CONFIG`：固定 scope／owner／mailboxBinding、mailboxSha256、targetLast4、armedDate，以及 `gmail-smtp-reviewed-v1` 的來源審查 evidenceSha256／mailboxSha256。owner 必須與既有固定 server tenant `LITEYNAB_USER_ID` 相同。日期、帳戶或來源設定缺漏即拒絕；scope／owner／opaque mailbox binding 亦由每個 worker RPC 檢查，排程 armedDate 寫入後不可改。設定內容不得進前端、PR、Notion 或操作 log。
 
 Gmail 憑證只從 server 的 `CTBC_GMAIL_CLIENT_ID`、`CTBC_GMAIL_CLIENT_SECRET`、`CTBC_GMAIL_REFRESH_TOKEN` 讀取，runtime 檢查回傳只讀 scope 和实际 profile 帳戶 hash。此程式不建立 OAuth 授權。每輪最多 3 頁、100 封、每封原始 MIME 1 MB、累積 10 MB，使用 list／get raw；internalDate 精確二次篩選，MIME 只在記憶體解碼。驗證原始郵件完整 body 的銀行 DKIM、必要簽名欄位、唯一標頭及既有 SPF／DMARC policy，不使用 `synthetic:true` 或自行製造 Authentication-Results。
 
