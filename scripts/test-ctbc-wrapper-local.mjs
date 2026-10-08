@@ -92,6 +92,16 @@ const readback = (name, sql, expected) => {
 
 try {
   reset();
+  // Diagnostic transaction only: preserve both public migration blobs exactly,
+  // observe the grantors of residual memberships, then roll everything back.
+  // This does not alter any wrapper guard or count as a wrapper PASS.
+  const publicSql = ['20261008002233_ctbc_inbox.sql', '20261008013654_ctbc_worker_lifecycle.sql']
+    .map(file => must(run('git', ['show', 'a280dd53399fb285db8ae53e21b50caf010ed6db:supabase/migrations/' + file]))).join('\n');
+  must(execute('membership-diagnostic', `BEGIN;
+SELECT current_user,session_user,current_setting('server_version'),rolsuper,rolcreaterole FROM pg_roles WHERE rolname=current_user;
+${publicSql}
+SELECT json_agg(q) FROM (SELECT pg_get_userbyid(roleid) AS role_name,pg_get_userbyid(member) AS member_name,pg_get_userbyid(grantor) AS grantor_name,admin_option,inherit_option,set_option FROM pg_auth_members WHERE roleid IN (SELECT oid FROM pg_roles WHERE rolname IN ('ctbc_executor','ctbc_link_locker')) ORDER BY role_name,member_name,grantor_name) q;
+ROLLBACK;`));
   let sql = templates();
   assert.equal(sql.apply.match(/\nCOMMIT;\n$/g)?.length, 1);
   const injected = sql.apply.replace(/\nCOMMIT;\n$/, "\nDO $synthetic_failure$ BEGIN RAISE EXCEPTION 'SYNTHETIC_BEFORE_COMMIT'; END; $synthetic_failure$;\nCOMMIT;\n");
