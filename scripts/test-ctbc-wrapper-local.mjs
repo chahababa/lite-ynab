@@ -95,12 +95,14 @@ try {
   // Diagnostic transaction only: preserve both public migration blobs exactly,
   // observe the grantors of residual memberships, then roll everything back.
   // This does not alter any wrapper guard or count as a wrapper PASS.
-  const publicSql = ['20261008002233_ctbc_inbox.sql', '20261008013654_ctbc_worker_lifecycle.sql']
-    .map(file => must(run('git', ['show', 'a280dd53399fb285db8ae53e21b50caf010ed6db:supabase/migrations/' + file]))).join('\n');
+  const publicSql = [['20261008002233_ctbc_inbox.sql','0700d8fe87f9bb8612ca2e8b7afec676ba5772bd8ace631a6ecfe2dd9be3f89b'],
+    ['20261008013654_ctbc_worker_lifecycle.sql','619dcda59d4fed2f06dd3f82f9c698bdff1d54b91551ab893a1effb190935bf6']]
+    .map(([file,hash]) => { const blob = run('git', ['show', 'HEAD:supabase/migrations/' + file]);
+      must(blob); assert.equal(sha(blob.stdout),hash); return blob.stdout; }).join('\n');
   must(execute('membership-diagnostic', `BEGIN;
-SELECT current_user,session_user,current_setting('server_version'),rolsuper,rolcreaterole FROM pg_roles WHERE rolname=current_user;
+SELECT json_agg(q) FROM (SELECT oid AS executor_oid,rolname,rolsuper,rolcreaterole,rolcreatedb,rolcanlogin,rolinherit,rolbypassrls,current_user,session_user,current_setting('server_version') AS server_version FROM pg_roles WHERE rolname=current_user) q;
 ${publicSql}
-SELECT json_agg(q) FROM (SELECT pg_get_userbyid(roleid) AS role_name,pg_get_userbyid(member) AS member_name,pg_get_userbyid(grantor) AS grantor_name,admin_option,inherit_option,set_option FROM pg_auth_members WHERE roleid IN (SELECT oid FROM pg_roles WHERE rolname IN ('ctbc_executor','ctbc_link_locker')) ORDER BY role_name,member_name,grantor_name) q;
+SELECT json_agg(q) FROM (SELECT a.roleid AS role_oid,pg_get_userbyid(a.roleid) AS role_name,a.member AS member_oid,pg_get_userbyid(a.member) AS member_name,a.grantor AS grantor_oid,g.rolname AS grantor_name,g.rolsuper AS grantor_superuser,a.grantor=10 AS bootstrap_oid_10,a.admin_option,a.inherit_option,a.set_option FROM pg_auth_members a JOIN pg_roles g ON g.oid=a.grantor WHERE a.roleid IN (SELECT oid FROM pg_roles WHERE rolname IN ('ctbc_executor','ctbc_link_locker')) ORDER BY role_name,member_name,grantor_name) q;
 ROLLBACK;`));
   let sql = templates();
   assert.equal(sql.apply.match(/\nCOMMIT;\n$/g)?.length, 1);
