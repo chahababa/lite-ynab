@@ -104,6 +104,26 @@ alter function public.ctbc_lock_references(uuid,uuid,uuid) owner to ctbc_link_lo
 revoke all on function public.ctbc_lock_references(uuid,uuid,uuid) from public,anon,authenticated;
 grant execute on function public.ctbc_lock_references(uuid,uuid,uuid) to ctbc_executor;
 
+-- Recheck the payment chosen NOW, not the collector's historical suggestion.
+-- Newly discovered risks are persisted before returning, without any ledger write.
+create function public.ctbc_recheck_risk(p_id uuid,p_payment uuid) returns boolean
+language plpgsql security definer set search_path=pg_catalog,public as $$
+declare u uuid:=public.ctbc_request_owner(); c public.ctbc_candidates%rowtype; risks text[]:='{}'; d date;
+begin
+ select * into c from public.ctbc_candidates where id=p_id and user_id=u for update;
+ if not found then raise exception 'candidate_denied'; end if;
+ if not exists(select 1 from public.payment_methods where id=p_payment and user_id=u) then raise exception 'reference_denied'; end if;
+ d:=(c.occurred_at at time zone 'Asia/Taipei')::date;
+ if exists(select 1 from public.transactions t where t.user_id=u and t.payment_method_id=p_payment and t.date between d-1 and d+1 and t.amount=c.amount) then risks:=array_append(risks,'possible_duplicate'); end if;
+ if c.merchant is not null and exists(select 1 from public.transactions t where t.user_id=u and t.payment_method_id=p_payment and t.date between d-1 and d+1 and t.note=c.merchant and t.amount<>c.amount) then risks:=array_append(risks,'amount_mismatch'); end if;
+ select coalesce(array_agg(r),'{}') into risks from unnest(risks) r where not(r=any(c.warnings));
+ if cardinality(risks)=0 then return false; end if;
+ update public.ctbc_candidates set warnings=warnings||risks,status='conflict',version=version+1 where id=c.id and user_id=u;
+ return true;
+end $$;
+alter function public.ctbc_recheck_risk(uuid,uuid) owner to ctbc_executor;
+revoke all on function public.ctbc_recheck_risk(uuid,uuid) from public,anon,authenticated;
+
 create function public.ctbc_act(p_id uuid,p_expected integer,p_action text,p_key uuid,
  p_category uuid default null,p_payment uuid default null,p_link uuid default null,
  p_resolve boolean default false,p_batch boolean default false)
@@ -124,11 +144,14 @@ begin
  if not found then raise exception 'candidate_denied'; end if;
  if c.version is distinct from p_expected then raise exception 'stale_version'; end if;
  if c.status not in ('needs_review','conflict') or c.amount is null or c.created_at+interval '30 days'<=now() then raise exception 'candidate_closed'; end if;
+ if p_action='import' then
+  perform public.ctbc_lock_references(p_category,p_payment,null);
+  if public.ctbc_recheck_risk(c.id,p_payment) then return jsonb_build_object('candidateId',c.id,'version',c.version+1,'code','risk_recheck_required'); end if;
+ end if;
  if p_batch and (p_action<>'import' or c.status='conflict' or cardinality(c.warnings)>0) then raise exception 'unsafe_batch'; end if;
  if p_action<>'defer' and (c.status='conflict' or cardinality(c.warnings)>0) and p_resolve is not true then raise exception 'risk_confirmation_required'; end if;
  if p_action='import' and 'source_payload_conflict'=any(c.warnings) then raise exception 'source_conflict_unresolved'; end if;
  if p_action='import' then
-  perform public.ctbc_lock_references(p_category,p_payment,null);
   insert into public.transactions(user_id,date,amount,category_id,payment_method_id,note,source,source_id,metadata)
    values(u,(c.occurred_at at time zone 'Asia/Taipei')::date,c.amount,p_category,p_payment,
     coalesce(c.merchant,'商家未明'),'email_import',c.source_id,jsonb_build_object('ctbc',jsonb_build_object('candidateId',c.id,'version',1))) returning id into tid;
@@ -150,6 +173,39 @@ end $$;
 alter function public.ctbc_act(uuid,integer,text,uuid,uuid,uuid,uuid,boolean,boolean) owner to ctbc_executor;
 revoke all on function public.ctbc_act(uuid,integer,text,uuid,uuid,uuid,uuid,boolean,boolean) from public,anon;
 grant execute on function public.ctbc_act(uuid,integer,text,uuid,uuid,uuid,uuid,boolean,boolean) to authenticated;
+
+-- Exact event replay is validated BEFORE the old candidate/version gate. A
+-- terminal candidate without this exact key and payload is never a success.
+-- All remaining fresh commands are risk-checked before the first ledger write.
+create function public.ctbc_batch_preflight(p_commands jsonb) returns jsonb
+language plpgsql security definer set search_path=pg_catalog,public as $$
+declare u uuid:=public.ctbc_request_owner(); item jsonb; req jsonb; c public.ctbc_candidates%rowtype; e public.ctbc_events%rowtype;
+ cid uuid; expected integer; key uuid; cat uuid; payment uuid; linked uuid; resolve boolean; first_cat uuid; first_payment uuid;
+ ready boolean:=true; seen_ids uuid[]:='{}'; seen_keys uuid[]:='{}';
+begin
+ if u is null or jsonb_typeof(p_commands) is distinct from 'array' or jsonb_array_length(p_commands) not between 1 and 20 then raise exception 'invalid_batch'; end if;
+ for item in select value from jsonb_array_elements(p_commands) loop
+  if jsonb_typeof(item) is distinct from 'object' or item->>'action' is distinct from 'import' or item->>'batch' is distinct from 'true' then raise exception 'invalid_batch'; end if;
+  if exists(select 1 from jsonb_object_keys(item) k where k not in ('candidateId','expectedVersion','action','actionKey','categoryId','paymentId','linkedId','resolveRisk','batch')) then raise exception 'invalid_batch'; end if;
+  cid:=(item->>'candidateId')::uuid; expected:=(item->>'expectedVersion')::integer; key:=(item->>'actionKey')::uuid;
+  cat:=(item->>'categoryId')::uuid; payment:=(item->>'paymentId')::uuid; linked:=(item->>'linkedId')::uuid; resolve:=coalesce((item->>'resolveRisk')::boolean,false);
+  if cid is null or key is null or expected is null or expected<1 or cat is null or payment is null or cid=any(seen_ids) or key=any(seen_keys) then raise exception 'invalid_batch'; end if;
+  if first_cat is null then first_cat:=cat; first_payment:=payment; elsif cat is distinct from first_cat or payment is distinct from first_payment then raise exception 'invalid_batch'; end if;
+  seen_ids:=array_append(seen_ids,cid); seen_keys:=array_append(seen_keys,key);
+  req:=jsonb_build_array(cid,expected,'import',cat,payment,linked,resolve,true);
+  perform pg_advisory_xact_lock(hashtextextended(u::text||':'||key::text,0));
+  select * into e from public.ctbc_events where user_id=u and action_key=key;
+  if found then if e.request is distinct from req then ready:=false; end if; continue; end if;
+  select * into c from public.ctbc_candidates where id=cid and user_id=u for update;
+  if not found or c.version is distinct from expected or c.status not in ('needs_review','conflict') or c.amount is null or c.created_at+interval '30 days'<=now() then ready:=false; continue; end if;
+  perform public.ctbc_lock_references(cat,payment,null);
+  if public.ctbc_recheck_risk(cid,payment) or c.status<>'needs_review' or cardinality(c.warnings)>0 then ready:=false; end if;
+ end loop;
+ return jsonb_build_object('code',case when ready then 'ready' else 'conflict' end);
+end $$;
+alter function public.ctbc_batch_preflight(jsonb) owner to ctbc_executor;
+revoke all on function public.ctbc_batch_preflight(jsonb) from public,anon;
+grant execute on function public.ctbc_batch_preflight(jsonb) to authenticated;
 
 -- Service-only maintenance; no clock argument, browser grant, schedule or cron.
 create function public.ctbc_retain(p_dry_run boolean default true,p_limit integer default 200)

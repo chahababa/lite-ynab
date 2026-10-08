@@ -90,10 +90,32 @@ try{
  const batchCommands=[safe,risky].map(c=>({candidateId:c.id,expectedVersion:c.version,action:'import',actionKey:randomUUID(),categoryId:a.category,paymentId:a.payment,batch:true}));
  assert.equal((await request(a.token,{commands:batchCommands})).status,409);
  assert.equal(ok(await a.client.from('transactions').select('id')).length,1);
+ // P1: risks can arise after ingest, or on a different human-selected payment.
+ const alternate=ok(await b.client.from('payment_methods').insert({name:'合成替代支付'}).select('id').single());
+ const batchB=ok(await admin.from('ctbc_batches').insert({scope_id:disabled.id,user_id:b.user,slot_date:date,starts_at:new Date(window.start).toISOString(),ends_at:new Date(window.end).toISOString(),stops_at:new Date(window.stop).toISOString(),attempts:1,last_attempt_at:new Date().toISOString()}).select('id').single());
+ ok(await admin.from('ctbc_collector_scopes').update({enabled:true,preferred_payment_id:b.payment,active_batch:batchB.id,fence:1,lease_until:new Date(Date.now()+900000).toISOString()}).eq('id',disabled.id));
+ const riskRows=['合成晚記','合成改支付','合成安全未提交'].map((name,i)=>({...prepared.rows[0],source_id:`ctbc:v1:${String(i+3).repeat(64)}:${'f'.repeat(64)}`,payload_hash:String(i+3).repeat(64),amount:880+i,merchant:name}));
+ assert.equal(ok(await admin.rpc('ctbc_ingest',{p_scope:disabled.id,p_batch:batchB.id,p_fence:1,p_rows:riskRows,p_counts:{messages:3},p_complete:true})).added,3);
+ const beforeRisk=ok(await b.client.rpc('ctbc_snapshot')).candidates;assert.ok(beforeRisk.every(c=>c.status==='needs_review'&&c.warnings.length===0));
+ ok(await b.client.from('transactions').insert([{date:yesterday,amount:880,category_id:b.category,payment_method_id:b.payment,note:'合成晚記',source:'manual'},{date:yesterday,amount:881,category_id:b.category,payment_method_id:alternate.id,note:'合成改支付',source:'manual'}]));
+ const late=beforeRisk.find(c=>c.merchant==='合成晚記'),changed=beforeRisk.find(c=>c.merchant==='合成改支付'),notSubmitted=beforeRisk.find(c=>c.merchant==='合成安全未提交');
+ const batchBody=[notSubmitted,late].map(c=>({candidateId:c.id,expectedVersion:c.version,action:'import',actionKey:randomUUID(),categoryId:b.category,paymentId:b.payment,batch:true}));
+ assert.equal((await request(b.token,{commands:batchBody})).status,409);
+ assert.equal(ok(await b.client.from('transactions').select('id')).length,2);
+ assert.equal((await request(b.token,{candidateId:changed.id,expectedVersion:changed.version,action:'import',actionKey:randomUUID(),categoryId:b.category,paymentId:alternate.id})).status,409);
+ const riskSnapshot=ok(await b.client.rpc('ctbc_snapshot')).candidates;
+ assert.ok([late,changed].every(c=>riskSnapshot.find(r=>r.id===c.id).warnings.includes('possible_duplicate')));
+ assert.equal(riskSnapshot.find(c=>c.id===notSubmitted.id).status,'needs_review');
+ assert.equal(ok(await b.client.from('transactions').select('id')).length,2);
+ const revised=riskSnapshot.find(c=>c.id===late.id);
+ assert.equal((await request(b.token,{candidateId:late.id,expectedVersion:revised.version,action:'import',actionKey:randomUUID(),categoryId:b.category,paymentId:b.payment})).status,409);
+ assert.equal((await request(b.token,{candidateId:late.id,expectedVersion:revised.version,action:'import',actionKey:randomUUID(),categoryId:b.category,paymentId:b.payment,resolveRisk:true})).status,200);
+ assert.equal(ok(await b.client.from('transactions').select('id')).length,3);
+ console.log('PASS P1: after-ingest manual transaction and changed payment rechecked; whole batch writes zero; new warnings persist before explicit resolution');
  browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width:360,height:800}});
- const origins=new Set(),paths=new Set();
- context.on('request',req=>{const u=new URL(req.url());origins.add(u.origin);paths.add(u.pathname);});
+ const origins=new Set(),paths=new Set();let submittedBatch;
+ context.on('request',req=>{const u=new URL(req.url());origins.add(u.origin);paths.add(u.pathname);if(u.pathname==='/api/ctbc/inbox'&&req.method()==='POST'){const body=req.postDataJSON();if(body?.commands)submittedBatch=body.commands;}});
  await context.route('**/*',route=>{const u=new URL(route.request().url());if(![appOrigin,apiOrigin].includes(u.origin))return route.abort();return route.continue();});
  page=await context.newPage(); await page.goto(`${appOrigin}/login`);
  await page.getByLabel('電子郵件').fill(a.email);await page.getByLabel('密碼').fill(a.password);
@@ -126,6 +148,12 @@ try{
  await page.getByLabel(/我確認所選 2 筆/).check();await page.getByRole('button',{name:'確認批次補記',exact:true}).click();
  await page.getByRole('status').filter({hasText:'成功 2 筆'}).waitFor();
  assert.equal(ok(await a.client.from('transactions').select('id')).length,4);
+ // P2: replay the original commands as if the batch HTTP reply was lost.
+ assert.equal(submittedBatch.length,2);
+ const batchReplay=await request(a.token,{commands:submittedBatch});assert.equal(batchReplay.status,200);
+ assert.ok((await batchReplay.json()).results.every(r=>r.status==='success'));
+ assert.equal(ok(await a.client.from('transactions').select('id')).length,4);
+ assert.equal((await request(a.token,{commands:submittedBatch.map((c,i)=>i===0?{...c,expectedVersion:c.expectedVersion+1}:c)})).status,409);
  await page.reload();await page.getByRole('heading',{name:'待確認交易（1）',exact:true}).waitFor();
  await mkdir('test-results/ctbc-inbox',{recursive:true});
  await page.screenshot({path:'test-results/ctbc-inbox/mobile-five-actions.png',fullPage:true});
@@ -143,6 +171,17 @@ try{
  assert.ok((await a.client.rpc('ctbc_act',command(deferred,'work'))).error);
  const tid=results[0].data.transactionId;
  assert.equal(sql(`select count(*) from public.ctbc_events where user_id='${a.user}' and action_key='${key}';`),'1');
+ // A previously successful first item must not block its still-unsubmitted peer.
+ const resumeRows=ok(await admin.from('ctbc_candidates').insert([6,7].map(n=>({user_id:a.user,batch_id:batch.id,source_id:`ctbc:v1:${String(n).repeat(64)}:${'a'.repeat(64)}`,payload_hash:String(n).repeat(64),occurred_at:`${yesterday}T09:15:00+08:00`,amount:900+n,merchant:`合成續送${n}`}))).select('id,version'));
+ const resumeCommands=resumeRows.map(c=>({candidateId:c.id,expectedVersion:c.version,action:'import',actionKey:randomUUID(),categoryId:a.category,paymentId:a.payment,batch:true}));
+ assert.equal((await request(a.token,resumeCommands[0])).status,200);
+ const countBeforeResume=ok(await a.client.from('transactions').select('id')).length;
+ const resumed=await request(a.token,{commands:resumeCommands});assert.equal(resumed.status,200);assert.ok((await resumed.json()).results.every(r=>r.status==='success'));
+ assert.equal(ok(await a.client.from('transactions').select('id')).length,countBeforeResume+1);
+ assert.equal((await request(a.token,{commands:resumeCommands})).status,200);
+ assert.equal(ok(await a.client.from('transactions').select('id')).length,countBeforeResume+1);
+ const invented=resumeCommands.map(c=>({...c,actionKey:randomUUID()}));assert.equal((await request(a.token,{commands:invented})).status,409);
+ console.log('PASS P2: lost batch reply exact replay and partial-success continuation; mismatched payload and unrelated terminal keys rejected');
  // Retention: pending expires/scrubs at 30d, terminal details at 7d, shells/events
  // at 90d. Direct SQL is only fixture time adjustment in this disposable DB.
  const work=(await snapshot()).candidates.find(c=>c.status==='work_excluded');
@@ -179,7 +218,7 @@ try{
  sql(`update public.ctbc_batches set status='partial_failure',failures=1 where id='${partial.batch_id}';`);
  assert.equal((await snapshot()).latestRun.status,'partial_failure');
  console.log('PASS CTBC real RPC: action race/replay, stale/owner/foreign-reference rejection, 30/7/90 retention, accounting retained, partial warning retained');
- await writeFile('test-results/ctbc-inbox/rpc-proof.json',JSON.stringify({ownerIsolation:true,atomicReplayRace:true,staleVersionDenied:true,foreignReferencesDenied:true,retentionDays:[30,7,90],ledgerRetained:true,terminalReplayBeforeCohort:true,payloadConflictNoOverwrite:true,crossMessageDuplicatesPreserved:true,partialFailureRetained:true},null,2));
+ await writeFile('test-results/ctbc-inbox/rpc-proof.json',JSON.stringify({ownerIsolation:true,atomicReplayRace:true,staleVersionDenied:true,foreignReferencesDenied:true,retentionDays:[30,7,90],ledgerRetained:true,terminalReplayBeforeCohort:true,payloadConflictNoOverwrite:true,crossMessageDuplicatesPreserved:true,partialFailureRetained:true,afterIngestRiskRecheck:true,changedPaymentRiskRecheck:true,riskyBatchZeroLedgerWrites:true,exactBatchReplyReplay:true,partialBatchContinuation:true,unrelatedTerminalKeyDenied:true},null,2));
 }catch(error){
  if(page){await mkdir('test-results/ctbc-inbox',{recursive:true});await page.screenshot({path:'test-results/ctbc-inbox/failure.png',fullPage:true}).catch(()=>{});}
  throw error;

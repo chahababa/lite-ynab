@@ -41,7 +41,7 @@ export async function ctbcApply(request: Request, value: unknown) {
   const { client } = await ctbcUserClient(request);
   const result = await client.rpc("ctbc_act", { p_id:c.candidateId,p_expected:c.expectedVersion,p_action:c.action,p_key:c.actionKey,
     p_category:c.categoryId ?? null,p_payment:c.paymentId ?? null,p_link:c.linkedId ?? null,p_resolve:c.resolveRisk ?? false,p_batch:c.batch ?? false });
-  if (result.error) throw new Error("action_conflict");
+  if (result.error || result.data?.code === "risk_recheck_required") throw new Error("action_conflict");
   return result.data;
 }
 
@@ -51,11 +51,9 @@ export async function ctbcApplyBatch(request:Request,value:unknown){
   const first=commands[0];
   if(commands.some((c)=>c.action!=="import"||c.batch!==true||!c.categoryId||!c.paymentId||c.categoryId!==first.categoryId||c.paymentId!==first.paymentId)||
     new Set(commands.map((c)=>c.candidateId)).size!==commands.length||new Set(commands.map((c)=>c.actionKey)).size!==commands.length)throw new Error("invalid_command");
-  const data=await ctbcLoad(request);
-  if(!data.categories.some((c)=>c.id===first.categoryId)||!data.payments.some((p)=>p.id===first.paymentId)||commands.some((cmd)=>{
-    const c=data.candidates.find((row)=>row.id===cmd.candidateId);
-    return !c||c.status!=="needs_review"||c.warnings.length>0||c.version!==cmd.expectedVersion;
-  }))throw new Error("action_conflict");
+  const {client}=await ctbcUserClient(request);
+  const preflight=await client.rpc("ctbc_batch_preflight",{p_commands:commands});
+  if(preflight.error||preflight.data?.code!=="ready")throw new Error("action_conflict");
   const results:Array<{candidateId:string;status:"success"|"conflict"|"not_submitted"}>=[];
   let stopped=false;
   for(const c of commands){

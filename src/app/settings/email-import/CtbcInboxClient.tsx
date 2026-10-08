@@ -39,9 +39,9 @@ function CandidateRow({ candidate:c, data, busy, selected, onSelect, onAct }: {
     {linkedMissing&&<p className="text-sm text-money-warn">原連結交易已不存在</p>}
     {pending&&<>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected} disabled={!safe||busy} onChange={(e)=>onSelect(c.id,e.target.checked)} />加入本次安全批次{!safe?"（此筆需逐筆核對）":""}</label>
-      <label className="block text-sm">分類<select aria-label={`${c.merchant||"商家未明"} 分類`} className={fieldClass} value={category} disabled={busy} onChange={(e)=>setCategory(e.target.value)}><option value="">請選擇分類</option>{data.categories.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
-      <label className="block text-sm">支付方式<select aria-label={`${c.merchant||"商家未明"} 支付方式`} className={fieldClass} value={payment} disabled={busy} onChange={(e)=>setPayment(e.target.value)}><option value="">請選擇支付方式</option>{data.payments.map((o)=><option key={o.id} value={o.id}>{o.name}{o.id===c.suggested_payment_id?"（來源建議，可改選）":""}</option>)}</select></label>
-      <label className="block text-sm">已記過：選擇本人既有交易<select aria-label={`${c.merchant||"商家未明"} 既有交易`} className={fieldClass} value={link} disabled={busy} onChange={(e)=>setLink(e.target.value)}><option value="">請人工選擇，不自動配對</option>{options.map((t)=><option key={t.id} value={t.id}>{t.date} ${t.amount} {t.note}</option>)}</select></label>
+      <label className="block text-sm">分類<select aria-label={`${c.merchant||"商家未明"} 分類`} className={fieldClass} value={category} disabled={busy} onChange={(e)=>{setCategory(e.target.value);setConfirmed(false);setResolve(false);}}><option value="">請選擇分類</option>{data.categories.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
+      <label className="block text-sm">支付方式<select aria-label={`${c.merchant||"商家未明"} 支付方式`} className={fieldClass} value={payment} disabled={busy} onChange={(e)=>{setPayment(e.target.value);setConfirmed(false);setResolve(false);}}><option value="">請選擇支付方式</option>{data.payments.map((o)=><option key={o.id} value={o.id}>{o.name}{o.id===c.suggested_payment_id?"（來源建議，可改選）":""}</option>)}</select></label>
+      <label className="block text-sm">已記過：選擇本人既有交易<select aria-label={`${c.merchant||"商家未明"} 既有交易`} className={fieldClass} value={link} disabled={busy} onChange={(e)=>{setLink(e.target.value);setConfirmed(false);setResolve(false);}}><option value="">請人工選擇，不自動配對</option>{options.map((t)=><option key={t.id} value={t.id}>{t.date} ${t.amount} {t.note}</option>)}</select></label>
       {risky&&<label className="flex gap-2 text-sm"><input type="checkbox" checked={resolve} disabled={busy} onChange={(e)=>setResolve(e.target.checked)} />我已逐筆核對上述疑問</label>}
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(e)=>setConfirmed(e.target.checked)} />我確認本筆處理方式</label>
       <div className="flex flex-wrap gap-2">{(Object.keys(actionLabels) as CtbcAction[]).map((action)=><button key={action} type="button" className={buttonClass} disabled={busy||!confirmed||(action!=="defer"&&risky&&!resolve)||(action==="import"&&(!category||!payment||c.warnings.includes("source_payload_conflict")))||(action==="link"&&!link)} onClick={()=>void execute(action)}>{actionLabels[action]}</button>)}</div>
@@ -78,7 +78,7 @@ export function CtbcInboxClient() {
   };
   const act=async(command:Omit<CtbcCommand,"actionKey">)=>{
     if(inFlight.current)return;inFlight.current=true;setBusy(true);setError("");
-    try{await submit(command);setMessage(ctbcFeedback[command.action]);await reload();}catch(e){setError((e as Error).message);}finally{inFlight.current=false;setBusy(false);}
+    try{await submit(command);setMessage(ctbcFeedback[command.action]);await reload();}catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{inFlight.current=false;setBusy(false);}
   };
   const batch=async()=>{
     if(!data||inFlight.current||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0)return;
@@ -92,7 +92,7 @@ export function CtbcInboxClient() {
       const count=(status:string)=>result.results.filter((r:{status:string})=>r.status===status).length;
       setMessage(`本次批次：成功 ${count("success")} 筆、衝突或未確認 ${count("conflict")} 筆、未提交 ${count("not_submitted")} 筆；成功筆尚未與月結帳單核對`);
       await reload();
-    }catch(e){setError((e as Error).message);}finally{setBatchConfirmed(false);inFlight.current=false;setBusy(false);}
+    }catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{setBatchConfirmed(false);inFlight.current=false;setBusy(false);}
   };
   const run=data?.latestRun;
   return <main className="min-h-screen bg-background text-on-surface"><div className="mx-auto max-w-md space-y-4 px-4 py-4 pb-24">
