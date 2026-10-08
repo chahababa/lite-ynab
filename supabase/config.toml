@@ -1,2 +1,6 @@
 # Local-only Supabase stack identifier; this is not a remote project reference.
 project_id = "lite-ynab-local"
+
+# Temporary wrapper-test branch only: match the wrapper's explicit PG17 guard.
+[db]
+major_version = 17

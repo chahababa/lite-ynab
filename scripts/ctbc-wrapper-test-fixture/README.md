@@ -3,6 +3,9 @@
 This temporary branch has no PR or production execution grant. Its branch-only
 workflow provisions local Supabase on Linux and runs only the wrapper's rollback,
 partial-object STOP, and successful apply / two-phase readback cases.
+The disposable database is explicitly PostgreSQL 17, as required by the unchanged
+wrapper identity and transaction-timeout guards. The initial default-version run
+stopped before DDL because it did not recognize `transaction_timeout`.
 
 The SQL templates preserve the private wrapper and readback control flow, original
 role DDL and migrations, history writes and postguards. Before publication a local
