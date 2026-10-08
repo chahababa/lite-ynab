@@ -292,6 +292,32 @@ describe("POST /api/hermes/transactions", () => {
     expect(mocks.duplicateBuilders[0].eq).toHaveBeenCalledWith("source_id", "telegram:123:456");
   });
 
+  it.each([
+    { code: "23505", sourceId: "telegram:race", readback: { data: { id: "race-existing" }, error: null }, status: 200 },
+    { code: "23505", sourceId: "telegram:race", readback: { data: null, error: null }, status: 409 },
+    { code: "23505", sourceId: "telegram:race", readback: { data: { id: "" }, error: null }, status: 409 },
+    { code: "23505", sourceId: "telegram:race", readback: { data: null, error: { code: "42501" } }, status: 500 },
+    { code: "23505", sourceId: null, readback: { data: null, error: null }, status: 500 },
+    { code: "23503", sourceId: "telegram:race", readback: { data: null, error: null }, status: 500 },
+  ])("handles insertion $code with source $sourceId and readback $readback: $status", async ({ code, sourceId, readback, status }) => {
+    mocks.duplicateMaybeSingle.mockResolvedValueOnce({ data: null, error: null }).mockResolvedValueOnce(readback);
+    mocks.insert.mockReturnValue({ select: () => ({ single: async () => ({ data: null, error: { code } }) }) });
+    const { POST } = await import("./route");
+    const response = await POST(new Request("https://lite-ynab.test/api/hermes/transactions", {
+      method: "POST", headers: { Authorization: "Bearer secret" },
+      body: JSON.stringify({ text: "早餐 85 現金", sourceId, baseDate: "2026-05-18" }),
+    }));
+    expect(response.status).toBe(status);
+    const result = await response.json();
+    if (status === 200) expect(result).toEqual({ ok: true, duplicate: true, transactionId: "race-existing" });
+    else expect(result.ok).toBe(false);
+    const expectsReadback = code === "23505" && Boolean(sourceId);
+    expect(mocks.duplicateBuilders).toHaveLength(sourceId ? (expectsReadback ? 2 : 1) : 0);
+    for (const builder of mocks.duplicateBuilders) {
+      expect(builder.eq.mock.calls).toEqual([["user_id", "user-1"], ["source", "hermes"], ["source_id", sourceId]]);
+    }
+  });
+
   it("rejects POST without a configured tenant before Supabase access", async () => {
     delete process.env.LITEYNAB_USER_ID;
     const { POST } = await import("./route");

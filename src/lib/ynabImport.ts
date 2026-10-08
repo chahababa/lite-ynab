@@ -558,20 +558,28 @@ export async function importYnabPreviewToLiteYnab(
     })
     .filter((value): value is NonNullable<typeof value> => value !== null);
 
+  let importedTransactionCount = 0;
   for (let index = 0; index < transactionsToInsert.length; index += 200) {
     const chunk = transactionsToInsert.slice(index, index + 200);
-    const insertTransactionsResult = await supabase.from("transactions").insert(chunk);
+    const insertTransactionsResult = await supabase
+      .from("transactions")
+      .upsert(chunk, { onConflict: "user_id,source,source_id", ignoreDuplicates: true })
+      .select("id");
 
     if (insertTransactionsResult.error) {
       throw insertTransactionsResult.error;
     }
+    if (!Array.isArray(insertTransactionsResult.data)) {
+      throw new Error("無法確認實際匯入筆數，請重新載入後確認");
+    }
+    importedTransactionCount += insertTransactionsResult.data.length;
   }
 
   return {
     createdGroupCount: missingGroups.length,
     createdCategoryCount: categoriesToInsert.length,
     createdPaymentMethodCount: missingPaymentMethods.length,
-    importedTransactionCount: transactionsToInsert.length,
-    skippedDuplicateCount: preview.transactions.length - transactionsToInsert.length,
+    importedTransactionCount,
+    skippedDuplicateCount: preview.transactions.length - importedTransactionCount,
   };
 }

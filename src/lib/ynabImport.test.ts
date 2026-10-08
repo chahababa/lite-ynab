@@ -125,10 +125,11 @@ describe("buildYnabImportPreview", () => {
 
 
 describe("importYnabPreviewToLiteYnab", () => {
-  function createSupabaseMock(existingTransactions: unknown[] = []) {
+  function createSupabaseMock(existingTransactions: unknown[] = [], writeResult?: { data: unknown[] | null; error: { code: string } | null }) {
     const insertedByTable = new Map<string, unknown[][]>();
     const selectCounts = new Map<string, number>();
     const rpcCalls: unknown[] = [];
+    const upsertCalls: Array<{ rows: unknown[]; options: unknown; select: string }> = [];
 
     const tableData: Record<string, unknown[]> = {
       category_groups: [
@@ -185,6 +186,13 @@ describe("importYnabPreviewToLiteYnab", () => {
             order: async () => result,
           };
         },
+        upsert: (rows: unknown[], options: unknown) => ({
+          select: async (select: string) => {
+            upsertCalls.push({ rows, options, select });
+            insertedByTable.set(table, [...(insertedByTable.get(table) ?? []), rows]);
+            return writeResult ?? { data: rows.map((_, index) => ({ id: `new-${index}` })), error: null };
+          },
+        }),
         insert: async (rows: unknown[]) => {
           const rowsArray = Array.isArray(rows) ? rows : [rows];
           insertedByTable.set(table, [...(insertedByTable.get(table) ?? []), rowsArray]);
@@ -194,7 +202,7 @@ describe("importYnabPreviewToLiteYnab", () => {
       }),
     };
 
-    return { supabase, insertedByTable, rpcCalls };
+    return { supabase, insertedByTable, rpcCalls, upsertCalls };
   }
 
   const preview = {
@@ -277,5 +285,41 @@ describe("importYnabPreviewToLiteYnab", () => {
     expect(result.importedTransactionCount).toBe(0);
     expect(result.skippedDuplicateCount).toBe(1);
     expect(insertedByTable.get("transactions")).toBeUndefined();
+  });
+
+  it("counts only returned inserted IDs when a source races after the precheck", async () => {
+    const { supabase, upsertCalls } = createSupabaseMock([], { data: [{ id: "inserted" }], error: null });
+    const result = await importYnabPreviewToLiteYnab(supabase as never, {
+      ...preview,
+      transactions: [preview.transactions[0], { ...preview.transactions[0], sourceId: "ynab-tx-2", amount: 126 }],
+    });
+    expect(result).toMatchObject({ importedTransactionCount: 1, skippedDuplicateCount: 1 });
+    expect(upsertCalls).toHaveLength(1);
+    expect(upsertCalls[0]).toMatchObject({ options: { onConflict: "user_id,source,source_id", ignoreDuplicates: true }, select: "id" });
+  });
+
+  it("reports a fully raced chunk as skipped, with zero inserted rows", async () => {
+    const { supabase } = createSupabaseMock([], { data: [], error: null });
+    const result = await importYnabPreviewToLiteYnab(supabase as never, preview);
+    expect(result).toMatchObject({ importedTransactionCount: 0, skippedDuplicateCount: 1 });
+  });
+
+  it("sums actual insert counts across the existing 200-row chunk boundary", async () => {
+    const { supabase, upsertCalls } = createSupabaseMock();
+    const result = await importYnabPreviewToLiteYnab(supabase as never, {
+      ...preview, transactions: Array.from({ length: 201 }, (_, i) => ({ ...preview.transactions[0], sourceId: `chunk-${i}`, amount: 1000 + i })),
+    });
+    expect(upsertCalls.map((call) => call.rows.length)).toEqual([200, 1]);
+    expect(result).toMatchObject({ importedTransactionCount: 201, skippedDuplicateCount: 0 });
+  });
+
+  it.each(["23503", "42501", "23505"])("does not mask database error %s as skipped", async (code) => {
+    const { supabase } = createSupabaseMock([], { data: null, error: { code } });
+    await expect(importYnabPreviewToLiteYnab(supabase as never, preview)).rejects.toEqual({ code });
+  });
+
+  it("does not infer successful counts without an insert representation", async () => {
+    const { supabase } = createSupabaseMock([], { data: null, error: null });
+    await expect(importYnabPreviewToLiteYnab(supabase as never, preview)).rejects.toThrow("無法確認實際匯入筆數");
   });
 });
