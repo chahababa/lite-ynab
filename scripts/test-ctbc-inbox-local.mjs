@@ -126,6 +126,8 @@ try{
  const row=name=>page.getByRole('article',{name:new RegExp(`^${name} `)});
  const act=async(name,action)=>{const card=row(name);await card.getByLabel('我確認本筆處理方式').check();await card.getByRole('button',{name:action,exact:true}).click();};
  const card=row('合成補記');assert.equal(await card.getByRole('button',{name:'補記',exact:true}).isEnabled(),false);
+ assert.ok((await card.getByRole('button',{name:'補記',exact:true}).boundingBox()).height>=40);
+ assert.equal(await card.evaluate(node=>getComputedStyle(node).borderTopStyle),'solid');
  await page.getByLabel('合成補記 分類',{exact:true}).selectOption(a.category);await page.getByLabel('合成補記 支付方式',{exact:true}).selectOption(a.payment);
  await act('合成補記','補記');await page.getByRole('status').filter({hasText:'已補記，尚未與月結帳單核對'}).waitFor();
  await page.reload();await page.getByRole('heading',{name:'待確認交易（6）',exact:true}).waitFor();

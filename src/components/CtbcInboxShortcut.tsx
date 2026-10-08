@@ -16,5 +16,5 @@ export function CtbcInboxShortcut(){
     return()=>{active=false;};
   },[]);
   if(count===null)return null;
-  return <Link href="/settings/email-import" className="m3-card block hover:bg-primary-container active:bg-primary-container focus-visible:outline focus-visible:outline-primary"><span className="text-title-md">待確認交易 <span className="num">{count}</span></span><p className="text-sm text-on-surface-variant">信用卡通知待辦 · 尚未與月結帳單核對</p></Link>;
+  return <Link href="/settings/email-import" className="rounded-md border border-outline bg-surface p-5 block hover:bg-primary-container active:bg-primary-container focus-visible:outline focus-visible:outline-primary"><span className="text-title-md">待確認交易 <span className="font-mono tabular-nums">{count}</span></span><p className="text-sm text-on-surface-variant">信用卡通知待辦 · 尚未與月結帳單核對</p></Link>;
 }

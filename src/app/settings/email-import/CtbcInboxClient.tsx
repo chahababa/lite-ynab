@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { Button as M3Button } from "@/components/m3/Button";
+import { MoneyText } from "@/components/m3/MoneyText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ctbcFeedback, ctbcWarnings, type CtbcAction, type CtbcCandidate, type CtbcCommand, type CtbcInboxData } from "@/lib/ctbcInbox";
@@ -7,8 +9,9 @@ import { ctbcFeedback, ctbcWarnings, type CtbcAction, type CtbcCandidate, type C
 const runLabels: Record<string,string> = { received:"收集進行中",ready_for_review:"候選已保存；不代表完整蒐集或核帳",partial_failure:"部分收集失敗，警示會保留",failed:"收集失敗，未能確認",missed_run:"應跑但未跑，需受控補捕",retry_expired:"本日重試已逾期",no_message:"未找到符合條件通知，不代表零支出",zero_new_candidates:"本次沒有新增候選，前次待辦保留" };
 const statusLabels: Record<string,string> = { needs_review:"待確認",conflict:"需人工核對",imported:"已補記",already_recorded:"已連結既有交易",ignored:"已忽略",work_excluded:"已排除個人帳",expired:"已到期" };
 const actionLabels: Record<CtbcAction,string> = { import:"補記",link:"已記過",ignore:"忽略",defer:"稍後處理",work:"工作支出／排除" };
-const fieldClass = "m3-field-input w-full min-h-10 border border-outline rounded-xs bg-surface px-3 focus:outline-primary";
-const buttonClass = "m3-btn m3-btn-outlined min-h-10 hover:bg-primary-container active:bg-primary-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40";
+const fieldClass = "w-full min-h-10 border border-outline rounded-xs bg-surface px-3 focus:outline-primary";
+const buttonClass = "max-w-full";
+const showTime=(value:string|null)=>value?new Date(value).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"尚無";
 
 function CandidateRow({ candidate:c, data, busy, selected, onSelect, onAct }: {
   candidate:CtbcCandidate; data:CtbcInboxData; busy:boolean; selected:boolean;
@@ -29,10 +32,10 @@ function CandidateRow({ candidate:c, data, busy, selected, onSelect, onAct }: {
     await onAct({candidateId:c.id,expectedVersion:c.version,action,categoryId:action==="import"?category:null,paymentId:action==="import"?payment:null,linkedId:action==="link"?link:null,resolveRisk:resolve});
     setConfirmed(false);
   };
-  return <article className="m3-card space-y-3" aria-label={`${c.merchant||"商家未明"} ${statusLabels[c.status]}`}>
+  return <article className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label={`${c.merchant||"商家未明"} ${statusLabels[c.status]}`}>
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="text-title-md break-words">{c.merchant||"商家未明"}</h2><p className="text-sm text-on-surface-variant">{c.occurred_at?new Date(c.occurred_at).toLocaleDateString("zh-TW",{timeZone:"Asia/Taipei"}):"明細已清除"} · {statusLabels[c.status]}{c.late?" · 晚到通知":""}</p></div>
-      <span className="num num-expense whitespace-nowrap">{c.amount===null?"—":`$${c.amount.toLocaleString("zh-TW")}`}</span>
+      <span className="whitespace-nowrap">{c.amount===null?"—":<MoneyText value={c.amount} type="expense" prefix={false} />}</span>
     </div>
     {c.product&&<p className="text-sm">{c.product} · {c.card_role==="primary"?"正卡":c.card_role==="supplementary"?"附卡":"卡別待確認"}</p>}
     {c.warnings.length>0&&<ul className="text-sm text-money-warn space-y-1">{c.warnings.map((w)=><li key={w}>{ctbcWarnings[w]||"資料需核對"}</li>)}</ul>}
@@ -44,7 +47,7 @@ function CandidateRow({ candidate:c, data, busy, selected, onSelect, onAct }: {
       <label className="block text-sm">已記過：選擇本人既有交易<select aria-label={`${c.merchant||"商家未明"} 既有交易`} className={fieldClass} value={link} disabled={busy} onChange={(e)=>{setLink(e.target.value);setConfirmed(false);setResolve(false);}}><option value="">請人工選擇，不自動配對</option>{options.map((t)=><option key={t.id} value={t.id}>{t.date} ${t.amount} {t.note}</option>)}</select></label>
       {risky&&<label className="flex gap-2 text-sm"><input type="checkbox" checked={resolve} disabled={busy} onChange={(e)=>setResolve(e.target.checked)} />我已逐筆核對上述疑問</label>}
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(e)=>setConfirmed(e.target.checked)} />我確認本筆處理方式</label>
-      <div className="flex flex-wrap gap-2">{(Object.keys(actionLabels) as CtbcAction[]).map((action)=><button key={action} type="button" className={buttonClass} disabled={busy||!confirmed||(action!=="defer"&&risky&&!resolve)||(action==="import"&&(!category||!payment||c.warnings.includes("source_payload_conflict")))||(action==="link"&&!link)} onClick={()=>void execute(action)}>{actionLabels[action]}</button>)}</div>
+      <div className="flex flex-wrap gap-2">{(Object.keys(actionLabels) as CtbcAction[]).map((action)=><M3Button variant="outlined" key={action} type="button" className={buttonClass} disabled={busy||!confirmed||(action!=="defer"&&risky&&!resolve)||(action==="import"&&(!category||!payment||c.warnings.includes("source_payload_conflict")))||(action==="link"&&!link)} onClick={()=>void execute(action)}>{actionLabels[action]}</M3Button>)}</div>
     </>}
   </article>;
 }
@@ -99,19 +102,19 @@ export function CtbcInboxClient() {
     <Link className="text-primary hover:underline focus-visible:outline" href="/settings">返回設定</Link>
     <h1 className="text-headline-sm">待確認交易{data?`（${data.pendingCount}）`:""}</h1>
     <p className="text-sm text-on-surface-variant">信用卡通知僅供補記參考；尚未與月結帳單核對。只有本人確認補記後才進個人帳本。</p>
-    <section className="m3-card text-sm space-y-2" aria-label="收集狀態"><p>{run?runLabels[run.status]||"未能確認收集狀態":"尚未成功執行"}</p>{run&&<><p>排程日：{run.slot_date}；涵蓋前三個台北交易日，固定 17:00 截止</p><p>最近嘗試：{run.last_attempt_at||"尚無"}；最近完成：{run.last_success_at||"尚無"}</p><p>失敗 {run.failures} · 拒絕 {run.rejected} · 超窗 {run.outside_window} · 當日延後 {run.deferred}</p></>}<p>通知可能晚到；本頁不代表完整蒐集、零支出或已核帳。</p></section>
-    {message&&<p role="status" className="m3-card bg-primary-container">{message}</p>}{error&&<p role="alert" className="m3-card text-money-warn">{error}</p>}
-    <button type="button" className={buttonClass} disabled={busy} onClick={()=>{setError("");void reload().catch((e)=>setError(e.message));}}>重新載入待辦</button>
+    <section className="rounded-md border border-outline bg-surface p-5 text-sm space-y-2" aria-label="收集狀態"><p>{run?runLabels[run.status]||"未能確認收集狀態":"尚未成功執行"}</p>{run&&<><p>排程日：{run.slot_date}；涵蓋前三個台北交易日，固定 17:00 截止</p><p>最近嘗試：{showTime(run.last_attempt_at)}；最近完成：{showTime(run.last_success_at)}</p><p>失敗 {run.failures} · 拒絕 {run.rejected} · 超窗 {run.outside_window} · 當日延後 {run.deferred}</p></>}<p>通知可能晚到；本頁不代表完整蒐集、零支出或已核帳。</p></section>
+    {message&&<p role="status" className="rounded-md border border-outline bg-primary-container p-5">{message}</p>}{error&&<p role="alert" className="rounded-md border border-outline bg-surface p-5 text-money-warn">{error}</p>}
+    <M3Button variant="outlined" type="button" className={buttonClass} disabled={busy} onClick={()=>{setError("");void reload().catch((e)=>setError(e.message));}}>重新載入待辦</M3Button>
     {!data&&!error&&<p role="status">載入待確認交易中</p>}
     {data&&<>
-      <section className="m3-card space-y-3" aria-label="安全批次補記"><h2 className="text-title-md">安全批次補記（{selected.length} 筆）</h2>
+      <section className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label="安全批次補記"><h2 className="text-title-md">安全批次補記（{selected.length} 筆）</h2>
         <label className="block text-sm">共同分類<select aria-label="批次分類" className={fieldClass} disabled={busy} value={batchCategory} onChange={(e)=>setBatchCategory(e.target.value)}><option value="">請選擇</option>{data.categories.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className="block text-sm">共同支付方式<select aria-label="批次支付方式" className={fieldClass} disabled={busy} value={batchPayment} onChange={(e)=>setBatchPayment(e.target.value)}><option value="">請選擇</option>{data.payments.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <p className="text-sm">僅處理你明確勾選且無風險的候選；每筆獨立提交。</p>
         <label className="flex gap-2 text-sm"><input type="checkbox" checked={batchConfirmed} disabled={busy} onChange={(e)=>setBatchConfirmed(e.target.checked)} />我確認所選 {selected.length} 筆與共同分類、支付方式</label>
-        <button className={buttonClass} disabled={busy||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0} onClick={()=>void batch()}>確認批次補記</button>
+        <M3Button variant="outlined" className={buttonClass} disabled={busy||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0} onClick={()=>void batch()}>確認批次補記</M3Button>
       </section>
-      {data.candidates.length===0&&<p className="m3-card">目前沒有待確認候選；收集警示仍以上方狀態為準。</p>}
+      {data.candidates.length===0&&<p className="rounded-md border border-outline bg-surface p-5">目前沒有待確認候選；收集警示仍以上方狀態為準。</p>}
       {data.candidates.map((c)=><CandidateRow key={`${c.id}:${c.version}`} candidate={c} data={data} busy={busy} selected={selected.includes(c.id)} onSelect={(id,checked)=>{setBatchConfirmed(false);setSelected((old)=>checked?[...old,id]:old.filter((x)=>x!==id));}} onAct={act}/>)}
     </>}
   </div></main>;
