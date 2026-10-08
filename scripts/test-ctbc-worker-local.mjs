@@ -38,7 +38,7 @@ try {
  const due=ok(await admin.from('ctbc_batches').select('*').eq('scope_id',scope).eq('slot_date',today));
  if (Date.now()<slot.end) assert.equal(due.length,0);
  else assert.equal(due[0].attempts,1);
- proof.nativeDueGate=true;
+ proof.nativeDueGate=Date.now()<slot.end?'before_17_denied':'after_17_claimed';
  // Synthetic attempt fixtures exercise fault paths independent of CI wall time,
  // exactly like the frozen inbox test's isolated lease fixtures.
  const batch=due[0] ?? ok(await admin.from('ctbc_batches').insert({scope_id:scope,user_id:user,slot_date:today,
@@ -64,6 +64,9 @@ try {
  assert.equal(ok(await admin.from('ctbc_collector_scopes').select('fence,active_batch').eq('id',scope).single()).fence,101);
  const partial=await rpc('ctbc_worker_commit',{...commitArgs,p_fence:101,p_counts:{messages:1,failures:1},p_complete:false,p_error:'provider_failed'});
  assert.equal(partial.status,'partial_failure');
+ const retryAt=ok(await admin.from('ctbc_batches').select('next_attempt_at').eq('id',batch.id).single()).next_attempt_at;
+ const fifteen=Math.min(Date.now()+900000,slot.stop)-Date.parse(retryAt);assert.ok(fifteen>=0&&fifteen<10000);
+ proof.fifteenMinuteBackoff=true;
  assert.ok(ok(await admin.from('ctbc_candidates').select('warnings').eq('user_id',user)).every(c=>c.warnings.includes('partial_batch')));
  proof.oldFenceCannotCloseNewAttempt=true;proof.partialPreserved=true;
  await fixtureAttempt(102,3);

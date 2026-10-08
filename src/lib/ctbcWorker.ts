@@ -6,6 +6,7 @@ type Attempt = { code: string; batchId: string; fence: number; deadline: string;
 type Runtime = {
   client: RpcClient; config: CtbcWorkerConfig;
   gmail: (signal: AbortSignal) => Promise<CtbcGmailClient>;
+  signal?: AbortSignal;
 };
 const binding = (c: CtbcWorkerConfig) => ({ p_scope: c.scope, p_owner: c.owner, p_mailbox: c.mailboxBinding });
 // Never throw provider/DB response messages into caller logs.
@@ -27,7 +28,8 @@ export async function runCtbcAttempt(runtime: Runtime, attempt: Attempt) {
   }
   // Reserve 30 seconds of the SQL lease for committing/reconciling. Every
   // provider call shares this signal and an additional per-request deadline.
-  const signal = AbortSignal.timeout(Math.max(1, Math.min(ms, 900_000) - 30_000));
+  const deadlineSignal = AbortSignal.timeout(Math.max(1, Math.min(ms, 900_000) - 30_000));
+  const signal = runtime.signal ? AbortSignal.any([deadlineSignal, runtime.signal]) : deadlineSignal;
   try {
     const gmail = await runtime.gmail(signal);
     const prepared = await readCtbcGmailSlot(gmail, c, attempt.slotDate);
@@ -67,10 +69,10 @@ function serviceClient(env: Readonly<Record<string, string | undefined>>) {
     fetch: (input, init) => fetch(input, { ...init, redirect: "error", signal: AbortSignal.timeout(30_000) }),
   } });
 }
-export async function runCtbcWorkerOnce(env: Readonly<Record<string, string | undefined>> = process.env) {
+export async function runCtbcWorkerOnce(env: Readonly<Record<string, string | undefined>> = process.env, signal?: AbortSignal) {
   if (env.CTBC_COLLECTOR_ENABLED !== "true") return { code: "disabled" };
   const config = readCtbcWorkerConfig(env); // before DB, OAuth or mail access
-  return tickCtbcWorker({ client: serviceClient(env), config, gmail: signal => createCtbcGmailClient(env, signal) });
+  return tickCtbcWorker({ client: serviceClient(env), config, signal, gmail: attemptSignal => createCtbcGmailClient(env, attemptSignal) });
 }
 export async function runCtbcRetentionOnce(env: Readonly<Record<string, string | undefined>> = process.env) {
   // Independent of collector/provenance/account, so stopping collection does

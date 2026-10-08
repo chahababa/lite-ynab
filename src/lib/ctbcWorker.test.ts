@@ -50,6 +50,12 @@ describe("CTBC execution reconciliation", () => {
     expect(calls[1][1]).toMatchObject({ p_fence: 1, p_code: "provider_failed", p_owner: config.owner });
     expect(JSON.stringify(calls)).not.toContain("secret/raw");
   });
+  it("an expired lease is finalized without provider access", async () => {
+    const gmail = vi.fn(), calls: string[] = [];
+    const db = client(name => { calls.push(name); return { data: { code: name === "ctbc_worker_probe" ? "running" : "failed" } }; });
+    expect(await runCtbcAttempt({ client: db, config, gmail }, { ...attempt(), deadline: new Date(Date.now() - 1).toISOString() })).toEqual({ code: "failed" });
+    expect(gmail).not.toHaveBeenCalled(); expect(calls).toEqual(["ctbc_worker_probe", "ctbc_worker_finish"]);
+  });
   it("retention counts without collection config or mail access", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
       expect(JSON.parse(String(init?.body))).toEqual({ p_dry_run: true, p_limit: 200 });

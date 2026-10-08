@@ -14,7 +14,7 @@ process.once('SIGTERM', () => controller.abort());
 process.once('SIGINT', () => controller.abort());
 do {
   try {
-    const result = await (retention ? runCtbcRetentionOnce() : runCtbcWorkerOnce());
+    const result = await (retention ? runCtbcRetentionOnce() : runCtbcWorkerOnce(process.env, controller.signal));
     // Fixed codes/counts only; never raw error/provider/config/selector/IDs.
     console.log(JSON.stringify({ code: typeof result.code === 'string' ? result.code : 'retention_counted',
       ...(retention && !result.code ? { expire: result.expire, scrub: result.scrub, purge: result.purge } : {}) }));

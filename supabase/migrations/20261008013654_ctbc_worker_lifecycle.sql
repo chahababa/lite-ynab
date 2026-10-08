@@ -89,7 +89,7 @@ begin
  if clock_timestamp()>=s.lease_until or clock_timestamp()>=(select stops_at from public.ctbc_batches where id=p_batch) then raise exception 'attempt_timeout'; end if;
  update public.ctbc_worker_attempts set status='committed',result=res,finished_at=now() where scope_id=p_scope and fence=p_fence;
  update public.ctbc_batches set error_code=case when status='partial_failure' then coalesce(p_error,'parse_failed') else null end,
-  next_attempt_at=case when last_success_at is not null or attempts>=3 then null else next_attempt_at end where id=p_batch;
+  next_attempt_at=case when last_success_at is not null or attempts>=3 then null else least(stops_at,next_attempt_at) end where id=p_batch;
  if exists(select 1 from public.ctbc_batches where id=p_batch and attempts>=3 and last_success_at is null) then
   update public.ctbc_batches set error_code='retry_budget_exhausted' where id=p_batch;
  end if;

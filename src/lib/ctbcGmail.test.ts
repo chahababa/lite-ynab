@@ -92,4 +92,9 @@ describe("bounded Gmail adapter (synthetic signed MIME, no real network)", () =>
     const huge = new CtbcGmailClient("fixture", new AbortController().signal, vi.fn(async () => new Response("a".repeat(64_001))) as typeof fetch);
     await expect(huge.get("profile")).rejects.toThrow("limit_exceeded");
   });
+  it("bounds pagination even when every page gives a new token", async () => {
+    let page = 0;
+    const result = await readCtbcGmailSlot(provider(url => url.pathname.endsWith("/profile") ? { emailAddress: "synthetic@example.invalid" } : { nextPageToken: `page-${++page}` }), config, date, resolver);
+    expect(page).toBe(3); expect(result.complete).toBe(false); expect(result.errorCode).toBe("limit_exceeded"); expect(result.rows).toHaveLength(0);
+  });
 });
