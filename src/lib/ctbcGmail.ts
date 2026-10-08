@@ -90,7 +90,7 @@ export async function parseCtbcGmailMime(raw: Buffer, id: string, internalDate: 
     return values[0].value;
   };
   const auth = one("authentication-results");
-  for (const name of ["from", "subject", "content-type"]) one(name);
+  for (const name of ["from", "subject", "content-type", ...["content-transfer-encoding", "mime-version"].filter(h => headers.some(v => v.name === h))]) one(name);
   const received = headers.find(h => h.name === "received")?.value;
   const receiptTime = received ? Date.parse(received.slice(received.lastIndexOf(";") + 1)) : NaN;
   if (!received || !/\bby\s+[^\s;]*google\.com\b/i.test(received) || !/\bwith\s+(?:ESMTPS|SMTP)/i.test(received) ||

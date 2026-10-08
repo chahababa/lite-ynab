@@ -22,9 +22,11 @@ grant all on public.ctbc_worker_cursors,public.ctbc_worker_attempts to service_r
 create function public.ctbc_worker_binding(p_scope uuid,p_owner uuid,p_mailbox uuid) returns void
 language plpgsql security invoker set search_path=pg_catalog,public as $$
 begin
- if current_user<>'service_role' or p_owner is null or p_mailbox is null or not exists(
-  select 1 from public.ctbc_collector_scopes where id=p_scope and user_id=p_owner and mailbox_binding=p_mailbox
- ) then raise exception 'worker_binding_denied'; end if;
+ if current_user<>'service_role' or p_owner is null or p_mailbox is null then raise exception 'worker_binding_denied'; end if;
+ -- Keep identity stable through the complete RPC, including a concurrent
+ -- protected configuration edit. Same lock order for probe/commit/finalizer.
+ perform 1 from public.ctbc_collector_scopes where id=p_scope and user_id=p_owner and mailbox_binding=p_mailbox for update;
+ if not found then raise exception 'worker_binding_denied'; end if;
 end $$;
 revoke all on function public.ctbc_worker_binding(uuid,uuid,uuid) from public,anon,authenticated;
 grant execute on function public.ctbc_worker_binding(uuid,uuid,uuid) to service_role;
