@@ -108,8 +108,8 @@ export function CtbcInboxClient() {
     {!data&&!error&&<p role="status">載入待確認交易中</p>}
     {data&&<>
       <section className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label="安全批次補記"><h2 className="text-title-md">安全批次補記（{selected.length} 筆）</h2>
-        <label className="block text-sm">共同分類<select aria-label="批次分類" className={fieldClass} disabled={busy} value={batchCategory} onChange={(e)=>setBatchCategory(e.target.value)}><option value="">請選擇</option>{data.categories.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <label className="block text-sm">共同支付方式<select aria-label="批次支付方式" className={fieldClass} disabled={busy} value={batchPayment} onChange={(e)=>setBatchPayment(e.target.value)}><option value="">請選擇</option>{data.payments.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        <label className="block text-sm">共同分類<select aria-label="批次分類" className={fieldClass} disabled={busy} value={batchCategory} onChange={(e)=>{setBatchCategory(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.categories.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+        <label className="block text-sm">共同支付方式<select aria-label="批次支付方式" className={fieldClass} disabled={busy} value={batchPayment} onChange={(e)=>{setBatchPayment(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.payments.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <p className="text-sm">僅處理你明確勾選且無風險的候選；每筆獨立提交。</p>
         <label className="flex gap-2 text-sm"><input type="checkbox" checked={batchConfirmed} disabled={busy} onChange={(e)=>setBatchConfirmed(e.target.checked)} />我確認所選 {selected.length} 筆與共同分類、支付方式</label>
         <M3Button variant="outlined" className={buttonClass} disabled={busy||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0} onClick={()=>void batch()}>確認批次補記</M3Button>
