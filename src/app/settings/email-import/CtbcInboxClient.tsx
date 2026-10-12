@@ -57,8 +57,11 @@ export function CtbcInboxClient() {
   const [data,setData]=useState<CtbcInboxData|null>(null);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
-  const [busy,setBusy]=useState(false);
+  const [acting,setActing]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
+  const busy=acting||refreshing;
   const inFlight=useRef(false);
+  const reloadInFlight=useRef(false);
   const [selected,setSelected]=useState<string[]>([]);
   const [batchCategory,setBatchCategory]=useState("");
   const [batchPayment,setBatchPayment]=useState("");
@@ -72,7 +75,17 @@ export function CtbcInboxClient() {
     if(!response.ok)throw new Error(response.status===409?"資料已變更或處理條件不符，請重新載入後核對":response.status===401?"請重新登入":"目前無法確認處理結果，請重新載入後再核對；重試會沿用原操作識別");
     return response.json();
   },[client]);
-  const reload=useCallback(async()=>{const fresh=await api("GET") as CtbcInboxData;setData(fresh);setSelected((old)=>old.filter((id)=>fresh.candidates.some((c)=>c.id===id&&c.status==="needs_review"&&c.warnings.length===0)));},[api]);
+  const reload=useCallback(async()=>{
+    if(reloadInFlight.current)return;
+    reloadInFlight.current=true;setRefreshing(true);setBatchConfirmed(false);
+    try{
+      const fresh=await api("GET") as CtbcInboxData;
+      setData(fresh);setSelected((old)=>old.filter((id)=>fresh.candidates.some((c)=>c.id===id&&c.status==="needs_review"&&c.warnings.length===0)));
+    }finally{
+      // A refresh never carries acknowledgement across snapshots, even on failure.
+      setBatchConfirmed(false);reloadInFlight.current=false;setRefreshing(false);
+    }
+  },[api]);
   useEffect(()=>{let active=true;api("GET").then((d)=>{if(active)setData(d);}).catch((e)=>{if(active)setError(e.message);});return()=>{active=false;};},[api]);
   const submit=async(command:Omit<CtbcCommand,"actionKey">)=>{
     const identity=JSON.stringify(command);
@@ -80,22 +93,22 @@ export function CtbcInboxClient() {
     return api("POST",{...command,actionKey});
   };
   const act=async(command:Omit<CtbcCommand,"actionKey">)=>{
-    if(inFlight.current)return;inFlight.current=true;setBusy(true);setError("");
-    try{await submit(command);setMessage(ctbcFeedback[command.action]);await reload();}catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{inFlight.current=false;setBusy(false);}
+    if(inFlight.current||reloadInFlight.current)return;inFlight.current=true;setActing(true);setError("");
+    try{await submit(command);setMessage(ctbcFeedback[command.action]);await reload();}catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{inFlight.current=false;setActing(false);}
   };
   const batch=async()=>{
-    if(!data||inFlight.current||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0)return;
+    if(!data||inFlight.current||reloadInFlight.current||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0)return;
     if(selected.length>20){setError("每次最多補記 20 筆，請減少勾選後再確認");return;}
     const chosen=data.candidates.filter((c)=>selected.includes(c.id));
     if(chosen.length!==selected.length||chosen.some((c)=>c.status!=="needs_review"||c.warnings.length>0)){setError("批次含需核對項目，請重新載入");return;}
-    inFlight.current=true;setBusy(true);setError("");
+    inFlight.current=true;setActing(true);setError("");
     try{
       const commands=chosen.map((c)=>{const command={candidateId:c.id,expectedVersion:c.version,action:"import" as const,categoryId:batchCategory,paymentId:batchPayment,batch:true};const identity=JSON.stringify(command);const actionKey=keys.current.get(identity)||crypto.randomUUID();keys.current.set(identity,actionKey);return {...command,actionKey};});
       const result=await api("POST",{commands});
       const count=(status:string)=>result.results.filter((r:{status:string})=>r.status===status).length;
       setMessage(`本次批次：成功 ${count("success")} 筆、衝突或未確認 ${count("conflict")} 筆、未提交 ${count("not_submitted")} 筆；成功筆尚未與月結帳單核對`);
       await reload();
-    }catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{setBatchConfirmed(false);inFlight.current=false;setBusy(false);}
+    }catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{setBatchConfirmed(false);inFlight.current=false;setActing(false);}
   };
   const run=data?.latestRun;
   return <main className="min-h-screen bg-background text-on-surface"><div className="mx-auto max-w-md space-y-4 px-4 py-4 pb-24">
@@ -104,14 +117,14 @@ export function CtbcInboxClient() {
     <p className="text-sm text-on-surface-variant">信用卡通知僅供補記參考；尚未與月結帳單核對。只有本人確認補記後才進個人帳本。</p>
     <section className="rounded-md border border-outline bg-surface p-5 text-sm space-y-2" aria-label="收集狀態"><p>{run?runLabels[run.status]||"未能確認收集狀態":"尚未成功執行"}</p>{run&&<><p>排程日：{run.slot_date}；涵蓋前三個台北交易日，固定 17:00 截止</p><p>最近嘗試：{showTime(run.last_attempt_at)}；最近完成：{showTime(run.last_success_at)}</p><p>失敗 {run.failures} · 拒絕 {run.rejected} · 超窗 {run.outside_window} · 當日延後 {run.deferred}</p></>}<p>通知可能晚到；本頁不代表完整蒐集、零支出或已核帳。</p></section>
     {message&&<p role="status" className="rounded-md border border-outline bg-primary-container p-5">{message}</p>}{error&&<p role="alert" className="rounded-md border border-outline bg-surface p-5 text-money-warn">{error}</p>}
-    <M3Button variant="outlined" type="button" className={buttonClass} disabled={busy} onClick={()=>{setError("");void reload().catch((e)=>setError(e.message));}}>重新載入待辦</M3Button>
+    <M3Button variant="outlined" type="button" className={buttonClass} disabled={busy||(!data&&!error)} onClick={()=>{if(inFlight.current||reloadInFlight.current)return;setError("");void reload().catch((e)=>setError(e.message));}}>重新載入待辦</M3Button>
     {!data&&!error&&<p role="status">載入待確認交易中</p>}
     {data&&<>
       <section className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label="安全批次補記"><h2 className="text-title-md">安全批次補記（{selected.length} 筆）</h2>
         <label className="block text-sm">共同分類<select aria-label="批次分類" className={fieldClass} disabled={busy} value={batchCategory} onChange={(e)=>{setBatchCategory(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.categories.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className="block text-sm">共同支付方式<select aria-label="批次支付方式" className={fieldClass} disabled={busy} value={batchPayment} onChange={(e)=>{setBatchPayment(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.payments.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <p className="text-sm">僅處理你明確勾選且無風險的候選；每筆獨立提交。</p>
-        <label className="flex gap-2 text-sm"><input type="checkbox" checked={batchConfirmed} disabled={busy} onChange={(e)=>setBatchConfirmed(e.target.checked)} />我確認所選 {selected.length} 筆與共同分類、支付方式</label>
+        <label className="flex gap-2 text-sm"><input type="checkbox" checked={batchConfirmed} disabled={busy} onChange={(e)=>{if(!inFlight.current&&!reloadInFlight.current)setBatchConfirmed(e.target.checked);}} />我確認所選 {selected.length} 筆與共同分類、支付方式</label>
         <M3Button variant="outlined" className={buttonClass} disabled={busy||!batchConfirmed||!batchCategory||!batchPayment||selected.length===0} onClick={()=>void batch()}>確認批次補記</M3Button>
       </section>
       {data.candidates.length===0&&<p className="rounded-md border border-outline bg-surface p-5">目前沒有待確認候選；收集警示仍以上方狀態為準。</p>}
