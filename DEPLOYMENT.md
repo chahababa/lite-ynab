@@ -1,8 +1,8 @@
 # DEPLOYMENT
 
-Lite YNAB 目前部署於 `Zeabur`，資料庫與登入服務使用 `Supabase`。
+Lite YNAB 目前部署於 `Railway`（2026-10-24 自 Zeabur 搬遷；舊網址 lite-ynab.zeabur.app 並行至 2026-12-01），資料庫與登入服務使用 `Supabase`。
 
-正式網址：https://lite-ynab.zeabur.app/
+正式網址：https://ynab.hoochuu.com.tw/
 
 部署日期：2026-04-05
 
@@ -175,7 +175,7 @@ LITEYNAB_USER_ID=
 - 若已設定外部排程，可用以下方式測試月初固定預算重設 endpoint：
 
 ```bash
-curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-budget-reset?monthId=2026-05" \
+curl -s -X POST "https://ynab.hoochuu.com.tw/api/cron/monthly-budget-reset?monthId=2026-05" \
   -H "Authorization: Bearer ***"
 ```
 
@@ -200,7 +200,7 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-budget-reset?mont
 - 若已設定 Notion / Telegram env，可用以下方式測試月報 endpoint：
 
 ```bash
-curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report?monthId=2026-04" \
+curl -s -X POST "https://ynab.hoochuu.com.tw/api/cron/monthly-expense-report?monthId=2026-04" \
   -H "Authorization: Bearer ***"
 ```
 
@@ -209,14 +209,14 @@ curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report?mo
 若已設定 Google Sheets service account env，先用 dry run 預覽同步內容：
 
 ```bash
-curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sheets?monthId=2026-04&dryRun=1&includeTables=1" \
+curl -s -X POST "https://ynab.hoochuu.com.tw/api/cron/monthly-expense-report/sheets?monthId=2026-04&dryRun=1&includeTables=1" \
   -H "Authorization: Bearer ***"
 ```
 
 確認 rows 後，再正式寫入 Google Sheet：
 
 ```bash
-curl -s -X POST "https://lite-ynab.zeabur.app/api/cron/monthly-expense-report/sheets?monthId=2026-04" \
+curl -s -X POST "https://ynab.hoochuu.com.tw/api/cron/monthly-expense-report/sheets?monthId=2026-04" \
   -H "Authorization: Bearer ***"
 ```
 
