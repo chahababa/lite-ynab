@@ -2,7 +2,7 @@
 
 使用 `Next.js + Supabase` 製作的輕量化記帳與預算規劃系統。
 
-正式網址：https://lite-ynab.zeabur.app/
+正式網址：https://ynab.hoochuu.com.tw/
 
 目前專案已進入可實際操作的 beta 階段，並已部署上線。主流程包含：
 - 日常記帳
