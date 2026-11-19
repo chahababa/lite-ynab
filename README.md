@@ -72,14 +72,19 @@
 npm install
 ```
 
-2. 建立 `.env.local`
+2. 建立 `.env.local`（複製 `.env.example` 後填值）
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-3. 依序套用 Supabase migrations
+   - **本機預設請填 staging 專案（`lite-ynab-staging`）的值**，在本機新增、刪除、匯入都不會動到正式記帳資料
+   - 只有需要用真實資料看畫面時才改填正式專案（`Lite YNAB`）；此時本機的每個操作都會寫進正式帳本
+   - 兩個值都在 Supabase Dashboard → 該專案 → Settings → API Keys；`NEXT_PUBLIC_SUPABASE_ANON_KEY` 填 `sb_publishable_` 開頭的 publishable key（正式專案的 legacy anon key 已停用）
+   - 建議把專案放在 OneDrive 等雲端同步資料夾以外的位置，否則 `node_modules`、`.next` 會被同步拖慢
+
+3. 依序套用 Supabase migrations（以 `supabase/migrations/` 目錄為準，以下為 2026-11-19 的清單）
 
 ```text
 202604020001_init_lite_ynab.sql
@@ -96,7 +101,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 202605210003_fix_duplicate_rent_helper_conflict_target.sql
 202605210004_fix_duplicate_rent_preview_notes_array.sql
 202607030001_month_init_income_carry_no_backfill.sql
+20260703120000_enforce_reference_ownership.sql
+20260917040000_tenant_scoped_monthly_budget_reset.sql
+20260917050000_transaction_source_idempotency.sql
+20261008002233_ctbc_inbox.sql
+20261008013654_ctbc_worker_lifecycle.sql
 ```
+
+   - `20260917040000_tenant_scoped_monthly_budget_reset.sql` 為 repository-only，正式與 staging 都**尚未套用**，程式目前仍使用舊版 RPC
+   - 兩個 `20261008*_ctbc_*` 只有在要測中信收件匣時才需要；正式已套用、staging 未套用
 
 4. 啟動開發伺服器
 
