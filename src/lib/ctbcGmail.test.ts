@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
-import { dkimSign, type DKIMSignOptions, type DNSResolver } from "mailauth";
+import { dkimSign, type DKIMSignatureData, type DNSResolver } from "mailauth";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import fixture from "@/test-fixtures/ctbc-email-alert.synthetic.json";
 import { CtbcGmailClient, mailboxHash, parseCtbcGmailMime, readCtbcGmailSlot, readCtbcWorkerConfig, type CtbcWorkerConfig } from "./ctbcGmail";
@@ -23,7 +23,7 @@ const mime = (html = fixture.html, extra = "") => Buffer.from([
   `Subject: =?UTF-8?B?${Buffer.from(fixture.subject.trim()).toString("base64")}?=`,
   'MIME-Version: 1.0', 'Content-Type: multipart/alternative; boundary="synthetic"', extra,
 ].filter(Boolean).join("\r\n") + '\r\n\r\n--synthetic\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nsynthetic\r\n--synthetic\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n' + Buffer.from(html).toString("base64") + '\r\n--synthetic--\r\n');
-const signed = async (raw = mime(), options: Partial<DKIMSignOptions> = {}) => {
+const signed = async (raw = mime(), options: Partial<DKIMSignatureData> = {}) => {
   const signature = { signingDomain: "inib.ctbcbank.com", selector: "synthetic", privateKey,
     headerList: ["from", "subject", "content-type", "mime-version"], ...options };
   const sign = await dkimSign(raw, { ...signature, signatureData: [signature] });
@@ -132,7 +132,7 @@ describe("bank s1024 multipart/signed compatibility (synthetic only)", () => {
     "Content-Disposition: attachment; filename=\"smime.p7s\"", "Content-Transfer-Encoding: base64", "",
     Buffer.from([0x30, 0x03, 0x02, 0x01, 0x00]).toString("base64"), "--bank-synthetic--", "",
   ].join("\r\n"));
-  const signBank = async (raw = bankMime(), options: Partial<DKIMSignOptions> = {}) => signed(raw, {
+  const signBank = async (raw = bankMime(), options: Partial<DKIMSignatureData> = {}) => signed(raw, {
     selector: "s1024", privateKey: bankPrivate, headerList: ["from", "message-id", "mime-version"], ...options,
   });
   const reject = async (raw: Buffer, dns = bankResolver) => expect(parseCtbcGmailMime(raw, "synthetic-id", received, dns)).rejects.toThrow("source_denied");
