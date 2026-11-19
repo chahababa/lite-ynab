@@ -1,26 +1,42 @@
 # STATUS
 
-更新日期：2026-07-03
+更新日期：2026-11-19
 
-## 最新變更（2026-07-04）
+## 最新變更（2026-10-23 ～ 2026-11-12）
 
-- 打開 App 直接進快速記帳（`/` → `/quick-entry`），主控臺移至 `/dashboard`
-- 新增預算分配引導模式 `/budget-allocation/wizard`：逐大項分配、照上月／照固定一鍵帶入、待分配置頂即時更新
-- 原預算分配頁保留為管理中心，頂端有「開始本月分配」入口
+- 正式部署自 Zeabur 搬到 Railway，正式網址改為 https://ynab.hoochuu.com.tw/ （舊網址 lite-ynab.zeabur.app 並行至 2026-12-01）；步驟與變數名稱清單見 `docs/railway-migration-20261023.md`
+- 每日備份排程器的正式端點守衛改為 ynab.hoochuu.com.tw
+- 加網站圖示（favicon／apple-touch）
+- 固定打包字型，修復正式建置與 CI（2026-11-12）
+- 開發環境注意：Supabase 的 legacy anon key 已停用，本機 `.env.local` 的 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 要改填 `sb_publishable_` 開頭的 publishable key
 
-## 前次變更（2026-07-03）
+## 資料庫環境現況（2026-11-19 盤點）
 
-- UX 改進：新增底部導覽列（取代浮動頁面選單）、快速記帳格依最近 30 天使用頻率自動排序、備註欄預設收摺、交易刪除可一鍵復原、主控臺最近交易可點擊直接編輯、月份切換與結轉顯示全站統一
-- 正式資料庫大掃除：預設殘留分類（其他大項、重複飲食／房租）已合併刪除，QA 測試資料清空，備份在 `cleanup_backup` schema
-- 新增預算結轉：從 2026-07 起沒花完的預算累積到下月，超支月歸零重算（起算月在 `src/lib/data.ts` 的 `ROLLOVER_START_MONTH`）
-- `initialize_monthly_budget` 修正：歷史月份不再套固定預算；新月份收入自動帶入最近一次填寫值
-- 對應 migration：`202607030001_month_init_income_carry_no_backfill.sql`（已套用正式環境）
+- 正式：Supabase 專案「Lite YNAB」。已套用 18 個 migration；repo 內的 `20260917040000_tenant_scoped_monthly_budget_reset.sql` 是 repository-only，**刻意未套用**，程式也仍呼叫舊版 `reset_monthly_auto_budgets(text)`，兩邊一致
+- 測試：Supabase 專案「lite-ynab-staging」。2026-11-19 補套 3 個 migration（月初始化收入帶入、引用歸屬檢查、交易來源唯一性），目前與正式的差異只剩兩個 CTBC migration 未套
+- 本機開發預設連 staging，做法見 README「本機啟動」
+
+## 前次變更（2026-10-08）：CTBC 信用卡通知收件匣（預設關閉）
+
+- 新增持久化 CTBC 審核收件匣與 Gmail worker（`src/lib/ctbcCollector.ts`、`src/lib/ctbcWorker.ts`、`npm run worker:ctbc`），說明見 `docs/ctbc-inbox-implementation.md`
+- 全部由環境變數守門：`CTBC_INBOX_ENABLED`、`CTBC_COLLECTOR_ENABLED`、`CTBC_RETENTION_ENABLED` 未設為 `true` 時入口隱藏、API 回 404
+- 對應 migration：`20261008002233_ctbc_inbox.sql`、`20261008013654_ctbc_worker_lifecycle.sql`（**已於 2026-10-08 套用正式資料庫**；功能旗標仍關閉，所以線上看不到入口。`docs/ctbc-inbox-implementation.md` 內「未套用正式環境」是合併前的舊敘述）
+- 尚未啟用的原因：背景 Gmail 唯讀授權的來源、要綁定的卡片（正卡／附卡）與信箱來源驗證還沒確定
+- 交易匯入改為重試安全（retry-safe），交易來源具唯一性約束
+
+## 更早（2026-09-16 ～ 2026-09-17）
+
+- 報表頁：支出圖表、月份比較、桌機版響應式版面
+- 每日 Google Sheets 交易備份重建並啟用（序列重試安全、CI 守門）
+- 安全基礎：service-role tenant scope fail-closed、每月預算重置依 tenant 範圍、試算表匯出儲存格消毒
+- 新增文件：`docs/plans/2026-09-16-lite-ynab-safety-foundation-implementation-plan.md`、`docs/specs/lite-ynab-option-b-travel-domain-spec-v2026-09-16.md`
+- 2026-07：快速記帳成為首頁、預算分配引導模式 wizard、底部導覽列、預算結轉、CTBC 通知 dry-run 解析器
 
 ## 專案階段
 
 專案目前已進入可實際操作的 beta 階段，並已**正式部署上線**。
 
-正式網址：https://lite-ynab.zeabur.app/
+正式網址：https://ynab.hoochuu.com.tw/ （Railway；舊網址 lite-ynab.zeabur.app 並行至 2026-12-01）
 
 主流程已可用，並完成：
 - 主控臺
@@ -103,7 +119,7 @@
 
 - `npm run typecheck` 通過
 - `npm run test` 通過
-- 目前共有 `11` 個測試檔、`25` 個測試通過
+- 2026-11-12 本機實測：`44` 個測試檔、`348` 個測試通過（另 1 個 skipped）
 
 ## 目前頁面分工
 
@@ -133,9 +149,11 @@
 ### 部署與整合
 
 - ~~Zeabur 正式部署~~ ✅ 已完成（2026-04-05）
+- ~~搬遷至 Railway（ynab.hoochuu.com.tw）~~ ✅ 已完成（2026-10-24）
 - ~~正式環境驗證~~ ✅ 已完成（6 個頁面路由驗證通過）
-- Google Sheets 同步
-- 備份 / 匯入 / 匯出資料
+- ~~Google Sheets 每日交易備份~~ ✅ 已完成（2026-09-17）
+- CTBC 收件匣正式啟用：設定背景 Gmail 唯讀憑證與 `CTBC_WORKER_CONFIG`、打開 `CTBC_*` 旗標、部署 worker、本人驗收（資料庫 migration 已套用；目前預設關閉，見 `docs/ctbc-inbox-implementation.md`）
+- Zeabur 舊站於 2026-12-01 後收掉
 
 部署紀錄與注意事項已整理在：
 - `DEPLOYMENT.md`

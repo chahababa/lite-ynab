@@ -45,3 +45,6 @@ lite-ynab：輕量化記帳系統。
 ## 注意事項
 - 避免在 `npm run dev` 執行期間再跑 `npm run build`，以免 Windows 本機 `.next` 快取互相踩到。
 - 非使用者明確要求時，不修改 `.env.local` 與 `supabase/` 下的 migration。
+- 本機 `.env.local` 預設連 staging（Supabase 專案 `lite-ynab-staging`）。會新增、刪除、匯入資料的測試一律在 staging 做；需要連正式資料庫時先跟使用者確認。
+- 合併進 `main` 會自動部署到正式站（Railway），所以改動一律走分支與 PR，不直接推 `main`。
+- 專案資料夾請放在 OneDrive 等雲端同步資料夾之外。

@@ -9,7 +9,8 @@ Lite YNAB 目前部署於 `Railway`（2026-10-24 自 Zeabur 搬遷；舊網址 l
 這份文件整理的是：
 - 部署前檢查清單
 - 正式環境準備流程
-- Zeabur 部署步驟
+- Railway 現行部署方式
+- Zeabur 部署步驟（歷史紀錄）
 - 上線後驗證項目
 - 實際部署踩坑紀錄
 
@@ -75,7 +76,7 @@ Google service account 必須被加入 `Lite YNAB 月報匯出` Google Sheet，�
 ## 三、Supabase 正式環境準備
 
 1. 建立正式 Supabase 專案
-2. 到 SQL Editor 或 migration 流程套用以下檔案：
+2. 到 SQL Editor 或 migration 流程套用 migration。完整且最新的清單以 `supabase/migrations/` 與 README「本機啟動」為準；以下是 2026-04 首次部署當時的清單：
 
 ```text
 202604020001_init_lite_ynab.sql
@@ -110,7 +111,16 @@ RPC：
 - `Project URL`
 - `anon public key`
 
-## 四、Zeabur 部署步驟
+## 四、Railway 部署（現行，2026-10-24 起）
+
+- 來源：GitHub repo `chahababa/lite-ynab` 的 `main` 分支；**合併進 main 就會自動部署到正式站**
+- 建置：repo 根目錄的 `Dockerfile`（由 `railway.json` 指定）；`NEXT_PUBLIC_*` 是建置期變數，改了要重新部署才生效
+- 健康檢查：`/login`（未登入回 200；首頁 `/` 是 307 轉址，不適合當健檢）
+- 網域：`ynab.hoochuu.com.tw`（PChome DNS 的 CNAME 指向 Railway）
+- 環境變數名稱清單、影子驗證與網域切換步驟：見 `docs/railway-migration-20261023.md`
+- 舊站 `lite-ynab.zeabur.app` 並行至 2026-12-01，之後收掉
+
+## 四之一、Zeabur 部署步驟（歷史紀錄，已不是現行流程）
 
 1. 將 GitHub repository 匯入 Zeabur
 2. 服務類型選擇 `Next.js` 或讓 Zeabur 自動偵測
