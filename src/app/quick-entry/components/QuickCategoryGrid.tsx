@@ -91,7 +91,7 @@ export function QuickCategoryGrid({
             <div key={i} className="h-[72px] animate-pulse rounded-md bg-surface-container" />
           ))}
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-md bg-surface-container" />
           ))}
@@ -180,16 +180,16 @@ export function QuickCategoryGrid({
           {primaryTiles.map((category) => renderTile(category, "primary"))}
         </div>
       )}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {secondaryTiles.map((category) => renderTile(category, "secondary"))}
         <button
           type="button"
           onClick={() => setIsCategoryModalOpen(true)}
           aria-label="其他分類"
-          className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-md border border-outline-variant px-2 text-on-surface-variant transition-colors duration-m3-short hover:bg-on-surface/[0.04] active:bg-on-surface/[0.08]"
+          className="flex h-14 items-center justify-center gap-1.5 rounded-md border border-outline-variant px-2 text-on-surface-variant transition-colors duration-m3-short hover:bg-on-surface/[0.04] active:bg-on-surface/[0.08]"
         >
           <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-          <span className="text-label-md font-medium">其他</span>
+          <span className="text-label-md font-medium">其他分類</span>
         </button>
       </div>
     </section>

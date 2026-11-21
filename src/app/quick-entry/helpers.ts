@@ -4,7 +4,7 @@ import type { M3CatColor } from "@/lib/categoryStyle";
 import { getTodayInTaipei } from "@/lib/utils";
 
 export const KEYPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"] as const;
-// 兩格大的（最常用）＋三格小的；第六個位置留給「其他」。
+// 兩格大的（最常用）＋三格小的；最後一格留給「其他分類」。
 export const QUICK_GRID_SIZE = 5;
 
 const GROUP_BADGE_COLOR_BY_NAME: Array<{ keywords: string[]; color: M3CatColor }> = [
