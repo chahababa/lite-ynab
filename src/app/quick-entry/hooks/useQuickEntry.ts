@@ -4,21 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { getAmbiguousCategoryNames } from "@/lib/categoryDisplay";
-import { fetchQuickEntryData } from "@/lib/data";
-import { parseHermesTransactionText } from "@/lib/hermesTransaction";
+import { fetchQuickEntryData, type QuickBudgetStatus } from "@/lib/data";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { CategoryOption, PaymentMethodOption, ToastState } from "@/lib/types";
 import { getTodayInTaipei, toMonthId } from "@/lib/utils";
 
-import {
-  KEYPAD_KEYS,
-  QUICK_GRID_SIZE,
-  getErrorMessage,
-  readRecentTemplates,
-  saveRecentTemplates,
-} from "../helpers";
-import type { EntryType, LastSavedTransaction, QuickTemplate } from "../types";
+import { KEYPAD_KEYS, QUICK_GRID_SIZE, getErrorMessage } from "../helpers";
+import type { LastSavedTransaction } from "../types";
+
+const EMPTY_SUMMARY: QuickBudgetStatus = { available: 0, spent: 0 };
 
 /** All state, data loading and handlers of the quick-entry page; the page itself only renders. */
 export function useQuickEntry() {
@@ -28,13 +23,16 @@ export function useQuickEntry() {
   const [allCategories, setAllCategories] = useState<CategoryOption[]>([]);
   const [quickCategories, setQuickCategories] = useState<CategoryOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [quickPaymentMethods, setQuickPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [budgetStatusByCategory, setBudgetStatusByCategory] = useState<
+    Record<string, QuickBudgetStatus>
+  >({});
+  const [monthSummary, setMonthSummary] = useState<QuickBudgetStatus>(EMPTY_SUMMARY);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
     useLastPaymentMethod(paymentMethods);
 
-  const [entryType, setEntryType] = useState<EntryType>("expense");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(getTodayInTaipei());
-  const [textEntryBaseDate] = useState(getTodayInTaipei);
   const [hasUserModifiedDate, setHasUserModifiedDate] = useState(false);
   const [note, setNote] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
@@ -42,21 +40,18 @@ export function useQuickEntry() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isDateSheetOpen, setIsDateSheetOpen] = useState(false);
   const [customDateInput, setCustomDateInput] = useState(date);
-  const [textEntry, setTextEntry] = useState("");
-  const [recentTemplates, setRecentTemplates] = useState<QuickTemplate[]>([]);
   const [lastSaved, setLastSaved] = useState<LastSavedTransaction | null>(null);
   const [isNoteVisible, setIsNoteVisible] = useState(false);
+  // 儲存或復原後 +1，讓「還剩多少」重新向資料庫取數字。
+  const [reloadKey, setReloadKey] = useState(0);
 
   const currentMonthId = useMemo(() => toMonthId(date), [date]);
-
-  useEffect(() => {
-    setRecentTemplates(readRecentTemplates());
-  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -67,7 +62,8 @@ export function useQuickEntry() {
   useEffect(() => {
     let active = true;
     async function load() {
-      setLoading(true);
+      // 只有第一次載入顯示骨架；儲存後的背景更新不讓格子閃爍。
+      if (reloadKey === 0) setLoading(true);
       setLoadError(null);
       try {
         const data = await fetchQuickEntryData(supabase, currentMonthId);
@@ -75,6 +71,9 @@ export function useQuickEntry() {
         setAllCategories(data.allCategories);
         setQuickCategories(data.quickCategories);
         setPaymentMethods(data.paymentMethods);
+        setQuickPaymentMethods(data.quickPaymentMethods ?? []);
+        setBudgetStatusByCategory(data.budgetStatusByCategory ?? {});
+        setMonthSummary(data.monthSummary ?? EMPTY_SUMMARY);
       } catch (error) {
         if (!active) return;
         if (error instanceof Error && error.message === "AUTH_REQUIRED") {
@@ -93,41 +92,41 @@ export function useQuickEntry() {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonthId]);
+  }, [currentMonthId, reloadKey]);
 
   const selectedPaymentMethod = useMemo(
     () => paymentMethods.find((pm) => pm.id === selectedPaymentMethodId) ?? null,
     [paymentMethods, selectedPaymentMethodId],
   );
 
+  // 頁面上直接顯示的支付方式按鈕：最常用的兩個；目前選的不在裡面時，換掉最後一個。
+  const visiblePaymentMethods = useMemo(() => {
+    const base = quickPaymentMethods.length > 0 ? quickPaymentMethods : paymentMethods.slice(0, 2);
+    if (!selectedPaymentMethod || base.some((pm) => pm.id === selectedPaymentMethod.id)) {
+      return base;
+    }
+    return [...base.slice(0, Math.max(base.length - 1, 0)), selectedPaymentMethod];
+  }, [quickPaymentMethods, paymentMethods, selectedPaymentMethod]);
+
   const visibleQuickCategories = useMemo(
     () => quickCategories.slice(0, QUICK_GRID_SIZE),
     [quickCategories],
   );
 
-  // 偵測 1×6 grid 內是否有同名分類（例如「個人/飲食」+「家庭/飲食」）
-  // 範圍只看「實際在 grid 上顯示的 6 個」，不必管整個 allCategories。
+  // 偵測格子內是否有同名分類（例如「個人/飲食」+「家庭/飲食」）
   const ambiguousNames = useMemo(
     () => getAmbiguousCategoryNames(visibleQuickCategories),
     [visibleQuickCategories],
   );
 
+  const selectedCategory = useMemo(
+    () => allCategories.find((category) => category.id === selectedCategoryId) ?? null,
+    [allCategories, selectedCategoryId],
+  );
+
   const noPaymentMethods = !loading && paymentMethods.length === 0;
 
   const amountValue = amount ? Number(amount) : 0;
-  const parsedText = useMemo(() => {
-    const raw = textEntry.trim();
-    if (!raw) return null;
-    return parseHermesTransactionText(raw, {
-      categories: allCategories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        groupName: category.groupName,
-      })),
-      paymentMethods,
-      baseDate: textEntryBaseDate,
-    });
-  }, [allCategories, paymentMethods, textEntry, textEntryBaseDate]);
 
   function handleKeypad(key: (typeof KEYPAD_KEYS)[number]) {
     if (key === "del") {
@@ -135,14 +134,6 @@ export function useQuickEntry() {
       return;
     }
     setAmount((v) => `${v}${key}`.replace(/^0+(?=\d)/, ""));
-  }
-
-  function handleEntryTypeChange(t: EntryType) {
-    if (t === "expense") {
-      setEntryType("expense");
-      return;
-    }
-    setToast({ tone: "info", message: "v2.1 即將支援收入 / 轉帳記帳" });
   }
 
   function handleDateChipClick() {
@@ -164,34 +155,6 @@ export function useQuickEntry() {
       return;
     }
     applyDate(next, next !== getTodayInTaipei());
-  }
-
-  function applyTextEntry() {
-    if (!parsedText) {
-      setToast({ tone: "info", message: "請先輸入文字記帳內容" });
-      return;
-    }
-    if (parsedText.amount) setAmount(String(parsedText.amount));
-    if (parsedText.categoryId) setSelectedCategoryId(parsedText.categoryId);
-    if (parsedText.paymentMethodId) setSelectedPaymentMethodId(parsedText.paymentMethodId);
-    setDate(parsedText.date);
-    setHasUserModifiedDate(parsedText.date !== getTodayInTaipei());
-    setNote(parsedText.note);
-    setToast({
-      tone: parsedText.warnings.length > 0 ? "info" : "success",
-      message:
-        parsedText.warnings.length > 0
-          ? `已帶入可辨識欄位，請補：${parsedText.warnings.join("、")}`
-          : "已解析文字記帳，確認後可儲存。",
-    });
-  }
-
-  function applyTemplate(template: QuickTemplate) {
-    setAmount(String(template.amount));
-    setSelectedCategoryId(template.categoryId);
-    setSelectedPaymentMethodId(template.paymentMethodId);
-    setNote(template.note);
-    setToast({ tone: "info", message: `已套用「${template.label}」，確認後可儲存。` });
   }
 
   function handleQuickCategoryTap(categoryId: string) {
@@ -221,7 +184,7 @@ export function useQuickEntry() {
       return;
     }
     if (paymentMethods.length === 0) {
-      setToast({ tone: "info", message: "請先到設定建立支付方式" });
+      setToast({ tone: "info", message: "請先建立支付方式" });
       return;
     }
     if (!selectedPaymentMethodId) {
@@ -237,40 +200,29 @@ export function useQuickEntry() {
         quickCategories.find((c) => c.id === categoryId) ??
         allCategories.find((c) => c.id === categoryId);
 
-      const { error } = await supabase.from("transactions").insert({
-        amount: nextAmount,
-        date: dateToSubmit,
-        category_id: categoryId,
-        payment_method_id: selectedPaymentMethodId,
-        note: note.trim(),
-        source: "manual",
-        source_text: null,
-        source_id: null,
-        metadata: { entrypoint: "quick-entry" },
-      });
+      const { data: inserted, error } = await supabase
+        .from("transactions")
+        .insert({
+          amount: nextAmount,
+          date: dateToSubmit,
+          category_id: categoryId,
+          payment_method_id: selectedPaymentMethodId,
+          note: note.trim(),
+          source: "manual",
+          source_text: null,
+          source_id: null,
+          metadata: { entrypoint: "quick-entry" },
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
-      const savedInfo: LastSavedTransaction = {
+      setLastSaved({
+        id: (inserted as { id: string } | null)?.id ?? null,
         amount: nextAmount,
         categoryName: category?.name ?? "未命名分類",
         paymentMethodName: selectedPaymentMethod?.name ?? "未設定",
         note: note.trim(),
-      };
-      setLastSaved(savedInfo);
-      const nextTemplate: QuickTemplate = {
-        id: `${categoryId}-${selectedPaymentMethodId}-${nextAmount}-${note.trim()}`,
-        label: `${category?.name ?? "未命名分類"} $${nextAmount.toLocaleString("en-US")}`,
-        amount: nextAmount,
-        categoryId,
-        categoryName: category?.name ?? "未命名分類",
-        paymentMethodId: selectedPaymentMethodId,
-        paymentMethodName: selectedPaymentMethod?.name ?? "未設定",
-        note: note.trim(),
-      };
-      setRecentTemplates((current) => {
-        const deduped = [nextTemplate, ...current.filter((item) => item.id !== nextTemplate.id)].slice(0, 4);
-        saveRecentTemplates(deduped);
-        return deduped;
       });
 
       setToast({
@@ -278,7 +230,7 @@ export function useQuickEntry() {
         message: `已記帳 $${nextAmount.toLocaleString("en-US")} 至 ${category?.name ?? "未命名分類"}`,
       });
       resetAfterSubmit();
-      router.refresh();
+      setReloadKey((key) => key + 1);
     } catch {
       setToast({ tone: "error", message: "記帳失敗，請稍後再試" });
     } finally {
@@ -286,22 +238,48 @@ export function useQuickEntry() {
     }
   }
 
+  // 原地復原剛剛那一筆：只刪除本頁剛新增、還記得 id 的交易。
+  async function undoLastSaved() {
+    if (!lastSaved?.id || isUndoing) return;
+
+    setIsUndoing(true);
+    try {
+      const { error } = await supabase.from("transactions").delete().eq("id", lastSaved.id);
+      if (error) throw error;
+
+      setToast({
+        tone: "info",
+        message: `已復原 ${lastSaved.categoryName} $${lastSaved.amount.toLocaleString("en-US")}`,
+      });
+      setLastSaved(null);
+      setReloadKey((key) => key + 1);
+    } catch {
+      setToast({ tone: "error", message: "復原失敗，請到交易頁刪除這一筆" });
+    } finally {
+      setIsUndoing(false);
+    }
+  }
+
   return {
     router,
     allCategories,
     paymentMethods,
+    visiblePaymentMethods,
     selectedPaymentMethodId,
     setSelectedPaymentMethodId,
-    entryType,
+    budgetStatusByCategory,
+    monthSummary,
     amount,
     date,
     note,
     setNote,
     selectedCategoryId,
     setSelectedCategoryId,
+    selectedCategory,
     loading,
     loadError,
     isSubmitting,
+    isUndoing,
     toast,
     isPaymentModalOpen,
     setIsPaymentModalOpen,
@@ -311,26 +289,19 @@ export function useQuickEntry() {
     setIsDateSheetOpen,
     customDateInput,
     setCustomDateInput,
-    textEntry,
-    setTextEntry,
-    recentTemplates,
     lastSaved,
     isNoteVisible,
     setIsNoteVisible,
-    selectedPaymentMethod,
     visibleQuickCategories,
     ambiguousNames,
     noPaymentMethods,
     amountValue,
-    parsedText,
     handleKeypad,
-    handleEntryTypeChange,
     handleDateChipClick,
     applyDate,
     applyCustomDate,
-    applyTextEntry,
-    applyTemplate,
     handleQuickCategoryTap,
     submitTransaction,
+    undoLastSaved,
   };
 }

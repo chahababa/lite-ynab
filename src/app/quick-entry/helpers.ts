@@ -3,11 +3,9 @@ import { format } from "date-fns";
 import type { M3CatColor } from "@/lib/categoryStyle";
 import { getTodayInTaipei } from "@/lib/utils";
 
-import type { QuickTemplate } from "./types";
-
 export const KEYPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "del"] as const;
-export const QUICK_GRID_SIZE = 6;
-export const RECENT_TEMPLATE_STORAGE_KEY = "lite-ynab.quick-entry.recent-templates.v1";
+// 兩格大的（最常用）＋三格小的；最後一格留給「其他分類」。
+export const QUICK_GRID_SIZE = 5;
 
 const GROUP_BADGE_COLOR_BY_NAME: Array<{ keywords: string[]; color: M3CatColor }> = [
   { keywords: ["個人", "personal"], color: "transport" },
@@ -48,19 +46,3 @@ export function shiftTaipeiDate(baseDate: string, daysAgo: number) {
   return format(new Date(year, month - 1, day - daysAgo), "yyyy-MM-dd");
 }
 
-export function readRecentTemplates(): QuickTemplate[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(RECENT_TEMPLATE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as QuickTemplate[];
-    return Array.isArray(parsed) ? parsed.slice(0, 4) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveRecentTemplates(templates: QuickTemplate[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(RECENT_TEMPLATE_STORAGE_KEY, JSON.stringify(templates.slice(0, 4)));
-}

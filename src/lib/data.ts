@@ -730,6 +730,62 @@ export function sortQuickCategories(
     });
 }
 
+// 記帳頁上直接顯示的支付方式：最近用得多的排前面，沒有使用紀錄時照原本排序補滿。
+export function pickQuickPaymentMethods(
+  paymentMethods: PaymentMethodOption[],
+  usageCountByPaymentMethod: Map<string, number>,
+  limit = 2,
+): PaymentMethodOption[] {
+  return paymentMethods
+    .map((paymentMethod, index) => ({ paymentMethod, index }))
+    .sort((left, right) => {
+      const usageDiff =
+        (usageCountByPaymentMethod.get(right.paymentMethod.id) ?? 0) -
+        (usageCountByPaymentMethod.get(left.paymentMethod.id) ?? 0);
+
+      return usageDiff !== 0 ? usageDiff : left.index - right.index;
+    })
+    .slice(0, limit)
+    .map((entry) => entry.paymentMethod);
+}
+
+export type QuickBudgetStatus = {
+  /** 本月可用額度 = 本月分配 + 上月結轉 */
+  available: number;
+  /** 本月已支出 */
+  spent: number;
+};
+
+// 記帳頁每個分類格子要顯示的「還剩多少」，以及整個月的加總。
+export function computeQuickBudgetStatus(
+  budgets: Pick<Budget, "category_id" | "allocated">[],
+  monthTransactions: Pick<Transaction, "category_id" | "amount">[],
+  carryoverByCategory: Map<string, number>,
+): { byCategory: Record<string, QuickBudgetStatus>; summary: QuickBudgetStatus } {
+  const byCategory: Record<string, QuickBudgetStatus> = {};
+  const ensure = (categoryId: string) => (byCategory[categoryId] ??= { available: 0, spent: 0 });
+
+  for (const budget of budgets) {
+    ensure(budget.category_id).available += budget.allocated;
+  }
+  for (const [categoryId, carryover] of carryoverByCategory) {
+    ensure(categoryId).available += carryover;
+  }
+  for (const transaction of monthTransactions) {
+    ensure(transaction.category_id).spent += transaction.amount;
+  }
+
+  const summary = Object.values(byCategory).reduce<QuickBudgetStatus>(
+    (total, status) => ({
+      available: total.available + status.available,
+      spent: total.spent + status.spent,
+    }),
+    { available: 0, spent: 0 },
+  );
+
+  return { byCategory, summary };
+}
+
 export async function fetchQuickEntryData(
   supabase: SupabaseClient,
   monthId: string,
@@ -738,13 +794,36 @@ export async function fetchQuickEntryData(
   await bootstrapAndInitializeMonth(supabase, monthId);
 
   const usageSince = shiftDate(getTodayInTaipei(), -QUICK_USAGE_WINDOW_DAYS);
+  const { start: monthStart, end: monthEnd } = monthDateRange(monthId);
 
-  const [groupsResult, categoriesResult, paymentMethodsResult, recentUsageResult] = await Promise.all([
+  const [
+    groupsResult,
+    categoriesResult,
+    paymentMethodsResult,
+    recentUsageResult,
+    budgetsResult,
+    monthTransactionsResult,
+    carryoverByCategory,
+  ] = await Promise.all([
     supabase.from("category_groups").select("*").order("sort_order", { ascending: true }),
     supabase.from("categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("payment_methods").select("*").order("sort_order", { ascending: true }),
-    supabase.from("transactions").select("category_id").gte("date", usageSince),
+    supabase.from("transactions").select("category_id,payment_method_id").gte("date", usageSince),
+    supabase.from("budgets").select("category_id,allocated").eq("month_id", monthId),
+    supabase
+      .from("transactions")
+      .select("category_id,amount")
+      .gte("date", monthStart)
+      .lt("date", monthEnd),
+    fetchCarryoverByCategory(supabase, monthId),
   ]);
+
+  if (budgetsResult.error) {
+    throw budgetsResult.error;
+  }
+  if (monthTransactionsResult.error) {
+    throw monthTransactionsResult.error;
+  }
 
   if (groupsResult.error) {
     throw groupsResult.error;
@@ -765,15 +844,33 @@ export async function fetchQuickEntryData(
   );
 
   const usageCountByCategory = new Map<string, number>();
+  const usageCountByPaymentMethod = new Map<string, number>();
 
-  for (const row of (recentUsageResult.data ?? []) as Pick<Transaction, "category_id">[]) {
+  for (const row of (recentUsageResult.data ?? []) as Pick<
+    Transaction,
+    "category_id" | "payment_method_id"
+  >[]) {
     usageCountByCategory.set(row.category_id, (usageCountByCategory.get(row.category_id) ?? 0) + 1);
+    usageCountByPaymentMethod.set(
+      row.payment_method_id,
+      (usageCountByPaymentMethod.get(row.payment_method_id) ?? 0) + 1,
+    );
   }
+
+  const paymentMethods = createPaymentMethodOptions((paymentMethodsResult.data ?? []) as PaymentMethod[]);
+  const budgetStatus = computeQuickBudgetStatus(
+    (budgetsResult.data ?? []) as Pick<Budget, "category_id" | "allocated">[],
+    (monthTransactionsResult.data ?? []) as Pick<Transaction, "category_id" | "amount">[],
+    carryoverByCategory,
+  );
 
   return {
     allCategories,
     quickCategories: sortQuickCategories(allCategories, usageCountByCategory),
-    paymentMethods: createPaymentMethodOptions((paymentMethodsResult.data ?? []) as PaymentMethod[]),
+    paymentMethods,
+    quickPaymentMethods: pickQuickPaymentMethods(paymentMethods, usageCountByPaymentMethod),
+    budgetStatusByCategory: budgetStatus.byCategory,
+    monthSummary: budgetStatus.summary,
   };
 }
 
