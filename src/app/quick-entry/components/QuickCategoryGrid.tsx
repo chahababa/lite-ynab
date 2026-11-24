@@ -16,15 +16,17 @@ import {
 } from "lucide-react";
 
 import {
-  CAT_BORDER_CLASS,
   CAT_TEXT_CLASS,
+  type M3CatColor,
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
-import { type getAmbiguousCategoryNames, getCategoryDisplay } from "@/lib/categoryDisplay";
+import { getShortCategoryName } from "@/lib/categoryDisplay";
 import type { QuickBudgetStatus } from "@/lib/data";
 import type { CategoryOption } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+import { getGroupBadgeColor } from "../helpers";
 
 const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
   Utensils,
@@ -39,13 +41,38 @@ const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
   Tag,
 };
 
-const PRIMARY_TILE_COUNT = 2;
+// 大項顏色的格子樣式。class 必須完整寫在這個檔案裡，Tailwind 才掃得到（src/lib 不在掃描範圍）。
+const TILE_CLASS: Record<M3CatColor, { idle: string; selected: string }> = {
+  food: {
+    idle: "border-cat-food bg-cat-food/10 hover:bg-cat-food/15 active:bg-cat-food/20",
+    selected: "border-cat-food bg-cat-food/25",
+  },
+  transport: {
+    idle: "border-cat-transport bg-cat-transport/10 hover:bg-cat-transport/15 active:bg-cat-transport/20",
+    selected: "border-cat-transport bg-cat-transport/25",
+  },
+  shop: {
+    idle: "border-cat-shop bg-cat-shop/10 hover:bg-cat-shop/15 active:bg-cat-shop/20",
+    selected: "border-cat-shop bg-cat-shop/25",
+  },
+  home: {
+    idle: "border-cat-home bg-cat-home/10 hover:bg-cat-home/15 active:bg-cat-home/20",
+    selected: "border-cat-home bg-cat-home/25",
+  },
+  health: {
+    idle: "border-cat-health bg-cat-health/10 hover:bg-cat-health/15 active:bg-cat-health/20",
+    selected: "border-cat-health bg-cat-health/25",
+  },
+  fun: {
+    idle: "border-cat-fun bg-cat-fun/10 hover:bg-cat-fun/15 active:bg-cat-fun/20",
+    selected: "border-cat-fun bg-cat-fun/25",
+  },
+};
 
 type QuickCategoryGridProps = {
   loading: boolean;
   loadError: string | null;
   visibleQuickCategories: CategoryOption[];
-  ambiguousNames: ReturnType<typeof getAmbiguousCategoryNames>;
   budgetStatusByCategory: Record<string, QuickBudgetStatus>;
   selectedCategoryId: string;
   handleQuickCategoryTap: (categoryId: string) => void;
@@ -76,7 +103,6 @@ export function QuickCategoryGrid({
   loading,
   loadError,
   visibleQuickCategories,
-  ambiguousNames,
   budgetStatusByCategory,
   selectedCategoryId,
   handleQuickCategoryTap,
@@ -87,13 +113,8 @@ export function QuickCategoryGrid({
     return (
       <section className="flex flex-col gap-2" aria-busy="true">
         <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="h-[72px] animate-pulse rounded-md bg-surface-container" />
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-md bg-surface-container" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-[60px] animate-pulse rounded-md bg-surface-container" />
           ))}
         </div>
       </section>
@@ -111,14 +132,12 @@ export function QuickCategoryGrid({
     );
   }
 
-  const primaryTiles = visibleQuickCategories.slice(0, PRIMARY_TILE_COUNT);
-  const secondaryTiles = visibleQuickCategories.slice(PRIMARY_TILE_COUNT);
-
-  function renderTile(category: CategoryOption, size: "primary" | "secondary") {
-    const style = getCategoryStyle(category.name);
-    const Icon = ICON_COMPONENTS[style.icon];
+  // 每一格：整格淡色底＋左側色條代表大項（個人、家庭…），圖示代表分類內容。
+  function renderTile(category: CategoryOption) {
+    const shortName = getShortCategoryName(category.name, category.groupName);
+    const Icon = ICON_COMPONENTS[getCategoryStyle(shortName).icon];
+    const groupColor = getGroupBadgeColor(category.groupName);
     const isSelected = selectedCategoryId === category.id;
-    const display = getCategoryDisplay(category, ambiguousNames);
     const hint = getBudgetHint(budgetStatusByCategory[category.id]);
 
     return (
@@ -129,39 +148,31 @@ export function QuickCategoryGrid({
         aria-label={`${category.groupName} ${category.name}`}
         aria-pressed={isSelected}
         className={cn(
-          "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-2 transition-colors duration-m3-short",
-          size === "primary" ? "h-[72px]" : "h-14",
+          "flex h-[60px] min-w-0 items-center gap-2 rounded-md border-l-4 pl-2.5 pr-2 text-left transition-colors duration-m3-short",
           isSelected
-            ? cn(
-                "border-2 bg-on-surface/[0.04]",
-                CAT_BORDER_CLASS[style.color],
-                CAT_TEXT_CLASS[style.color],
-              )
-            : "border border-outline text-on-surface hover:bg-on-surface/[0.04] active:bg-on-surface/[0.08]",
+            ? cn("ring-2 ring-inset ring-on-surface/60", TILE_CLASS[groupColor].selected)
+            : TILE_CLASS[groupColor].idle,
         )}
       >
-        <span className="flex max-w-full items-center gap-1">
-          {size === "primary" ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
-          <span
-            className={cn(
-              "truncate font-medium",
-              size === "primary" ? "text-body-md" : "text-label-md",
-            )}
-          >
-            {display.secondary ? `${display.secondary}・${display.primary}` : display.primary}
+        <Icon className={cn("h-5 w-5 shrink-0", CAT_TEXT_CLASS[groupColor])} aria-hidden="true" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-body-md font-medium text-on-surface">{shortName}</span>
+          <span className="flex min-w-0 items-baseline gap-1.5 text-label-sm">
+            <span className={cn("shrink-0 font-medium", CAT_TEXT_CLASS[groupColor])}>
+              {category.groupName}
+            </span>
+            {hint ? (
+              <span
+                className={cn(
+                  "truncate font-mono",
+                  hint.isOver ? "text-money-warn" : "text-on-surface-variant",
+                )}
+              >
+                {hint.text}
+              </span>
+            ) : null}
           </span>
         </span>
-        {hint ? (
-          <span
-            className={cn(
-              "max-w-full truncate font-mono",
-              size === "primary" ? "text-label-md" : "text-label-sm",
-              hint.isOver ? "text-money-warn" : "text-on-surface-variant",
-            )}
-          >
-            {hint.text}
-          </span>
-        ) : null}
       </button>
     );
   }
@@ -175,18 +186,14 @@ export function QuickCategoryGrid({
             前往管理分類
           </Link>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {primaryTiles.map((category) => renderTile(category, "primary"))}
-        </div>
-      )}
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
-        {secondaryTiles.map((category) => renderTile(category, "secondary"))}
+        {visibleQuickCategories.map((category) => renderTile(category))}
         <button
           type="button"
           onClick={() => setIsCategoryModalOpen(true)}
           aria-label="其他分類"
-          className="flex h-14 items-center justify-center gap-1.5 rounded-md border border-outline-variant px-2 text-on-surface-variant transition-colors duration-m3-short hover:bg-on-surface/[0.04] active:bg-on-surface/[0.08]"
+          className="flex h-[60px] items-center justify-center gap-1.5 rounded-md border border-outline-variant px-2 text-on-surface-variant transition-colors duration-m3-short hover:bg-on-surface/[0.04] active:bg-on-surface/[0.08]"
         >
           <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           <span className="text-label-md font-medium">其他分類</span>

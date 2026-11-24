@@ -188,13 +188,13 @@ describe("QuickEntryPage", () => {
     expect(screen.getByRole("button", { name: "個人 咖啡" })).toHaveTextContent("已花 $250");
   });
 
-  it("prefixes the group on tiles whose names collide", async () => {
+  it("shows the group label on every tile so same-named categories stay distinguishable", async () => {
     render(createElement(QuickEntryPage));
     await waitForTiles();
 
-    expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveTextContent("個人・飲食");
-    expect(screen.getByRole("button", { name: "家庭 飲食" })).toHaveTextContent("家庭・飲食");
-    expect(screen.getByRole("button", { name: "個人 咖啡" })).not.toHaveTextContent("個人・");
+    expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveTextContent("飲食個人");
+    expect(screen.getByRole("button", { name: "家庭 飲食" })).toHaveTextContent("飲食家庭");
+    expect(screen.getByRole("button", { name: "個人 咖啡" })).toHaveTextContent("咖啡個人");
   });
 
   it("updates amount and note via keypad", async () => {

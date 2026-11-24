@@ -53,7 +53,6 @@ export default function QuickEntryPage() {
     isNoteVisible,
     setIsNoteVisible,
     visibleQuickCategories,
-    ambiguousNames,
     noPaymentMethods,
     amountValue,
     handleKeypad,
@@ -113,7 +112,6 @@ export default function QuickEntryPage() {
           loading={loading}
           loadError={loadError}
           visibleQuickCategories={visibleQuickCategories}
-          ambiguousNames={ambiguousNames}
           budgetStatusByCategory={budgetStatusByCategory}
           selectedCategoryId={selectedCategoryId}
           handleQuickCategoryTap={handleQuickCategoryTap}

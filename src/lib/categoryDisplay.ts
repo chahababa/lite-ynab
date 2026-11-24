@@ -38,3 +38,23 @@ export function getCategoryDisplay(
   }
   return { primary: category.name };
 }
+
+// 使用者習慣在名稱尾端加的「色塊記號」；格子本身已用顏色區分大項，短名稱就不再重複顯示
+const COLOR_MARKER_PATTERN = /[🟥🟧🟨🟩🟦🟪🟫⬛⬜🔴🟠🟡🟢🔵🟣🟤⚫⚪]/gu;
+const GROUP_SEPARATOR_PATTERN = /^[\s\-－–—_/／・:：]+/u;
+
+/**
+ * 記一筆格子用的短名稱：拿掉開頭重複的大項名稱（「個人-飲食🟩」→「飲食」）與色塊記號。
+ * 只影響顯示，不改資料；拿掉後若變成空字串就退回原名稱。
+ */
+export function getShortCategoryName(name: string, groupName?: string): string {
+  let short = name.replace(COLOR_MARKER_PATTERN, "").trim();
+  const group = groupName?.trim();
+  if (group && short.startsWith(group)) {
+    const rest = short.slice(group.length);
+    if (GROUP_SEPARATOR_PATTERN.test(rest)) {
+      short = rest.replace(GROUP_SEPARATOR_PATTERN, "").trim();
+    }
+  }
+  return short || name;
+}

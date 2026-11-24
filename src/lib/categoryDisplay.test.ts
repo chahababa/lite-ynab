@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAmbiguousCategoryNames,
   getCategoryDisplay,
+  getShortCategoryName,
 } from "@/lib/categoryDisplay";
 import type { CategoryOption } from "@/lib/types";
 
@@ -60,5 +61,23 @@ describe("getCategoryDisplay", () => {
     const result = getCategoryDisplay({ name: "飲食", groupName: "個人" }, ambiguous);
     expect(result.primary).toBe("飲食");
     expect(result.secondary).toBe("個人");
+  });
+});
+
+describe("getShortCategoryName", () => {
+  it("拿掉開頭重複的大項名稱與色塊記號", () => {
+    expect(getShortCategoryName("個人-飲食🟩", "個人")).toBe("飲食");
+    expect(getShortCategoryName("家庭-日常花費🟢", "家庭")).toBe("日常花費");
+    expect(getShortCategoryName("個人-欲望(非必要)🟧", "個人")).toBe("欲望(非必要)");
+  });
+
+  it("不是大項開頭、或大項後面沒有分隔符號時保留原樣", () => {
+    expect(getShortCategoryName("Gas油錢⛽️", "家庭")).toBe("Gas油錢⛽️");
+    expect(getShortCategoryName("家庭旅遊", "家庭")).toBe("家庭旅遊");
+    expect(getShortCategoryName("飲食", "個人")).toBe("飲食");
+  });
+
+  it("拿掉後變空字串就退回原名稱", () => {
+    expect(getShortCategoryName("🟩", "個人")).toBe("🟩");
   });
 });
