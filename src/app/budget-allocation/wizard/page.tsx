@@ -417,11 +417,11 @@ export default function BudgetAllocationWizardPage() {
               ) : (
                 <M3Button
                   variant="filled"
-                  onClick={() => router.push("/budget-usage")}
+                  onClick={() => router.push("/month")}
                   className="flex-1 h-12"
                   startIcon={<Check className="h-[18px] w-[18px]" />}
                 >
-                  完成，查看預算使用
+                  完成，查看本月狀況
                 </M3Button>
               )}
             </div>

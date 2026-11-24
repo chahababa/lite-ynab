@@ -85,7 +85,7 @@ export default function SettingsPage() {
   }, [refreshTick]);
 
   const SHORTCUTS = [
-    { href: "/dashboard", icon: Sparkles, label: "主控臺", desc: "查看預算與最近交易" },
+    { href: "/reports", icon: Sparkles, label: "報表", desc: "查看收支趨勢與分類統計" },
     { href: "/quick-entry", icon: ReceiptText, label: "快速記帳", desc: "立即新增一筆支出" },
     { href: "/budget-allocation", icon: WalletCards, label: "預算分配", desc: "調整本月各分類配置" },
     { href: "/settings/ynab-import", icon: DatabaseZap, label: "匯入 YNAB", desc: "匯入歷史資料" },
@@ -98,8 +98,8 @@ export default function SettingsPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <Link
-            href="/dashboard"
-            aria-label="返回主控臺"
+            href="/quick-entry"
+            aria-label="返回記一筆"
             className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface hover:bg-on-surface/5 active:bg-on-surface/10"
           >
             <ArrowLeft className="h-5 w-5" />
