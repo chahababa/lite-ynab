@@ -9,6 +9,11 @@ import { BottomNav } from "@/components/BottomNav";
 
 const testState = vi.hoisted(() => ({
   pathname: "/",
+  pendingCount: null as number | null,
+}));
+
+vi.mock("@/lib/useCtbcPendingCount", () => ({
+  useCtbcPendingCount: () => testState.pendingCount,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -23,6 +28,7 @@ vi.mock("next/link", () => ({
 describe("BottomNav", () => {
   beforeEach(() => {
     testState.pathname = "/";
+    testState.pendingCount = null;
   });
 
   afterEach(() => {
@@ -61,5 +67,30 @@ describe("BottomNav", () => {
   it("links the month tab to /month", () => {
     render(createElement(BottomNav));
     expect(screen.getByText("本月").closest("a")?.getAttribute("href")).toBe("/month");
+  });
+
+  it("keeps three tabs when the card inbox is off", () => {
+    render(createElement(BottomNav));
+    expect(screen.queryByText("刷卡")).not.toBeInTheDocument();
+    expect(screen.queryByText("設定")).not.toBeInTheDocument();
+  });
+
+  it("adds a card-inbox tab with a count badge when there are pending items", () => {
+    testState.pendingCount = 15;
+    render(createElement(BottomNav));
+
+    const tab = screen.getByText("刷卡").closest("a");
+    expect(tab?.getAttribute("href")).toBe("/settings/email-import");
+    expect(tab).toHaveAttribute("aria-label", "刷卡，15 筆待確認");
+    expect(screen.getByText("15")).toBeInTheDocument();
+    expect(screen.getByText("設定").closest("a")?.getAttribute("href")).toBe("/settings");
+  });
+
+  it("shows the card-inbox tab without a badge when nothing is pending", () => {
+    testState.pendingCount = 0;
+    render(createElement(BottomNav));
+
+    expect(screen.getByText("刷卡")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
