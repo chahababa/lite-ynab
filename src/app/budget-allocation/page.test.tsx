@@ -1,13 +1,18 @@
 ﻿// @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BudgetAllocationPage from "@/app/budget-allocation/page";
 
-const { fetchBudgetAllocationData, fetchBudgetReferenceData, routerValue } = vi.hoisted(() => ({
+const { fetchBudgetAllocationData, fetchBudgetReferenceData, routerValue, db } = vi.hoisted(() => ({
+  // Records every insert/delete and lets a test decide what a query returns.
+  db: {
+    calls: [] as { table: string; op: string; payload?: unknown }[],
+    respond: (_table: string, _op: string): { data?: unknown; error: unknown } => ({ error: null }),
+  },
   fetchBudgetAllocationData: vi.fn(),
   fetchBudgetReferenceData: vi.fn(),
   routerValue: {
@@ -40,16 +45,22 @@ vi.mock("@/lib/supabaseClient", () => ({
         },
       }),
     },
-    from: () => ({
-      upsert: () => Promise.resolve({ error: null }),
-      insert: () => Promise.resolve({ error: null }),
-      delete: () => ({
-        eq: () => Promise.resolve({ error: null }),
-      }),
-      update: () => ({
-        eq: () => Promise.resolve({ error: null }),
-      }),
-    }),
+    from: (table: string) => {
+      const query = (op: string, payload?: unknown) => {
+        if (op !== "select") db.calls.push({ table, op, payload });
+        const chain: Record<string, unknown> = {};
+        for (const method of ["select", "eq", "order", "limit", "single", "maybeSingle"]) chain[method] = () => chain;
+        chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(db.respond(table, op)).then(resolve);
+        return chain;
+      };
+      return {
+        select: () => query("select"),
+        upsert: (payload: unknown) => query("upsert", payload),
+        insert: (payload: unknown) => query("insert", payload),
+        delete: () => query("delete"),
+        update: (payload: unknown) => query("update", payload),
+      };
+    },
   }),
 }));
 
@@ -60,6 +71,8 @@ describe("BudgetAllocationPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.calls = [];
+    db.respond = () => ({ error: null });
     fetchBudgetAllocationData.mockResolvedValue({
       user: { email: "demo@example.com" },
       groups: [
@@ -171,5 +184,82 @@ describe("BudgetAllocationPage", () => {
     expect(screen.getByRole("button", { name: "套用上月預算" })).toBeInTheDocument();
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  const typeAndConfirm = async (dialogName: string, value: string, confirmLabel: string) => {
+    const dialog = await screen.findByRole("dialog", { name: dialogName });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value } });
+    fireEvent.click(within(dialog).getByRole("button", { name: confirmLabel }));
+  };
+
+  it("每個大項底下有「新增小項」按鈕，新增後出現在該大項", async () => {
+    db.respond = (table, op) =>
+      op === "insert" ? { data: { id: table === "categories" ? "cat-new" : "budget-new" }, error: null } : { error: null };
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "在 個人 新增小項" }));
+    await typeAndConfirm("新增「個人」小項", "咖啡", "新增小項");
+
+    expect(await screen.findByText("已在「個人」新增小項「咖啡」。")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "個人 咖啡 本月預算" })).toHaveValue("0");
+    expect(db.calls.find((call) => call.table === "categories")?.payload).toMatchObject({
+      category_group_id: "group-personal",
+      name: "咖啡",
+    });
+  });
+
+  it("「新增大項」分兩步：大項名稱、第一個小項，確認後才寫入並顯示", async () => {
+    db.respond = (table, op) => {
+      if (table === "category_groups" && op === "select") return { data: null, error: null };
+      if (op === "insert") return { data: { id: `${table}-new` }, error: null };
+      return { error: null };
+    };
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "新增大項" }));
+    await typeAndConfirm("新增大項", "寵物", "下一步");
+    expect(db.calls).toHaveLength(0);
+    await typeAndConfirm("「寵物」的第一個小項", "飼料", "新增大項與小項");
+
+    expect(await screen.findByText("已新增大項「寵物」與小項「飼料」。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "寵物 設定" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "寵物 飼料 本月預算" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(db.calls.map((call) => `${call.table}:${call.op}`)).toEqual([
+      "category_groups:insert",
+      "categories:insert",
+      "budgets:insert",
+    ]);
+    expect(db.calls[0].payload).toMatchObject({ name: "寵物", sort_order: 10 });
+    expect(db.calls[1].payload).toMatchObject({ category_group_id: "category_groups-new", name: "飼料" });
+  });
+
+  it("大項名稱已存在時不進到第二步，也不寫入", async () => {
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "新增大項" }));
+    await typeAndConfirm("新增大項", "個人", "下一步");
+
+    expect(await screen.findByText(/已經有「個人」這個大項了/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(db.calls).toHaveLength(0);
+  });
+
+  it("小項建立失敗時，把剛建立的大項收回", async () => {
+    db.respond = (table, op) => {
+      if (table === "category_groups" && op === "select") return { data: null, error: null };
+      if (table === "categories" && op === "insert") return { data: null, error: { message: "boom" } };
+      if (op === "insert") return { data: { id: "group-new" }, error: null };
+      return { error: null };
+    };
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "新增大項" }));
+    await typeAndConfirm("新增大項", "寵物", "下一步");
+    await typeAndConfirm("「寵物」的第一個小項", "飼料", "新增大項與小項");
+
+    expect(await screen.findByText("新增大項失敗：boom")).toBeInTheDocument();
+    expect(db.calls.at(-1)).toMatchObject({ table: "category_groups", op: "delete" });
+    expect(screen.queryByRole("button", { name: "寵物 設定" })).not.toBeInTheDocument();
   });
 });

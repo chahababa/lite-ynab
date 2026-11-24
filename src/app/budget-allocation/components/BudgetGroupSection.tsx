@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
 import { BudgetCategoryRow } from "./BudgetCategoryRow";
 import { BudgetGroupMenu } from "./BudgetGroupMenu";
@@ -79,6 +79,16 @@ export function BudgetGroupSection({
             })}
           </div>
           </div>
+          <button
+            type="button"
+            onClick={() => groupMenu.addCategoryToGroup(group)}
+            disabled={pendingKey === `add-${group.groupId}`}
+            aria-label={`在 ${group.groupName} 新增小項`}
+            className="mt-3 flex h-10 items-center gap-1.5 rounded-full px-3 text-body-sm font-medium text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:opacity-40"
+          >
+            <Plus className="h-4 w-4" />
+            {pendingKey === `add-${group.groupId}` ? "新增中" : "新增小項"}
+          </button>
         </div>
       ) : (
         <p className="px-5 py-3 text-body-sm text-on-surface-variant">

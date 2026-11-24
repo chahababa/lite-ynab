@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 
 import { LoadingCard } from "@/components/LoadingCard";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
@@ -96,8 +96,9 @@ export default function BudgetAllocationCompactPage() {
     setConfirmDialog,
     openTextDialog,
   });
-  const { collapsedGroups, toggleGroup, renameGroup, reorderGroups, deleteGroup } = useCategoryGroupActions({
+  const { collapsedGroups, toggleGroup, renameGroup, reorderGroups, deleteGroup, addGroup } = useCategoryGroupActions({
     supabase,
+    monthId,
     rows,
     setRows,
     groupedRows,
@@ -210,6 +211,16 @@ export default function BudgetAllocationCompactPage() {
                   }}
                 />
               ))}
+
+              <button
+                type="button"
+                onClick={addGroup}
+                disabled={pendingKey === "group-add"}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-outline bg-surface text-body-md font-medium text-primary transition-colors duration-m3-short hover:bg-primary/5 active:bg-primary/10 disabled:opacity-40"
+              >
+                <Plus className="h-4 w-4" />
+                {pendingKey === "group-add" ? "新增中" : "新增大項"}
+              </button>
 
               <PaymentMethodManager
                 paymentMethods={paymentMethods}
