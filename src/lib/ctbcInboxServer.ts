@@ -21,7 +21,7 @@ export function ctbcValidateCommand(value: unknown): CtbcCommand {
   if (Object.keys(c).some((key) => !keys.includes(key))) throw new Error("invalid_command");
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (typeof c.candidateId !== "string" || !uuid.test(c.candidateId) || typeof c.actionKey !== "string" || !uuid.test(c.actionKey) ||
-    !Number.isInteger(c.expectedVersion) || Number(c.expectedVersion) < 1 || !["import","link","ignore","defer","work"].includes(String(c.action))) throw new Error("invalid_command");
+    !Number.isInteger(c.expectedVersion) || Number(c.expectedVersion) < 1 || typeof c.action !== "string" || !["import","link","ignore","defer","work"].includes(c.action)) throw new Error("invalid_command");
   for (const key of ["categoryId","paymentId","linkedId"]) if (c[key] != null && (typeof c[key] !== "string" || !uuid.test(c[key] as string))) throw new Error("invalid_command");
   for (const key of ["resolveRisk","batch"]) if (c[key] !== undefined && typeof c[key] !== "boolean") throw new Error("invalid_command");
   return c as CtbcCommand;
