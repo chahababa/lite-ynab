@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ConfirmDialogState, TextDialogState } from "../types";
 
@@ -10,7 +10,12 @@ export function useBudgetDialogs() {
   const [textDialog, setTextDialog] = useState<TextDialogState | null>(null);
   const [textDialogValue, setTextDialogValue] = useState("");
 
+  // Set when a dialog is opened from inside another dialog's onConfirm (two-step flows), so the
+  // submit handler does not close the dialog that was just opened.
+  const chained = useRef(false);
+
   function openTextDialog(config: TextDialogState) {
+    chained.current = true;
     setTextDialogValue(config.initialValue ?? "");
     setTextDialog(config);
   }
@@ -19,7 +24,9 @@ export function useBudgetDialogs() {
     if (!textDialog) return;
     const nextValue = textDialogValue.trim();
     if (!nextValue) return;
+    chained.current = false;
     await textDialog.onConfirm(nextValue);
+    if (chained.current) return;
     setTextDialog(null);
     setTextDialogValue("");
   }

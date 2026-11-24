@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { BudgetRow } from "@/lib/types";
 
-import { getErrorMessage } from "../helpers";
+import { createCategoryWithBudget, getErrorMessage } from "../helpers";
 import type {
   CompactGroup,
   ConfirmDialogState,
@@ -17,6 +17,7 @@ import type {
 
 type UseCategoryGroupActionsArgs = {
   supabase: SupabaseBrowserClient;
+  monthId: string;
   rows: BudgetRow[];
   setRows: SetState<BudgetRow[]>;
   groupedRows: CompactGroup[];
@@ -29,6 +30,7 @@ type UseCategoryGroupActionsArgs = {
 /** Category group (大項) actions: collapse/expand, rename, reorder, delete. */
 export function useCategoryGroupActions({
   supabase,
+  monthId,
   rows,
   setRows,
   groupedRows,
@@ -142,5 +144,64 @@ export function useCategoryGroupActions({
     }
   }
 
-  return { collapsedGroups, toggleGroup, renameGroup, reorderGroups, deleteGroup };
+  // Two steps: 大項名稱 → 第一個小項名稱. Nothing is written until the second step is confirmed,
+  // because this page only shows groups that have at least one category.
+  function addGroup() {
+    openTextDialog({
+      title: "新增大項",
+      label: "大項名稱（例如：寵物、旅遊）",
+      confirmLabel: "下一步",
+      onConfirm: (groupName) => {
+        const shown = groupedRows.find((group) => group.groupName === groupName);
+        if (shown) {
+          setToast({ tone: "error", message: `已經有「${groupName}」這個大項了，可以直接在它底下新增小項。` });
+          return;
+        }
+        openTextDialog({
+          title: `「${groupName}」的第一個小項`,
+          label: "小項名稱（例如：飼料、機票）",
+          confirmLabel: "新增大項與小項",
+          onConfirm: async (categoryName) => {
+            setPendingKey("group-add");
+            try {
+              // A group left without categories is hidden on this page but still exists; reuse it.
+              const existing = await supabase.from("category_groups").select("id").eq("name", groupName).maybeSingle();
+              if (existing.error) throw existing.error;
+              let groupId = existing.data?.id as string | undefined;
+              const created = !groupId;
+              if (!groupId) {
+                const last = await supabase
+                  .from("category_groups")
+                  .select("sort_order")
+                  .order("sort_order", { ascending: false })
+                  .limit(1);
+                if (last.error) throw last.error;
+                const inserted = await supabase
+                  .from("category_groups")
+                  .insert({ name: groupName, sort_order: Number(last.data?.[0]?.sort_order ?? 0) + 10 })
+                  .select("id")
+                  .single();
+                if (inserted.error || !inserted.data) throw inserted.error ?? new Error("新增大項失敗");
+                groupId = inserted.data.id as string;
+              }
+              try {
+                const row = await createCategoryWithBudget(supabase, monthId, { groupId, groupName }, categoryName, 10);
+                setRows((current) => [...current, row]);
+              } catch (error) {
+                if (created) await supabase.from("category_groups").delete().eq("id", groupId);
+                throw error;
+              }
+              setToast({ tone: "success", message: `已新增大項「${groupName}」與小項「${categoryName}」。` });
+            } catch (error) {
+              setToast({ tone: "error", message: `新增大項失敗：${getErrorMessage(error)}` });
+            } finally {
+              setPendingKey(null);
+            }
+          },
+        });
+      },
+    });
+  }
+
+  return { collapsedGroups, toggleGroup, renameGroup, reorderGroups, deleteGroup, addGroup };
 }

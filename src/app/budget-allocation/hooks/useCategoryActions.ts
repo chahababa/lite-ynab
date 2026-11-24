@@ -2,7 +2,7 @@
 
 import type { BudgetRow } from "@/lib/types";
 
-import { getErrorMessage } from "../helpers";
+import { createCategoryWithBudget, getErrorMessage } from "../helpers";
 import type {
   CompactGroup,
   ConfirmDialogState,
@@ -131,55 +131,8 @@ export function useCategoryActions({
         try {
           const nextSortOrder =
             group.rows.reduce((max, row, index) => Math.max(max, (index + 1) * 10), 0) + 10;
-          const categoryResult = await supabase
-            .from("categories")
-            .insert({
-              category_group_id: group.groupId,
-              name: nextName,
-              is_auto: false,
-              auto_amount: 0,
-              is_quick: false,
-              sort_order: nextSortOrder,
-            })
-            .select("id")
-            .single();
-
-          if (categoryResult.error || !categoryResult.data) {
-            throw categoryResult.error ?? new Error("新增分類失敗");
-          }
-
-          const budgetResult = await supabase
-            .from("budgets")
-            .insert({
-              month_id: monthId,
-              category_id: categoryResult.data.id,
-              allocated: 0,
-            })
-            .select("id")
-            .single();
-
-          if (budgetResult.error || !budgetResult.data) {
-            throw budgetResult.error ?? new Error("新增預算失敗");
-          }
-
-          setRows((current) => [
-            ...current,
-            {
-              budgetId: budgetResult.data.id,
-              categoryId: categoryResult.data.id,
-              categoryGroupId: group.groupId,
-              categoryGroupName: group.groupName,
-              categoryName: nextName,
-              allocated: 0,
-              carryover: 0,
-              spent: 0,
-              remaining: 0,
-              isQuick: false,
-              isAuto: false,
-              autoAmount: 0,
-              warning: null,
-            },
-          ]);
+          const row = await createCategoryWithBudget(supabase, monthId, group, nextName, nextSortOrder);
+          setRows((current) => [...current, row]);
           setToast({ tone: "success", message: `已在「${group.groupName}」新增小項「${nextName}」。` });
         } catch (error) {
           setToast({ tone: "error", message: `新增小項失敗：${getErrorMessage(error)}` });
