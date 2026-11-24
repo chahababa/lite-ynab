@@ -19,7 +19,7 @@ export function QuickEntryTopBar({ monthSummary }: QuickEntryTopBarProps) {
         <p className="text-title-md">記一筆</p>
         {hasBudget ? (
           <Link
-            href="/budget-usage"
+            href="/month"
             className="truncate font-mono text-label-md text-on-surface-variant hover:text-on-surface"
           >
             {remaining >= 0 ? (

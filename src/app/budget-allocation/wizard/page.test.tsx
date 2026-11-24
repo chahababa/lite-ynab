@@ -129,6 +129,6 @@ describe("BudgetAllocationWizardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /下一組/ }));
 
     expect(await screen.findByText("本月分配完成")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /完成，查看預算使用/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /完成，查看本月狀況/ })).toBeInTheDocument();
   });
 });
