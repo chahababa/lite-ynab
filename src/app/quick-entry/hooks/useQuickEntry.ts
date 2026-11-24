@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { getAmbiguousCategoryNames } from "@/lib/categoryDisplay";
 import { fetchQuickEntryData, type QuickBudgetStatus } from "@/lib/data";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -108,16 +107,14 @@ export function useQuickEntry() {
     return [...base.slice(0, Math.max(base.length - 1, 0)), selectedPaymentMethod];
   }, [quickPaymentMethods, paymentMethods, selectedPaymentMethod]);
 
-  const visibleQuickCategories = useMemo(
-    () => quickCategories.slice(0, QUICK_GRID_SIZE),
-    [quickCategories],
-  );
-
-  // 偵測格子內是否有同名分類（例如「個人/飲食」+「家庭/飲食」）
-  const ambiguousNames = useMemo(
-    () => getAmbiguousCategoryNames(visibleQuickCategories),
-    [visibleQuickCategories],
-  );
+  // 最常用的幾個分類上格子；格子內照「大項 → 分類」的固定順序排，
+  // 同一批分類的位置就不會因為使用次數變動而互換。
+  const visibleQuickCategories = useMemo(() => {
+    const order = new Map(allCategories.map((category, index) => [category.id, index]));
+    return quickCategories
+      .slice(0, QUICK_GRID_SIZE)
+      .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
+  }, [quickCategories, allCategories]);
 
   const selectedCategory = useMemo(
     () => allCategories.find((category) => category.id === selectedCategoryId) ?? null,
@@ -293,7 +290,6 @@ export function useQuickEntry() {
     isNoteVisible,
     setIsNoteVisible,
     visibleQuickCategories,
-    ambiguousNames,
     noPaymentMethods,
     amountValue,
     handleKeypad,
