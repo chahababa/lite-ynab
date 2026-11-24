@@ -120,6 +120,15 @@ RPC：
 - 環境變數名稱清單、影子驗證與網域切換步驟：見 `docs/railway-migration-20261023.md`
 - 舊站 `lite-ynab.zeabur.app` 並行至 2026-12-01，之後收掉
 
+### CTBC 收件匣 worker（第二個 Railway 服務）
+
+- 同一個 repo、同一個 `Dockerfile`，但服務設定的 Config-as-code 路徑要改成 `railway.worker.json`（不開網頁埠，所以沒有健康檢查；`railway.json` 的 `/login` 健檢只給 web 服務用）
+- 排程：`*/15 9-15 * * *`（UTC，等於台北 17:00–23:59 每 15 分鐘）。每次執行 `node scripts/ctbc-worker.mjs once`；未到 17:00 回 `not_due`，當天已完成則直接結束，失敗時下一輪依退避規則重試
+- 需要的環境變數：`CTBC_COLLECTOR_ENABLED=true`、`CTBC_WORKER_CONFIG`、`CTBC_GMAIL_CLIENT_ID`、`CTBC_GMAIL_CLIENT_SECRET`、`CTBC_GMAIL_REFRESH_TOKEN`、`NEXT_PUBLIC_SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`LITEYNAB_USER_ID`
+- Gmail 唯讀授權用 `node scripts/ctbc-gmail-auth.mjs <OAuth 用戶端 JSON 路徑>` 取得（JSON 必須放在 repo 之外）
+- 正式資料庫要先有一筆 `ctbc_collector_scopes`（程式不會自動建立）
+- web 服務另外加 `CTBC_INBOX_ENABLED=true` 才會顯示收件匣頁面
+
 ## 四之一、Zeabur 部署步驟（歷史紀錄，已不是現行流程）
 
 1. 將 GitHub repository 匯入 Zeabur
