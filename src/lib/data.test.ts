@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeCarryoverByCategory,
   computeDashboardData,
+  computeQuickBudgetStatus,
   computeReportData,
   fetchBudgetAllocationData,
   fetchBudgetReferenceData,
@@ -10,6 +11,7 @@ import {
   fetchDashboardData,
   fetchSettingsData,
   getReportRangeBounds,
+  pickQuickPaymentMethods,
   sortQuickCategories,
 } from "@/lib/data";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -288,6 +290,73 @@ describe("sortQuickCategories", () => {
     const result = sortQuickCategories(categories, new Map());
 
     expect(result.map((c) => c.id)).toEqual(["cat-a", "cat-b"]);
+  });
+});
+
+describe("pickQuickPaymentMethods", () => {
+  const methods = [
+    { id: "pm-a", name: "A", sortOrder: 10 },
+    { id: "pm-b", name: "B", sortOrder: 20 },
+    { id: "pm-c", name: "C", sortOrder: 30 },
+  ];
+
+  it("puts the most-used methods first regardless of sort order", () => {
+    const usage = new Map([
+      ["pm-c", 20],
+      ["pm-b", 3],
+    ]);
+
+    expect(pickQuickPaymentMethods(methods, usage).map((pm) => pm.id)).toEqual(["pm-c", "pm-b"]);
+  });
+
+  it("falls back to the original order when nothing was used recently", () => {
+    expect(pickQuickPaymentMethods(methods, new Map()).map((pm) => pm.id)).toEqual(["pm-a", "pm-b"]);
+  });
+
+  it("fills the remaining slot by original order when only one method was used", () => {
+    const usage = new Map([["pm-b", 5]]);
+
+    expect(pickQuickPaymentMethods(methods, usage).map((pm) => pm.id)).toEqual(["pm-b", "pm-a"]);
+  });
+
+  it("returns every method when there are fewer than the limit", () => {
+    expect(pickQuickPaymentMethods(methods.slice(0, 1), new Map())).toHaveLength(1);
+    expect(pickQuickPaymentMethods([], new Map())).toEqual([]);
+  });
+});
+
+describe("computeQuickBudgetStatus", () => {
+  it("adds carryover to the allocation and totals spending per category", () => {
+    const result = computeQuickBudgetStatus(
+      [
+        { category_id: "cat-food", allocated: 5000 },
+        { category_id: "cat-fun", allocated: 0 },
+      ],
+      [
+        { category_id: "cat-food", amount: 300 },
+        { category_id: "cat-food", amount: 1200 },
+        { category_id: "cat-fun", amount: 400 },
+      ],
+      new Map([["cat-food", 800]]),
+    );
+
+    expect(result.byCategory["cat-food"]).toEqual({ available: 5800, spent: 1500 });
+    expect(result.byCategory["cat-fun"]).toEqual({ available: 0, spent: 400 });
+    expect(result.summary).toEqual({ available: 5800, spent: 1900 });
+  });
+
+  it("counts spending in a category that has no budget row", () => {
+    const result = computeQuickBudgetStatus([], [{ category_id: "cat-new", amount: 90 }], new Map());
+
+    expect(result.byCategory["cat-new"]).toEqual({ available: 0, spent: 90 });
+    expect(result.summary).toEqual({ available: 0, spent: 90 });
+  });
+
+  it("returns an empty summary when the month has no data", () => {
+    expect(computeQuickBudgetStatus([], [], new Map())).toEqual({
+      byCategory: {},
+      summary: { available: 0, spent: 0 },
+    });
   });
 });
 

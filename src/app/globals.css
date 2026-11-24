@@ -4,6 +4,9 @@
 
 :root {
   color-scheme: light;
+  --font-roboto: "Roboto Variable";
+  --font-noto-sans-tc: "Noto Sans TC Variable";
+  --font-roboto-mono: "Roboto Mono Variable";
 }
 
 body {

@@ -32,7 +32,7 @@ jobs:
         run: node scripts/daily-transaction-backup-runner.mjs
         env:
           BACKUP_CRON_SECRET: ${{ secrets.DAILY_TRANSACTION_BACKUP_CRON_SECRET }}
-          BACKUP_ENDPOINT: https://lite-ynab.zeabur.app/api/cron/daily-transaction-backup
+          BACKUP_ENDPOINT: https://ynab.hoochuu.com.tw/api/cron/daily-transaction-backup
           BACKUP_TIMEOUT_MS: "600000"
           GITHUB_TOKEN: ${{ github.token }}
           RECONCILED_RUN_ATTEMPT: ${{ vars.DAILY_TRANSACTION_BACKUP_RECONCILED_RUN_ATTEMPT }}

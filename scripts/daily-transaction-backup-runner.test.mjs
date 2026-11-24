@@ -43,7 +43,7 @@ const productionEnv = {
   GITHUB_REF: "refs/heads/main",
   GITHUB_WORKFLOW_REF: "chahababa/lite-ynab/.github/workflows/daily-transaction-backup.yml@refs/heads/main",
   GITHUB_TOKEN: "github-token",
-  BACKUP_ENDPOINT: "https://lite-ynab.zeabur.app/api/cron/daily-transaction-backup",
+  BACKUP_ENDPOINT: "https://ynab.hoochuu.com.tw/api/cron/daily-transaction-backup",
   BACKUP_CRON_SECRET: "backup-secret",
   BACKUP_TIMEOUT_MS: "600000",
 };

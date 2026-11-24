@@ -9,7 +9,7 @@ const EXPECTED_REPOSITORY = "chahababa/lite-ynab";
 const EXPECTED_WORKFLOW_FILE = "daily-transaction-backup.yml";
 const EXPECTED_REF = "refs/heads/main";
 const EXPECTED_EVENT = "schedule";
-const EXPECTED_ENDPOINT = "https://lite-ynab.zeabur.app/api/cron/daily-transaction-backup";
+const EXPECTED_ENDPOINT = "https://ynab.hoochuu.com.tw/api/cron/daily-transaction-backup";
 const EXPECTED_BACKUP_TIMEOUT_MS = 600000;
 
 class SchedulerError extends Error {

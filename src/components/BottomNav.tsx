@@ -2,16 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Home, PieChart, Plus, ReceiptText } from "lucide-react";
+import { PieChart, Plus, ReceiptText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "主控臺", icon: Home, isPrimary: false },
-  { href: "/budget-usage", label: "預算", icon: PieChart, isPrimary: false },
+  { href: "/month", label: "本月", icon: PieChart, isPrimary: false },
   { href: "/quick-entry", label: "記一筆", icon: Plus, isPrimary: true },
   { href: "/transactions", label: "交易", icon: ReceiptText, isPrimary: false },
-  { href: "/reports", label: "報表", icon: BarChart3, isPrimary: false },
 ] as const;
 
 export function BottomNav() {
@@ -27,7 +25,7 @@ export function BottomNav() {
       aria-label="主要導覽"
       className="fixed inset-x-0 bottom-0 z-[999] border-t border-outline-variant bg-surface pb-[env(safe-area-inset-bottom)] shadow-elev-2"
     >
-      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-5">
+      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-3">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;

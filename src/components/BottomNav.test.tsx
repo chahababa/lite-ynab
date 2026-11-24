@@ -29,15 +29,13 @@ describe("BottomNav", () => {
     cleanup();
   });
 
-  it("renders five tabs with quick-entry as the primary center action", () => {
+  it("renders three tabs with quick-entry as the primary center action", () => {
     render(createElement(BottomNav));
 
     expect(screen.getByRole("navigation", { name: "主要導覽" })).toBeInTheDocument();
-    expect(screen.getByText("主控臺")).toBeInTheDocument();
-    expect(screen.getByText("預算")).toBeInTheDocument();
+    expect(screen.getByText("本月")).toBeInTheDocument();
     expect(screen.getByLabelText("記一筆").getAttribute("href")).toBe("/quick-entry");
     expect(screen.getByText("交易")).toBeInTheDocument();
-    expect(screen.getByText("報表")).toBeInTheDocument();
   });
 
   it("marks the current page tab with aria-current", () => {
@@ -60,8 +58,8 @@ describe("BottomNav", () => {
     expect(screen.getByRole("navigation", { name: "主要導覽" })).toBeInTheDocument();
   });
 
-  it("links the dashboard tab to /dashboard", () => {
+  it("links the month tab to /month", () => {
     render(createElement(BottomNav));
-    expect(screen.getByText("主控臺").closest("a")?.getAttribute("href")).toBe("/dashboard");
+    expect(screen.getByText("本月").closest("a")?.getAttribute("href")).toBe("/month");
   });
 });
