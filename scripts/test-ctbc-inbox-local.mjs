@@ -121,34 +121,38 @@ try{
  await page.getByLabel('電子郵件').fill(a.email);await page.getByLabel('密碼').fill(a.password);
  await page.locator('form').getByRole('button',{name:'登入',exact:true}).click();await page.waitForURL('**/quick-entry');
  await page.getByRole('link',{name:/筆刷卡待確認/}).waitFor();
- await page.getByRole('link',{name:/筆刷卡待確認/}).click();await page.getByRole('heading',{name:'待確認交易（7）',exact:true}).waitFor();
+ await page.getByRole('link',{name:/筆刷卡待確認/}).click();await page.getByRole('heading',{name:'刷卡待確認（7）',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
- const row=name=>page.getByRole('article',{name:new RegExp(`^${name} `)});
- const act=async(name,action)=>{const card=row(name);await card.getByLabel('我確認本筆處理方式').check();await card.getByRole('button',{name:action,exact:true}).click();};
- const card=row('合成補記');assert.equal(await card.getByRole('button',{name:'補記',exact:true}).isEnabled(),false);
- assert.ok((await card.getByRole('button',{name:'補記',exact:true}).boundingBox()).height>=40);
- assert.equal(await card.evaluate(node=>getComputedStyle(node).borderTopStyle),'solid');
- await page.getByLabel('合成補記 分類',{exact:true}).selectOption(a.category);await page.getByLabel('合成補記 支付方式',{exact:true}).selectOption(a.payment);
- await act('合成補記','補記');await page.getByRole('status').filter({hasText:'已補記，尚未與月結帳單核對'}).waitFor();
- await page.reload();await page.getByRole('heading',{name:'待確認交易（6）',exact:true}).waitFor();
- assert.equal(await row('合成補記').getByRole('button').count(),0);
- await page.getByLabel('合成已記過 既有交易',{exact:true}).selectOption(prior.id);await row('合成已記過').getByLabel('我已逐筆核對上述疑問').check();
- await act('合成已記過','已記過');await page.getByRole('status').filter({hasText:'已連結既有交易'}).waitFor();
- await act('合成忽略','忽略');await page.getByRole('status').filter({hasText:'已忽略，不會補記'}).waitFor();
- await act('合成稍後','稍後處理');await page.getByRole('status').filter({hasText:'保留待處理，期限不延長'}).waitFor();
- await row('合成工作').getByLabel('我確認本筆處理方式').focus();await page.keyboard.press('Space');
- await row('合成工作').getByRole('button',{name:'工作支出／排除',exact:true}).focus();await page.keyboard.press('Enter');
- await page.getByRole('status').filter({hasText:'已排除，不列入個人帳本'}).waitFor();
- await page.reload();await page.getByRole('heading',{name:'待確認交易（3）',exact:true}).waitFor();
+ const row=name=>page.getByRole('article',{name:`${name} 待確認`,exact:true});
+ const said=text=>page.getByRole('status').filter({hasText:text}).waitFor();
+ // Same Taipei day + same amount as an existing ledger row => grouped as already recorded, never shown as a card.
+ const recorded=page.getByRole('region',{name:'看起來已經記過'});
+ await recorded.getByText('合成已記過',{exact:true}).waitFor();assert.equal(await row('合成已記過').count(),0);
+ const chip=row('合成補記').getByRole('button',{name:'合成補記 記到 合成分類',exact:true});
+ assert.ok((await chip.boundingBox()).height>=40);
+ assert.equal(await row('合成補記').evaluate(node=>getComputedStyle(node).borderTopStyle),'solid');
+ await chip.click();await said('已補記：合成補記');
+ await page.reload();await page.getByRole('heading',{name:'刷卡待確認（6）',exact:true}).waitFor();
+ assert.equal(await row('合成補記').count(),0);
+ await page.getByRole('button',{name:'全部標為已記過（1）',exact:true}).click();await said('已標為已記過 1 筆');
+ await row('合成忽略').getByRole('button',{name:'忽略',exact:true}).click();
+ await row('合成忽略').getByRole('button',{name:'確定忽略',exact:true}).click();await said('已忽略：合成忽略');
+ await row('合成工作').getByRole('button',{name:'工作支出',exact:true}).focus();await page.keyboard.press('Enter');
+ await row('合成工作').getByRole('button',{name:'確定是工作支出',exact:true}).focus();await page.keyboard.press('Enter');
+ await said('已排除（工作支出）：合成工作');
+ await page.reload();await page.getByRole('heading',{name:'刷卡待確認（3）',exact:true}).waitFor();
  const after=await snapshot();
  assert.equal(after.candidates.find(c=>c.merchant==='合成工作').status,'work_excluded');
+ assert.equal(after.candidates.find(c=>c.merchant==='合成忽略').status,'ignored');
  assert.equal(after.candidates.find(c=>c.merchant==='合成稍後').status,'needs_review');
+ const linked=after.candidates.find(c=>c.merchant==='合成已記過');
+ assert.equal(linked.status,'already_recorded');assert.equal(linked.linked_transaction_id,prior.id);
  assert.equal(ok(await a.client.from('transactions').select('id')).length,2);
  assert.equal(ok(await a.client.from('transactions').select('amount').eq('id',prior.id).single()).amount,102);
- for(const name of ['合成批次甲','合成批次乙'])await row(name).getByLabel('加入本次安全批次').check();
- await page.getByLabel('批次分類',{exact:true}).selectOption(a.category);await page.getByLabel('批次支付方式',{exact:true}).selectOption(a.payment);
- await page.getByLabel(/我確認所選 2 筆/).check();await page.getByRole('button',{name:'確認批次補記',exact:true}).click();
- await page.getByRole('status').filter({hasText:'成功 2 筆'}).waitFor();
+ // The page no longer offers batch import; the batch API stays and is exercised directly.
+ submittedBatch=['合成批次甲','合成批次乙'].map(name=>{const c=after.candidates.find(x=>x.merchant===name);return {candidateId:c.id,expectedVersion:c.version,action:'import',actionKey:randomUUID(),categoryId:a.category,paymentId:a.payment,batch:true};});
+ const batchFirst=await request(a.token,{commands:submittedBatch});assert.equal(batchFirst.status,200);
+ assert.ok((await batchFirst.json()).results.every(r=>r.status==='success'));
  assert.equal(ok(await a.client.from('transactions').select('id')).length,4);
  // P2: replay the original commands as if the batch HTTP reply was lost.
  assert.equal(submittedBatch.length,2);
@@ -156,13 +160,13 @@ try{
  assert.ok((await batchReplay.json()).results.every(r=>r.status==='success'));
  assert.equal(ok(await a.client.from('transactions').select('id')).length,4);
  assert.equal((await request(a.token,{commands:submittedBatch.map((c,i)=>i===0?{...c,expectedVersion:c.expectedVersion+1}:c)})).status,409);
- await page.reload();await page.getByRole('heading',{name:'待確認交易（1）',exact:true}).waitFor();
+ await page.reload();await page.getByRole('heading',{name:'刷卡待確認（1）',exact:true}).waitFor();
  await mkdir('test-results/ctbc-inbox',{recursive:true});
- await page.screenshot({path:'test-results/ctbc-inbox/mobile-five-actions.png',fullPage:true});
+ await page.screenshot({path:'test-results/ctbc-inbox/mobile-inbox.png',fullPage:true});
  assert.ok([...origins].every(origin=>[appOrigin,apiOrigin].includes(origin)));
  assert.ok([...paths].every(path=>!path.includes('gmail')));
- await writeFile('test-results/ctbc-inbox/network-proof.json',JSON.stringify({origins:[...origins],gmailRequests:0,productionRequests:0,viewport:{width:360,height:800},fiveActions:true,reloadPersistent:true,keyboardWorkAction:true,transactionCount:4},null,2));
- console.log('PASS CTBC actual app: synthetic collector -> persistent inbox -> owner isolation -> five actions -> reload -> safe batch; zero Gmail/production requests');
+ await writeFile('test-results/ctbc-inbox/network-proof.json',JSON.stringify({origins:[...origins],gmailRequests:0,productionRequests:0,viewport:{width:360,height:800},sameDaySameAmountGrouped:true,oneTapCategoryImport:true,reloadPersistent:true,keyboardWorkAction:true,transactionCount:4},null,2));
+ console.log('PASS CTBC actual app: synthetic collector -> persistent inbox -> owner isolation -> recorded group, one-tap import, ignore, work -> reload -> batch API; zero Gmail/production requests');
  // Atomic race/replay receipt: same key returns one event/transaction; changed
  // payload and stale/cross-owner commands fail instead of mutating accounting.
  const deferred=(await snapshot()).candidates.find(c=>c.status==='needs_review');

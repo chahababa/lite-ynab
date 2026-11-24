@@ -1,151 +1,510 @@
 "use client";
+
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { getGroupBadgeColor } from "@/app/quick-entry/helpers";
+import { CATEGORY_TILE_CLASS } from "@/components/categoryTileClass";
 import { Button as M3Button } from "@/components/m3/Button";
 import { MoneyText } from "@/components/m3/MoneyText";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getShortCategoryName } from "@/lib/categoryDisplay";
+import { CAT_TEXT_CLASS } from "@/lib/categoryStyle";
+import {
+  ctbcIsPending,
+  ctbcMatchRecorded,
+  ctbcTaipeiDate,
+  ctbcTopCategories,
+  type CtbcAction,
+  type CtbcCandidate,
+  type CtbcCategory,
+  type CtbcCommand,
+  type CtbcExisting,
+  type CtbcInboxData,
+} from "@/lib/ctbcInbox";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
-import { ctbcFeedback, ctbcWarnings, type CtbcAction, type CtbcCandidate, type CtbcCommand, type CtbcInboxData } from "@/lib/ctbcInbox";
+import { cn } from "@/lib/utils";
 
-const runLabels: Record<string,string> = { received:"收集進行中",ready_for_review:"候選已保存；不代表完整蒐集或核帳",partial_failure:"部分收集失敗，警示會保留",failed:"收集失敗，未能確認",missed_run:"應跑但未跑，需受控補捕",retry_expired:"本日重試已逾期",no_message:"未找到符合條件通知，不代表零支出",zero_new_candidates:"本次沒有新增候選，前次待辦保留" };
-const statusLabels: Record<string,string> = { needs_review:"待確認",conflict:"需人工核對",imported:"已補記",already_recorded:"已連結既有交易",ignored:"已忽略",work_excluded:"已排除個人帳",expired:"已到期" };
-const actionLabels: Record<CtbcAction,string> = { import:"補記",link:"已記過",ignore:"忽略",defer:"稍後處理",work:"工作支出／排除" };
-const fieldClass = "w-full min-h-10 border border-outline rounded-xs bg-surface px-3 focus:outline-primary";
-const buttonClass = "max-w-full";
-const showTime=(value:string|null)=>value?new Date(value).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"尚無";
+const QUICK_CATEGORY_COUNT = 6;
 
-function CandidateRow({ candidate:c, data, busy, reviewEpoch, isBlocked, selected, onSelect, onAct }: {
-  candidate:CtbcCandidate; data:CtbcInboxData; busy:boolean; reviewEpoch:number; isBlocked:()=>boolean; selected:boolean;
-  onSelect:(id:string,checked:boolean)=>void; onAct:(command:Omit<CtbcCommand,"actionKey">)=>Promise<void>;
+const runLabels: Record<string, string> = {
+  received: "收信進行中",
+  ready_for_review: "收信正常",
+  partial_failure: "部分信件收取失敗",
+  failed: "收信失敗",
+  missed_run: "有一天沒有收信",
+  retry_expired: "今天的重試已逾時",
+  no_message: "沒有找到刷卡通知（不代表沒有消費）",
+  zero_new_candidates: "這次沒有新的刷卡通知",
+};
+const closedLabels: Record<string, string> = {
+  imported: "已補記",
+  already_recorded: "已記過",
+  ignored: "已忽略",
+  work_excluded: "工作支出",
+  expired: "已到期",
+};
+// 「可能已記過」改由畫面直接列出對應的那筆帳，不再只顯示一行警示
+const cardWarnings: Record<string, string> = {
+  payment_unknown: "支付來源待確認",
+  partial_batch: "同一批信件有部分收取失敗",
+  cross_message_duplicate: "有另一封通知內容相同，可能重複",
+  amount_mismatch: "同商家有一筆金額不同的紀錄，請留意",
+  source_payload_conflict: "通知內容前後不一致，暫時不能補記",
+};
+const selectClass =
+  "h-10 min-w-0 rounded-xs border border-outline bg-surface px-3 text-body-sm text-on-surface focus:outline-primary disabled:opacity-40";
+const textButtonClass =
+  "h-10 shrink-0 rounded-full px-3 text-label-md font-medium text-on-surface-variant transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10 disabled:cursor-not-allowed disabled:opacity-40";
+
+const showTime = (value: string | null) =>
+  value
+    ? new Date(value).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "尚無";
+const shortDate = (isoDate: string) => {
+  const [, month, day] = isoDate.split("-").map(Number);
+  return `${month}/${day}`;
+};
+const merchantOf = (c: CtbcCandidate) => c.merchant || "商家未明";
+
+type Act = (candidate: CtbcCandidate, action: CtbcAction, extra?: { categoryId?: string; linkedId?: string }) => void;
+
+function existingLabel(t: CtbcExisting, categories: CtbcCategory[]) {
+  const category = categories.find((c) => c.id === t.category_id);
+  const parts = [shortDate(t.date), category ? getShortCategoryName(category.name, category.groupName) : null, t.note || null];
+  return parts.filter(Boolean).join(" · ");
+}
+
+function PendingCard({ candidate: c, data, quickCategories, nearby, busy, canImport, onAct }: {
+  candidate: CtbcCandidate;
+  data: CtbcInboxData;
+  quickCategories: CtbcCategory[];
+  nearby: CtbcExisting | undefined;
+  busy: boolean;
+  canImport: boolean;
+  onAct: Act;
 }) {
-  // Acknowledgements belong to the displayed snapshot, not just candidate ID/version.
-  // Epoch changes cancel them on refresh start AND settlement (including failed GET).
-  const snapshot=JSON.stringify([reviewEpoch,c,data.existing,data.categories,data.payments]);
-  const [review,setReview]=useState({category:"",payment:"",link:"",confirmed:null as string|null,resolve:null as string|null});
-  const reviewRef=useRef(review);
-  const updateReview=(patch:Partial<typeof review>)=>{
-    if(isBlocked())return;
-    reviewRef.current={...reviewRef.current,...patch};setReview(reviewRef.current);
-  };
-  const {category,payment,link}=review;
-  const confirmed=review.confirmed===snapshot;
-  const resolve=review.resolve===snapshot;
-  const pending=["needs_review","conflict"].includes(c.status);
-  const risky=c.warnings.length>0||c.status==="conflict";
-  const safe=pending&&!risky;
-  const linkedMissing=c.status==="already_recorded"&&!c.linked_transaction_id;
-  const occurredDate=c.occurred_at?new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(c.occurred_at)):null;
-  const options=data.existing.filter((t)=>occurredDate && Math.abs(Date.parse(t.date)-Date.parse(occurredDate))<=86_400_000);
-  const canExecute=(action:CtbcAction,current=review)=>pending&&current.confirmed===snapshot&&
-    (action==="defer"||!risky||current.resolve===snapshot)&&
-    (action!=="import"||(!c.warnings.includes("source_payload_conflict")&&data.categories.some((o)=>o.id===current.category)&&data.payments.some((o)=>o.id===current.payment)))&&
-    (action!=="link"||options.some((o)=>o.id===current.link));
-  const execute=async(action:CtbcAction)=>{
-    const current=reviewRef.current;
-    // Synchronous choice/ack refs close change -> click races before disabled renders.
-    if(isBlocked()||!canExecute(action,current))return;
-    const command={candidateId:c.id,expectedVersion:c.version,action,categoryId:action==="import"?current.category:null,paymentId:action==="import"?current.payment:null,linkedId:action==="link"?current.link:null,resolveRisk:current.resolve===snapshot};
-    updateReview({confirmed:null,resolve:null});
-    await onAct(command);
-  };
-  return <article className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label={`${c.merchant||"商家未明"} ${statusLabels[c.status]}`}>
-    <div className="flex items-start justify-between gap-3">
-      <div><h2 className="text-title-md break-words">{c.merchant||"商家未明"}</h2><p className="text-sm text-on-surface-variant">{c.occurred_at?new Date(c.occurred_at).toLocaleDateString("zh-TW",{timeZone:"Asia/Taipei"}):"明細已清除"} · {statusLabels[c.status]}{c.late?" · 晚到通知":""}</p></div>
-      <span className="whitespace-nowrap">{c.amount===null?"—":<MoneyText value={c.amount} type="expense" prefix={false} />}</span>
-    </div>
-    {c.product&&<p className="text-sm">{c.product} · {c.card_role==="primary"?"正卡":c.card_role==="supplementary"?"附卡":"卡別待確認"}</p>}
-    {c.warnings.length>0&&<ul className="text-sm text-money-warn space-y-1">{c.warnings.map((w)=><li key={w}>{ctbcWarnings[w]||"資料需核對"}</li>)}</ul>}
-    {linkedMissing&&<p className="text-sm text-money-warn">原連結交易已不存在</p>}
-    {pending&&<>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected} disabled={!safe||busy} onChange={(e)=>onSelect(c.id,e.target.checked)} />加入本次安全批次{!safe?"（此筆需逐筆核對）":""}</label>
-      <label className="block text-sm">分類<select aria-label={`${c.merchant||"商家未明"} 分類`} className={fieldClass} value={category} disabled={busy} onChange={(e)=>{updateReview({category:e.target.value,confirmed:null,resolve:null});}}><option value="">請選擇分類</option>{data.categories.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
-      <label className="block text-sm">支付方式<select aria-label={`${c.merchant||"商家未明"} 支付方式`} className={fieldClass} value={payment} disabled={busy} onChange={(e)=>{updateReview({payment:e.target.value,confirmed:null,resolve:null});}}><option value="">請選擇支付方式</option>{data.payments.map((o)=><option key={o.id} value={o.id}>{o.name}{o.id===c.suggested_payment_id?"（來源建議，可改選）":""}</option>)}</select></label>
-      <label className="block text-sm">已記過：選擇本人既有交易<select aria-label={`${c.merchant||"商家未明"} 既有交易`} className={fieldClass} value={link} disabled={busy} onChange={(e)=>{updateReview({link:e.target.value,confirmed:null,resolve:null});}}><option value="">請人工選擇，不自動配對</option>{options.map((t)=><option key={t.id} value={t.id}>{t.date} ${t.amount} {t.note} · {data.payments.find((p)=>p.id===t.payment_method_id)?.name||"支付方式待核對"}</option>)}</select></label>
-      {risky&&<label className="flex gap-2 text-sm"><input type="checkbox" checked={resolve} disabled={busy} onChange={(e)=>updateReview({resolve:e.target.checked?snapshot:null})} />我已逐筆核對上述疑問</label>}
-      <label className="flex gap-2 text-sm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(e)=>updateReview({confirmed:e.target.checked?snapshot:null})} />我確認本筆處理方式</label>
-      <div className="flex flex-wrap gap-2">{(Object.keys(actionLabels) as CtbcAction[]).map((action)=><M3Button variant="outlined" key={action} type="button" className={buttonClass} disabled={busy||!canExecute(action)} onClick={()=>void execute(action)}>{actionLabels[action]}</M3Button>)}</div>
-    </>}
-  </article>;
+  // 忽略、工作支出不能復原，所以要點兩下；補記點錯可以到「交易」頁改分類
+  const [confirming, setConfirming] = useState<"ignore" | "work" | null>(null);
+  const [linking, setLinking] = useState(false);
+  const name = merchantOf(c);
+  const date = c.occurred_at ? ctbcTaipeiDate(c.occurred_at) : null;
+  const blocked = c.warnings.includes("source_payload_conflict");
+  const importDisabled = busy || blocked || !canImport;
+  const otherCategories = data.categories.filter((o) => !quickCategories.some((q) => q.id === o.id));
+  const linkOptions = data.existing.filter(
+    (t) => date && Math.abs(Date.parse(t.date) - Date.parse(date)) <= 86_400_000,
+  );
+  const notes = c.warnings.map((w) => cardWarnings[w]).filter(Boolean);
+
+  const twoTap = (action: "ignore" | "work", label: string, confirmLabel: string) => (
+    <button
+      type="button"
+      className={cn(textButtonClass, confirming === action && "bg-money-warn-container text-money-warn")}
+      disabled={busy}
+      onClick={() => {
+        if (confirming === action) onAct(c, action);
+        else setConfirming(action);
+      }}
+    >
+      {confirming === action ? confirmLabel : label}
+    </button>
+  );
+
+  return (
+    <article className="space-y-3 rounded-md border border-outline bg-surface p-4" aria-label={`${name} 待確認`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="break-words text-title-md text-on-surface">{name}</h3>
+          <p className="text-body-sm text-on-surface-variant">
+            {date ? shortDate(date) : "日期不明"}
+            {c.card_role === "supplementary" ? " · 附卡" : ""}
+          </p>
+        </div>
+        <span className="whitespace-nowrap text-title-md">
+          {c.amount === null ? "—" : <MoneyText value={c.amount} type="expense" prefix={false} />}
+        </span>
+      </div>
+
+      {notes.length > 0 && (
+        <ul className="space-y-1 text-body-sm text-money-warn">
+          {notes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      )}
+
+      {nearby && (
+        <div className="flex items-center gap-2 rounded-md bg-money-warn-container px-3 py-2">
+          <p className="min-w-0 flex-1 text-body-sm text-on-surface">
+            隔一天有同金額的紀錄：{existingLabel(nearby, data.categories)}
+          </p>
+          <button
+            type="button"
+            className="h-9 shrink-0 rounded-full bg-money-warn px-3 text-label-md font-medium text-primary-on transition-opacity duration-m3-short hover:opacity-90 active:opacity-80 disabled:opacity-40"
+            disabled={busy}
+            aria-label={`${name} 是同一筆`}
+            onClick={() => onAct(c, "link", { linkedId: nearby.id })}
+          >
+            是同一筆
+          </button>
+        </div>
+      )}
+
+      <div>
+        <p className="mb-1.5 text-label-md text-on-surface-variant">點分類就記進去</p>
+        <div className="grid grid-cols-3 gap-2">
+          {quickCategories.map((category) => {
+            const color = getGroupBadgeColor(category.groupName);
+            return (
+              <button
+                key={category.id}
+                type="button"
+                aria-label={`${name} 記到 ${category.name}`}
+                disabled={importDisabled}
+                onClick={() => onAct(c, "import", { categoryId: category.id })}
+                className={cn(
+                  "flex h-12 min-w-0 flex-col justify-center rounded-md border-l-4 px-2 text-left transition-colors duration-m3-short disabled:cursor-not-allowed disabled:opacity-40",
+                  CATEGORY_TILE_CLASS[color].idle,
+                )}
+              >
+                <span className={cn("truncate text-[11px] font-medium leading-tight", CAT_TEXT_CLASS[color])}>
+                  {category.groupName}
+                </span>
+                <span className="truncate text-label-md font-medium leading-tight text-on-surface">
+                  {getShortCategoryName(category.name, category.groupName)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1">
+        {otherCategories.length > 0 && (
+          <select
+            aria-label={`${name} 其他分類`}
+            className={cn(selectClass, "flex-1 basis-28")}
+            value=""
+            disabled={importDisabled}
+            onChange={(e) => {
+              if (e.target.value) onAct(c, "import", { categoryId: e.target.value });
+            }}
+          >
+            <option value="">其他分類…</option>
+            {otherCategories.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        )}
+        <button type="button" className={textButtonClass} disabled={busy} aria-expanded={linking} onClick={() => setLinking((open) => !open)}>
+          已記過
+        </button>
+        {twoTap("work", "工作支出", "確定是工作支出")}
+        {twoTap("ignore", "忽略", "確定忽略")}
+      </div>
+
+      {linking && (
+        <select
+          aria-label={`${name} 既有交易`}
+          className={cn(selectClass, "w-full")}
+          value=""
+          disabled={busy}
+          onChange={(e) => {
+            if (e.target.value) onAct(c, "link", { linkedId: e.target.value });
+          }}
+        >
+          <option value="">{linkOptions.length > 0 ? "選擇是哪一筆（前後一天內）" : "前後一天內沒有紀錄"}</option>
+          {linkOptions.map((t) => (
+            <option key={t.id} value={t.id}>
+              {existingLabel(t, data.categories)} ${t.amount}
+            </option>
+          ))}
+        </select>
+      )}
+    </article>
+  );
 }
 
 export function CtbcInboxClient() {
-  const client=useMemo(()=>getSupabaseBrowserClient(),[]);
-  const [data,setData]=useState<CtbcInboxData|null>(null);
-  const [error,setError]=useState("");
-  const [message,setMessage]=useState("");
-  const [acting,setActing]=useState(false);
-  const [refreshing,setRefreshing]=useState(false);
-  const [reviewEpoch,setReviewEpoch]=useState(0);
-  const busy=acting||refreshing;
-  const inFlight=useRef(false);
-  const reloadInFlight=useRef(false);
-  const [selected,setSelected]=useState<string[]>([]);
-  const [batchCategory,setBatchCategory]=useState("");
-  const [batchPayment,setBatchPayment]=useState("");
-  const [batchConfirmed,setBatchConfirmed]=useState(false);
-  // Retain keys for uncertain retries of the exact logical command.
-  const keys=useRef(new Map<string,string>());
-  const api=useCallback(async(method:string,body?:unknown)=>{
-    const session=await client.auth.getSession();
-    if(!session.data.session)throw new Error("請先登入，才能查看待確認交易");
-    const response=await fetch("/api/ctbc/inbox",{method,cache:"no-store",headers:{Authorization:`Bearer ${session.data.session.access_token}`,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
-    if(!response.ok)throw new Error(response.status===409?"資料已變更或處理條件不符，請重新載入後核對":response.status===401?"請重新登入":"目前無法確認處理結果，請重新載入後再核對；重試會沿用原操作識別");
-    return response.json();
-  },[client]);
-  const reload=useCallback(async()=>{
-    if(reloadInFlight.current)return;
-    reloadInFlight.current=true;setRefreshing(true);setBatchConfirmed(false);setReviewEpoch((old)=>old+1);
-    try{
-      const fresh=await api("GET") as CtbcInboxData;
-      setData(fresh);setSelected((old)=>old.filter((id)=>fresh.candidates.some((c)=>c.id===id&&c.status==="needs_review"&&c.warnings.length===0)));
-    }finally{
-      // A refresh never carries acknowledgement across snapshots, even on failure.
-      setBatchConfirmed(false);setReviewEpoch((old)=>old+1);reloadInFlight.current=false;setRefreshing(false);
+  const client = useMemo(() => getSupabaseBrowserClient(), []);
+  const [data, setData] = useState<CtbcInboxData | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState("");
+  // 使用者說「不是同一筆」的刷卡，改放回「還沒記的」
+  const [notSame, setNotSame] = useState<string[]>([]);
+  const inFlight = useRef(false);
+  // 同一個操作重試時沿用同一把識別碼，伺服器才不會重複記帳
+  const keys = useRef(new Map<string, string>());
+
+  const api = useCallback(async (method: string, body?: unknown) => {
+    const session = await client.auth.getSession();
+    if (!session.data.session) throw new Error("請先登入，才能查看刷卡待確認");
+    const response = await fetch("/api/ctbc/inbox", {
+      method,
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${session.data.session.access_token}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) {
+      const failure = new Error(
+        response.status === 409 ? "資料剛剛有變動，已重新載入，請再試一次" : response.status === 401 ? "請重新登入" : "目前無法確認有沒有成功，已重新載入，請核對後再試",
+      ) as Error & { status?: number };
+      failure.status = response.status;
+      throw failure;
     }
-  },[api]);
-  useEffect(()=>{let active=true;api("GET").then((d)=>{if(active)setData(d);}).catch((e)=>{if(active)setError(e.message);});return()=>{active=false;};},[api]);
-  const submit=async(command:Omit<CtbcCommand,"actionKey">)=>{
-    const identity=JSON.stringify(command);
-    const actionKey=keys.current.get(identity)||crypto.randomUUID(); keys.current.set(identity,actionKey);
-    return api("POST",{...command,actionKey});
+    return response.json();
+  }, [client]);
+
+  const load = useCallback(async () => {
+    const fresh = (await api("GET")) as CtbcInboxData;
+    setData(fresh);
+    return fresh;
+  }, [api]);
+
+  useEffect(() => {
+    let active = true;
+    api("GET")
+      .then((fresh) => { if (active) setData(fresh); })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, [api]);
+
+  const send = useCallback((c: CtbcCandidate, action: CtbcAction, extra: { categoryId?: string; paymentId?: string; linkedId?: string }) => {
+    const command: Omit<CtbcCommand, "actionKey"> = {
+      candidateId: c.id,
+      expectedVersion: c.version,
+      action,
+      categoryId: action === "import" ? extra.categoryId ?? null : null,
+      paymentId: action === "import" ? extra.paymentId ?? null : null,
+      linkedId: action === "link" ? extra.linkedId ?? null : null,
+      // 使用者在畫面上已經看得到提醒（同金額紀錄等），點下去就代表看過了
+      resolveRisk: true,
+    };
+    const identity = JSON.stringify(command);
+    const actionKey = keys.current.get(identity) || crypto.randomUUID();
+    keys.current.set(identity, actionKey);
+    return api("POST", { ...command, actionKey });
+  }, [api]);
+
+  const matches = useMemo(() => (data ? ctbcMatchRecorded(data.candidates, data.existing) : null), [data]);
+  const pending = useMemo(() => (data ? data.candidates.filter(ctbcIsPending) : []), [data]);
+  const recorded = pending.filter((c) => matches?.recorded.has(c.id) && !notSame.includes(c.id));
+  const unrecorded = pending.filter((c) => !recorded.includes(c));
+  const closed = data ? data.candidates.filter((c) => !ctbcIsPending(c) && c.amount !== null) : [];
+  const quickCategories = useMemo(
+    () => (data ? ctbcTopCategories(data.categories, data.existing, QUICK_CATEGORY_COUNT) : []),
+    [data],
+  );
+  // 支付方式：預設用收信時判斷的那張卡；只有一種支付方式時直接用它
+  const suggestedPayment = pending.find((c) => c.suggested_payment_id)?.suggested_payment_id ?? "";
+  const paymentId =
+    data?.payments.find((p) => p.id === paymentChoice)?.id ??
+    data?.payments.find((p) => p.id === suggestedPayment)?.id ??
+    (data?.payments.length === 1 ? data.payments[0].id : "");
+
+  const run = async (work: () => Promise<string>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      setMessage(await work());
+    } catch (e) {
+      setError((e as Error).message);
+      await load().catch(() => {});
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
   };
-  const act=async(command:Omit<CtbcCommand,"actionKey">)=>{
-    if(inFlight.current||reloadInFlight.current)return;inFlight.current=true;setActing(true);setError("");setMessage("");
-    try{await submit(command);setMessage(ctbcFeedback[command.action]);await reload();}catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{inFlight.current=false;setActing(false);}
+
+  const act: Act = (c, action, extra = {}) => {
+    void run(async () => {
+      const name = merchantOf(c);
+      if (action === "import") {
+        const category = data?.categories.find((o) => o.id === extra.categoryId);
+        if (!category || !paymentId) throw new Error("請先選支付方式");
+        const body = { categoryId: category.id, paymentId };
+        try {
+          await send(c, "import", body);
+        } catch (e) {
+          // 伺服器補記前會再查一次有沒有同金額紀錄；剛查到時會先擋下並更新版本，這裡用新版本再送一次
+          if ((e as { status?: number }).status !== 409) throw e;
+          const fresh = (await load()).candidates.find((o) => o.id === c.id);
+          if (!fresh || !ctbcIsPending(fresh) || fresh.version === c.version) throw e;
+          await send(fresh, "import", body);
+        }
+        await load();
+        return `已補記：${name} → ${getShortCategoryName(category.name, category.groupName)}（點錯可到「交易」頁修改）`;
+      }
+      await send(c, action, extra);
+      await load();
+      return action === "link" ? `已標為已記過：${name}` : action === "work" ? `已排除（工作支出）：${name}` : `已忽略：${name}`;
+    });
   };
-  const validBatchReferences=!!data&&data.categories.some((o)=>o.id===batchCategory)&&data.payments.some((o)=>o.id===batchPayment);
-  const batch=async()=>{
-    if(!data||inFlight.current||reloadInFlight.current||!batchConfirmed||!validBatchReferences||selected.length===0)return;
-    if(selected.length>20){setError("每次最多補記 20 筆，請減少勾選後再確認");return;}
-    const chosen=data.candidates.filter((c)=>selected.includes(c.id));
-    if(chosen.length!==selected.length||chosen.some((c)=>c.status!=="needs_review"||c.warnings.length>0)){setError("批次含需核對項目，請重新載入");return;}
-    inFlight.current=true;setActing(true);setError("");setMessage("");
-    try{
-      const commands=chosen.map((c)=>{const command={candidateId:c.id,expectedVersion:c.version,action:"import" as const,categoryId:batchCategory,paymentId:batchPayment,batch:true};const identity=JSON.stringify(command);const actionKey=keys.current.get(identity)||crypto.randomUUID();keys.current.set(identity,actionKey);return {...command,actionKey};});
-      const result=await api("POST",{commands});
-      const count=(status:string)=>result.results.filter((r:{status:string})=>r.status===status).length;
-      setMessage(`本次批次：成功 ${count("success")} 筆、衝突或未確認 ${count("conflict")} 筆、未提交 ${count("not_submitted")} 筆；成功筆尚未與月結帳單核對`);
-      await reload();
-    }catch(e){setError((e as Error).message);await reload().catch(()=>{});}finally{setBatchConfirmed(false);inFlight.current=false;setActing(false);}
+
+  const linkAll = () => {
+    void run(async () => {
+      let done = 0;
+      try {
+        for (const c of recorded) {
+          await send(c, "link", { linkedId: matches!.recorded.get(c.id)!.id });
+          done += 1;
+        }
+      } finally {
+        await load().catch(() => {});
+      }
+      return `已標為已記過 ${done} 筆`;
+    });
   };
-  const run=data?.latestRun;
-  return <main aria-busy={busy} className="min-h-screen bg-background text-on-surface"><div className="mx-auto max-w-md space-y-4 px-4 py-4 pb-24">
-    <Link className="text-primary hover:underline focus-visible:outline" href="/settings">返回設定</Link>
-    <h1 className="text-headline-sm">待確認交易{data?`（${data.pendingCount}）`:""}</h1>
-    <p className="text-sm text-on-surface-variant">信用卡通知僅供補記參考；尚未與月結帳單核對。只有本人確認補記後才進個人帳本。</p>
-    <section className="rounded-md border border-outline bg-surface p-5 text-sm space-y-2" aria-label="收集狀態"><p>{run?runLabels[run.status]||"未能確認收集狀態":"尚未成功執行"}</p>{run&&<><p>排程日：{run.slot_date}；涵蓋前三個台北交易日，固定 17:00 截止</p><p>最近嘗試：{showTime(run.last_attempt_at)}；最近完成：{showTime(run.last_success_at)}</p><p>失敗 {run.failures} · 拒絕 {run.rejected} · 超窗 {run.outside_window} · 當日延後 {run.deferred}</p></>}<p>通知可能晚到；本頁不代表完整蒐集、零支出或已核帳。</p></section>
-    {busy?<p role="status" className="rounded-md border border-outline bg-primary-container p-5">{acting?"處理中":"重新載入待辦中"}</p>:message&&<p role="status" className="rounded-md border border-outline bg-primary-container p-5">{message}</p>}{error&&<p role="alert" className="rounded-md border border-outline bg-surface p-5 text-money-warn">{error}</p>}
-    <M3Button variant="outlined" type="button" className={buttonClass} disabled={busy||(!data&&!error)} onClick={()=>{if(inFlight.current||reloadInFlight.current)return;setError("");void reload().catch((e)=>setError(e.message));}}>重新載入待辦</M3Button>
-    {!data&&!error&&!busy&&<p role="status">載入待確認交易中</p>}
-    {data&&<>
-      <section className="rounded-md border border-outline bg-surface p-5 space-y-3" aria-label="安全批次補記"><h2 className="text-title-md">安全批次補記（{selected.length} 筆）</h2>
-        <label className="block text-sm">共同分類<select aria-label="批次分類" className={fieldClass} disabled={busy} value={batchCategory} onChange={(e)=>{setBatchCategory(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.categories.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <label className="block text-sm">共同支付方式<select aria-label="批次支付方式" className={fieldClass} disabled={busy} value={batchPayment} onChange={(e)=>{setBatchPayment(e.target.value);setBatchConfirmed(false);}}><option value="">請選擇</option>{data.payments.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-        <p className="text-sm">僅處理你明確勾選且無風險的候選；每筆獨立提交。</p>
-        <label className="flex gap-2 text-sm"><input type="checkbox" checked={batchConfirmed} disabled={busy} onChange={(e)=>{if(!inFlight.current&&!reloadInFlight.current)setBatchConfirmed(e.target.checked);}} />我確認所選 {selected.length} 筆與共同分類、支付方式</label>
-        <M3Button variant="outlined" className={buttonClass} disabled={busy||!batchConfirmed||!validBatchReferences||selected.length===0} onClick={()=>void batch()}>確認批次補記</M3Button>
-      </section>
-      {data.candidates.length===0&&<p className="rounded-md border border-outline bg-surface p-5">目前沒有待確認候選；收集警示仍以上方狀態為準。</p>}
-      {data.candidates.map((c)=><CandidateRow key={`${c.id}:${c.version}`} candidate={c} data={data} busy={busy} reviewEpoch={reviewEpoch} isBlocked={()=>inFlight.current||reloadInFlight.current} selected={selected.includes(c.id)} onSelect={(id,checked)=>{setBatchConfirmed(false);setSelected((old)=>checked?[...old,id]:old.filter((x)=>x!==id));}} onAct={act}/>)}
-    </>}
-  </div></main>;
+
+  const latest = data?.latestRun;
+  const runHealthy = latest && ["ready_for_review", "zero_new_candidates", "received"].includes(latest.status);
+
+  return (
+    <main aria-busy={busy} className="min-h-screen bg-background text-on-surface">
+      <div className="mx-auto max-w-md space-y-4 px-4 py-4 pb-24">
+        <Link className="text-body-sm text-primary hover:underline focus-visible:outline" href="/settings">
+          返回設定
+        </Link>
+        <div>
+          <h1 className="text-headline-sm">刷卡待確認{data ? `（${data.pendingCount}）` : ""}</h1>
+          <p className="mt-1 text-body-sm text-on-surface-variant">
+            刷卡通知會自動收進來，你確認後才會記進帳裡。
+          </p>
+        </div>
+
+        {busy ? (
+          <p role="status" className="rounded-md bg-primary-container px-4 py-3 text-body-sm">處理中…</p>
+        ) : (
+          message && <p role="status" className="rounded-md bg-primary-container px-4 py-3 text-body-sm">{message}</p>
+        )}
+        {error && (
+          <p role="alert" className="rounded-md bg-money-warn-container px-4 py-3 text-body-sm text-money-warn">{error}</p>
+        )}
+        {!data && !error && <p role="status" className="text-body-sm text-on-surface-variant">載入中…</p>}
+
+        {data && (
+          <>
+            {recorded.length > 0 && (
+              <section className="space-y-3 rounded-md border border-outline bg-surface p-4" aria-label="看起來已經記過">
+                <div>
+                  <h2 className="text-title-md">{recorded.length} 筆看起來已經記過</h2>
+                  <p className="text-body-sm text-on-surface-variant">同一天有一樣金額的紀錄，視為同一筆。</p>
+                </div>
+                <ul className="divide-y divide-outline-variant">
+                  {recorded.map((c) => (
+                    <li key={c.id} className="flex items-center gap-2 py-2" aria-label={`${merchantOf(c)} 已記過`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-body-md text-on-surface">{merchantOf(c)}</p>
+                        <p className="truncate text-body-sm text-on-surface-variant">
+                          你記的：{existingLabel(matches!.recorded.get(c.id)!, data.categories)}
+                        </p>
+                      </div>
+                      <span className="whitespace-nowrap text-body-md">
+                        <MoneyText value={c.amount ?? 0} type="expense" prefix={false} />
+                      </span>
+                      <button
+                        type="button"
+                        className={textButtonClass}
+                        disabled={busy}
+                        aria-label={`${merchantOf(c)} 不是同一筆`}
+                        onClick={() => setNotSame((old) => [...old, c.id])}
+                      >
+                        不是
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <M3Button variant="filled" className="w-full" disabled={busy} onClick={linkAll}>
+                  全部標為已記過（{recorded.length}）
+                </M3Button>
+              </section>
+            )}
+
+            <section className="space-y-3" aria-label="還沒記的">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-title-md">還沒記的（{unrecorded.length}）</h2>
+                {data.payments.length > 1 && unrecorded.length > 0 && (
+                  <select
+                    aria-label="支付方式"
+                    className={cn(selectClass, "max-w-[55%]")}
+                    value={paymentId}
+                    disabled={busy}
+                    onChange={(e) => setPaymentChoice(e.target.value)}
+                  >
+                    <option value="">選支付方式</option>
+                    {data.payments.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
+              {unrecorded.length > 0 && !paymentId && (
+                <p className="text-body-sm text-money-warn">請先在右上選這張卡對應的支付方式，才能補記。</p>
+              )}
+              {unrecorded.length === 0 && (
+                <p className="rounded-md border border-outline bg-surface px-4 py-3 text-body-sm text-on-surface-variant">
+                  {recorded.length > 0 ? "其他都處理完了。" : "目前沒有待確認的刷卡。"}
+                </p>
+              )}
+              {unrecorded.map((c) => (
+                <PendingCard
+                  key={`${c.id}:${c.version}`}
+                  candidate={c}
+                  data={data}
+                  quickCategories={quickCategories}
+                  nearby={matches?.nearby.get(c.id)}
+                  busy={busy}
+                  canImport={!!paymentId}
+                  onAct={act}
+                />
+              ))}
+            </section>
+
+            {closed.length > 0 && (
+              <details className="rounded-md border border-outline bg-surface px-4 py-3">
+                <summary className="cursor-pointer text-body-md">最近處理過的（{closed.length}）</summary>
+                <ul className="mt-2 divide-y divide-outline-variant">
+                  {closed.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-body-sm">
+                      <span className="min-w-0 truncate">
+                        {c.occurred_at ? `${shortDate(ctbcTaipeiDate(c.occurred_at))} ` : ""}
+                        {merchantOf(c)}
+                      </span>
+                      <span className="shrink-0 text-on-surface-variant">
+                        ${c.amount} · {closedLabels[c.status] ?? c.status}
+                        {c.status === "already_recorded" && !c.linked_transaction_id ? "（原交易已刪除）" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            <details className="rounded-md border border-outline bg-surface px-4 py-3 text-body-sm" aria-label="收信狀態">
+              <summary className={cn("cursor-pointer text-body-md", latest && !runHealthy && "text-money-warn")}>
+                收信狀態：{latest ? runLabels[latest.status] || "狀態不明" : "還沒收過信"}
+                {latest ? `（${showTime(latest.last_success_at ?? latest.last_attempt_at)}）` : ""}
+              </summary>
+              <div className="mt-2 space-y-1 text-on-surface-variant">
+                {latest && (
+                  <>
+                    <p>每天 17:00 之後收信，涵蓋前三天的刷卡通知。</p>
+                    <p>最近嘗試：{showTime(latest.last_attempt_at)}；最近完成：{showTime(latest.last_success_at)}</p>
+                    <p>失敗 {latest.failures} · 拒絕 {latest.rejected} · 超出範圍 {latest.outside_window} · 延後 {latest.deferred}</p>
+                  </>
+                )}
+                <p>通知可能晚到；這裡沒有不代表沒有消費，也還沒跟月結帳單核對。</p>
+                <M3Button
+                  variant="text"
+                  disabled={busy}
+                  onClick={() => void run(async () => { await load(); return "已重新載入"; })}
+                >
+                  重新載入
+                </M3Button>
+              </div>
+            </details>
+          </>
+        )}
+      </div>
+    </main>
+  );
 }

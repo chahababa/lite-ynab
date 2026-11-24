@@ -17,10 +17,10 @@ import {
 
 import {
   CAT_TEXT_CLASS,
-  type M3CatColor,
   type M3CatIcon,
   getCategoryStyle,
 } from "@/lib/categoryStyle";
+import { CATEGORY_TILE_CLASS } from "@/components/categoryTileClass";
 import { getShortCategoryName } from "@/lib/categoryDisplay";
 import type { QuickBudgetStatus } from "@/lib/data";
 import type { CategoryOption } from "@/lib/types";
@@ -39,34 +39,6 @@ const ICON_COMPONENTS: Record<M3CatIcon, typeof Tag> = {
   Plane,
   CreditCard,
   Tag,
-};
-
-// 大項顏色的格子樣式。class 必須完整寫在這個檔案裡，Tailwind 才掃得到（src/lib 不在掃描範圍）。
-const TILE_CLASS: Record<M3CatColor, { idle: string; selected: string }> = {
-  food: {
-    idle: "border-cat-food bg-cat-food/10 hover:bg-cat-food/15 active:bg-cat-food/20",
-    selected: "border-cat-food bg-cat-food/25",
-  },
-  transport: {
-    idle: "border-cat-transport bg-cat-transport/10 hover:bg-cat-transport/15 active:bg-cat-transport/20",
-    selected: "border-cat-transport bg-cat-transport/25",
-  },
-  shop: {
-    idle: "border-cat-shop bg-cat-shop/10 hover:bg-cat-shop/15 active:bg-cat-shop/20",
-    selected: "border-cat-shop bg-cat-shop/25",
-  },
-  home: {
-    idle: "border-cat-home bg-cat-home/10 hover:bg-cat-home/15 active:bg-cat-home/20",
-    selected: "border-cat-home bg-cat-home/25",
-  },
-  health: {
-    idle: "border-cat-health bg-cat-health/10 hover:bg-cat-health/15 active:bg-cat-health/20",
-    selected: "border-cat-health bg-cat-health/25",
-  },
-  fun: {
-    idle: "border-cat-fun bg-cat-fun/10 hover:bg-cat-fun/15 active:bg-cat-fun/20",
-    selected: "border-cat-fun bg-cat-fun/25",
-  },
 };
 
 type QuickCategoryGridProps = {
@@ -150,8 +122,8 @@ export function QuickCategoryGrid({
         className={cn(
           "flex h-[60px] min-w-0 items-center gap-2 rounded-md border-l-4 pl-2.5 pr-2 text-left transition-colors duration-m3-short",
           isSelected
-            ? cn("ring-2 ring-inset ring-on-surface/60", TILE_CLASS[groupColor].selected)
-            : TILE_CLASS[groupColor].idle,
+            ? cn("ring-2 ring-inset ring-on-surface/60", CATEGORY_TILE_CLASS[groupColor].selected)
+            : CATEGORY_TILE_CLASS[groupColor].idle,
         )}
       >
         <Icon className={cn("h-5 w-5 shrink-0", CAT_TEXT_CLASS[groupColor])} aria-hidden="true" />

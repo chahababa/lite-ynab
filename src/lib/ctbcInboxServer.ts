@@ -28,13 +28,20 @@ export function ctbcValidateCommand(value: unknown): CtbcCommand {
 }
 export async function ctbcLoad(request: Request): Promise<CtbcInboxData> {
   const { client, owner } = await ctbcUserClient(request);
-  const [snapshot, categories, payments, transactions] = await Promise.all([
-    client.rpc("ctbc_snapshot"), client.from("categories").select("id,name").eq("user_id",owner).order("sort_order"),
+  const [snapshot, groups, categories, payments, transactions] = await Promise.all([
+    client.rpc("ctbc_snapshot"), client.from("category_groups").select("id,name,sort_order").eq("user_id",owner),
+    client.from("categories").select("id,name,sort_order,category_group_id").eq("user_id",owner).order("sort_order"),
     client.from("payment_methods").select("id,name").eq("user_id",owner).order("sort_order"),
-    client.from("transactions").select("id,date,amount,note,payment_method_id").eq("user_id",owner).order("date",{ascending:false}).limit(200),
+    client.from("transactions").select("id,date,amount,note,payment_method_id,category_id").eq("user_id",owner).order("date",{ascending:false}).limit(200),
   ]);
-  if ([snapshot,categories,payments,transactions].some((r) => r.error)) throw new Error("load_failed");
-  return { ...snapshot.data, categories: categories.data ?? [], payments: payments.data ?? [], existing: transactions.data ?? [] };
+  if ([snapshot,groups,categories,payments,transactions].some((r) => r.error)) throw new Error("load_failed");
+  // 分類照「大項 → 分類」排序，並帶上大項名稱（畫面用顏色區分大項）
+  const groupById = new Map((groups.data ?? []).map((g) => [g.id as string, g as { name: string; sort_order: number }]));
+  const sortedCategories = (categories.data ?? [])
+    .map((c) => ({ id: c.id as string, name: c.name as string, groupName: groupById.get(c.category_group_id)?.name ?? "", groupOrder: groupById.get(c.category_group_id)?.sort_order ?? 0, order: c.sort_order as number }))
+    .sort((a, b) => a.groupOrder - b.groupOrder || a.order - b.order)
+    .map(({ id, name, groupName }) => ({ id, name, groupName }));
+  return { ...snapshot.data, categories: sortedCategories, payments: payments.data ?? [], existing: transactions.data ?? [] };
 }
 export async function ctbcApply(request: Request, value: unknown) {
   const c = ctbcValidateCommand(value);
