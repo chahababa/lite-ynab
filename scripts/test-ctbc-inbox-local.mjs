@@ -120,8 +120,8 @@ try{
  page=await context.newPage(); await page.goto(`${appOrigin}/login`);
  await page.getByLabel('電子郵件').fill(a.email);await page.getByLabel('密碼').fill(a.password);
  await page.locator('form').getByRole('button',{name:'登入',exact:true}).click();await page.waitForURL('**/quick-entry');
- await page.getByRole('link',{name:/待確認交易/}).waitFor();
- await page.getByRole('link',{name:/待確認交易/}).click();await page.getByRole('heading',{name:'待確認交易（7）',exact:true}).waitFor();
+ await page.getByRole('link',{name:/筆刷卡待確認/}).waitFor();
+ await page.getByRole('link',{name:/筆刷卡待確認/}).click();await page.getByRole('heading',{name:'待確認交易（7）',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
  const row=name=>page.getByRole('article',{name:new RegExp(`^${name} `)});
  const act=async(name,action)=>{const card=row(name);await card.getByLabel('我確認本筆處理方式').check();await card.getByRole('button',{name:action,exact:true}).click();};
