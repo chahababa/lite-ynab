@@ -141,14 +141,14 @@ describe("BudgetAllocationWizardPage", () => {
 
   it("有建議時顯示依據與「建議」按鈕，點了就帶入金額", async () => {
     fetchBudgetSuggestions.mockResolvedValue({
-      "cat-food": { suggested: 15500, average: 15230, max: 17458, activeMonths: 3, months: 3 },
+      "cat-food": { suggested: 15500, typical: 15230, max: 17458, activeMonths: 3, months: 3 },
     });
     render(createElement(BudgetAllocationWizardPage));
     await screen.findByText("先確認本月收入");
 
     fireEvent.click(screen.getByRole("button", { name: /開始分配/ }));
 
-    expect(await screen.findByText("近 3 個月平均花 $15,230，最高 $17,458")).toBeInTheDocument();
+    expect(await screen.findByText("近 3 個月通常花 $15,230，最高 $17,458")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "建議 $15,500" }));
     expect(screen.getByLabelText("個人 飲食 本月預算")).toHaveValue("15500");
   });

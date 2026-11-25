@@ -279,7 +279,7 @@ describe("BudgetAllocationPage", () => {
 
   it("套用建議預算前先列出調整內容，確認後才寫入", async () => {
     fetchBudgetSuggestions.mockResolvedValue({
-      "cat-food": { suggested: 2500, average: 2130, max: 3000, activeMonths: 3, months: 3 },
+      "cat-food": { suggested: 2500, typical: 2130, max: 3000, activeMonths: 3, months: 3 },
     });
     render(createElement(BudgetAllocationPage));
 

@@ -16,7 +16,7 @@ describe("roundUpBudget", () => {
 });
 
 describe("computeBudgetSuggestions", () => {
-  it("averages the three months before the target month, counting empty months as zero", () => {
+  it("uses the middle month of the three before the target month, counting empty months as zero", () => {
     const result = computeBudgetSuggestions(
       [
         tx("2026-09-03", "food", 9000),
@@ -29,7 +29,25 @@ describe("computeBudgetSuggestions", () => {
       "2026-12",
     );
 
-    expect(result.food).toEqual({ suggested: 10500, average: 10333, max: 17000, activeMonths: 2, months: 3 });
+    expect(result.food).toEqual({ suggested: 14000, typical: 14000, max: 17000, activeMonths: 2, months: 3 });
+  });
+
+  it("is not skewed by one incomplete month or one unusually large month", () => {
+    const result = computeBudgetSuggestions(
+      [
+        // 8 月記帳不完整、其餘兩個月正常
+        tx("2026-08-10", "food", 4200),
+        tx("2026-09-10", "food", 31508),
+        tx("2026-10-10", "food", 28726),
+        // 一筆機票讓 10 月暴增
+        tx("2026-09-07", "travel", 5812),
+        tx("2026-10-17", "travel", 91256),
+      ],
+      "2026-11",
+    );
+
+    expect(result.food).toMatchObject({ suggested: 29000, typical: 28726, max: 31508 });
+    expect(result.travel).toMatchObject({ suggested: 6000, typical: 5812, max: 91256 });
   });
 
   it("gives no suggestion for a category that only had spending in one month", () => {
@@ -39,7 +57,7 @@ describe("computeBudgetSuggestions", () => {
     );
 
     expect(result.travel).toBeUndefined();
-    expect(result.transit?.suggested).toBe(3500);
+    expect(result.transit?.suggested).toBe(5500);
   });
 
   it("handles a window that crosses a year boundary", () => {
@@ -48,14 +66,14 @@ describe("computeBudgetSuggestions", () => {
       "2027-02",
     );
 
-    expect(result.sub).toMatchObject({ suggested: 600, average: 560, activeMonths: 3 });
+    expect(result.sub).toMatchObject({ suggested: 600, typical: 560, activeMonths: 3 });
   });
 });
 
 describe("describeBudgetSuggestion", () => {
   it("explains where the number comes from", () => {
-    expect(describeBudgetSuggestion({ suggested: 10500, average: 10333, max: 17000, activeMonths: 2, months: 3 })).toBe(
-      "近 3 個月平均花 $10,333，最高 $17,000",
+    expect(describeBudgetSuggestion({ suggested: 10500, typical: 10333, max: 17000, activeMonths: 2, months: 3 })).toBe(
+      "近 3 個月通常花 $10,333，最高 $17,000",
     );
   });
 });

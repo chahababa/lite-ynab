@@ -10,7 +10,8 @@ const MIN_ACTIVE_MONTHS = 2;
 
 export type BudgetSuggestion = {
   suggested: number;
-  average: number;
+  /** 這幾個月花費的中位數（排序後正中間那個月） */
+  typical: number;
   max: number;
   activeMonths: number;
   months: number;
@@ -21,6 +22,12 @@ export function roundUpBudget(value: number): number {
   if (value <= 0) return 0;
   const step = value < 2000 ? 100 : 500;
   return Math.ceil(value / step) * step;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
 export function computeBudgetSuggestions(
@@ -47,10 +54,12 @@ export function computeBudgetSuggestions(
     const activeMonths = amounts.filter((amount) => amount > 0).length;
     if (activeMonths < MIN_ACTIVE_MONTHS) continue;
 
-    const average = Math.round(amounts.reduce((sum, amount) => sum + amount, 0) / months);
+    // 用中位數而不是平均：某個月記帳不完整、或某個月有一筆特別大的支出（例如機票），
+    // 都不會把建議拉歪。
+    const typical = median(amounts);
     suggestions[categoryId] = {
-      suggested: roundUpBudget(average),
-      average,
+      suggested: roundUpBudget(typical),
+      typical,
       max: Math.max(...amounts),
       activeMonths,
       months,
@@ -61,7 +70,7 @@ export function computeBudgetSuggestions(
 }
 
 export function describeBudgetSuggestion(suggestion: BudgetSuggestion): string {
-  return `近 ${suggestion.months} 個月平均花 $${suggestion.average.toLocaleString("en-US")}，最高 $${suggestion.max.toLocaleString("en-US")}`;
+  return `近 ${suggestion.months} 個月通常花 $${suggestion.typical.toLocaleString("en-US")}，最高 $${suggestion.max.toLocaleString("en-US")}`;
 }
 
 export async function fetchBudgetSuggestions(
