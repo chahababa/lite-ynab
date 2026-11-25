@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BudgetAllocationPage from "@/app/budget-allocation/page";
 
-const { fetchBudgetAllocationData, fetchBudgetReferenceData, routerValue, db } = vi.hoisted(() => ({
+const { fetchBudgetAllocationData, fetchBudgetReferenceData, fetchBudgetSuggestions, routerValue, db } = vi.hoisted(() => ({
+  fetchBudgetSuggestions: vi.fn(),
   // Records every insert/delete and lets a test decide what a query returns.
   db: {
     calls: [] as { table: string; op: string; payload?: unknown }[],
@@ -33,6 +34,11 @@ vi.mock("@/lib/data", () => ({
   fetchBudgetAllocationData,
   fetchBudgetReferenceData,
 }));
+
+vi.mock("@/lib/budgetSuggestion", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/budgetSuggestion")>();
+  return { ...original, fetchBudgetSuggestions };
+});
 
 vi.mock("@/lib/supabaseClient", () => ({
   getSupabaseBrowserClient: () => ({
@@ -136,6 +142,7 @@ describe("BudgetAllocationPage", () => {
         spent: 250,
       },
     ]);
+    fetchBudgetSuggestions.mockResolvedValue({});
   });
 
   it("renders summary and monthly planning actions", async () => {
@@ -261,5 +268,32 @@ describe("BudgetAllocationPage", () => {
     expect(await screen.findByText("新增大項失敗：boom")).toBeInTheDocument();
     expect(db.calls.at(-1)).toMatchObject({ table: "category_groups", op: "delete" });
     expect(screen.queryByRole("button", { name: "寵物 設定" })).not.toBeInTheDocument();
+  });
+
+  it("沒有建議時「套用建議預算」不能按，並說明原因", async () => {
+    render(createElement(BudgetAllocationPage));
+
+    expect(await screen.findByRole("button", { name: "套用建議預算" })).toBeDisabled();
+    expect(screen.getByText(/紀錄還不夠，暫時沒有建議/)).toBeInTheDocument();
+  });
+
+  it("套用建議預算前先列出調整內容，確認後才寫入", async () => {
+    fetchBudgetSuggestions.mockResolvedValue({
+      "cat-food": { suggested: 2500, average: 2130, max: 3000, activeMonths: 3, months: 3 },
+    });
+    render(createElement(BudgetAllocationPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "套用建議預算" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "套用建議預算" });
+    expect(within(dialog).getByText(/調整 1 個小項，合計 \$1,200 → \$2,500/)).toBeInTheDocument();
+    expect(within(dialog).getByText("$1,200 → $2,500")).toBeInTheDocument();
+    expect(db.calls).toHaveLength(0);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "套用建議預算" }));
+
+    expect(await screen.findByText("已依建議調整 1 個小項的預算。")).toBeInTheDocument();
+    expect(db.calls).toEqual([{ table: "budgets", op: "update", payload: { allocated: 2500 } }]);
+    expect(screen.getByRole("textbox", { name: "個人 飲食 本月預算" })).toHaveValue("2500");
   });
 });

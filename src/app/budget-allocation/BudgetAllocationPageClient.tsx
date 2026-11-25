@@ -59,6 +59,7 @@ export default function BudgetAllocationCompactPage() {
     paymentMethods,
     setPaymentMethods,
     previousReferenceMap,
+    suggestionMap,
     groupedRows,
     allocatedTotal,
     unallocated,
@@ -75,13 +76,14 @@ export default function BudgetAllocationCompactPage() {
     submitTextDialog,
     submitConfirmDialog,
   } = useBudgetDialogs();
-  const { saveIncome, copyPreviousMonthBudgets, applyAutoBudgets } = useBudgetBulkActions({
+  const { saveIncome, copyPreviousMonthBudgets, applyAutoBudgets, applySuggestedBudgets } = useBudgetBulkActions({
     supabase,
     monthId,
     incomeAmount,
     rows,
     setRows,
     previousReferenceMap,
+    suggestionMap,
     setPendingKey,
     setToast,
     setConfirmDialog,
@@ -179,6 +181,8 @@ export default function BudgetAllocationCompactPage() {
                 pendingKey={pendingKey}
                 copyPreviousMonthBudgets={copyPreviousMonthBudgets}
                 applyAutoBudgets={applyAutoBudgets}
+                applySuggestedBudgets={applySuggestedBudgets}
+                suggestionCount={rows.filter((row) => suggestionMap[row.categoryId]).length}
               />
             </aside>
 

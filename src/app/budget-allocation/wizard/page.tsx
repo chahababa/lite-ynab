@@ -15,6 +15,7 @@ import {
   fetchBudgetReferenceData,
   type BudgetReferenceItem,
 } from "@/lib/data";
+import { describeBudgetSuggestion, fetchBudgetSuggestions, type BudgetSuggestion } from "@/lib/budgetSuggestion";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { BudgetRow, ToastState } from "@/lib/types";
 import { cn, formatMonthLabel, getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
@@ -40,6 +41,7 @@ export default function BudgetAllocationWizardPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const [rows, setRows] = useState<BudgetRow[]>([]);
   const [previousReference, setPreviousReference] = useState<Record<string, BudgetReferenceItem>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, BudgetSuggestion>>({});
   const [incomeAmount, setIncomeAmount] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // step 0 = 收入確認；1..N = 各大項；N+1 = 總結
@@ -60,12 +62,16 @@ export default function BudgetAllocationWizardPage() {
       setLoadError(null);
 
       try {
-        const [data, reference] = await Promise.all([
+        const [data, reference, nextSuggestions] = await Promise.all([
           fetchBudgetAllocationData(supabase, monthId),
           fetchBudgetReferenceData(supabase, shiftMonth(monthId, -1)),
+          // 建議只是輔助，讀不到就不顯示，不擋分配流程。
+          fetchBudgetSuggestions(supabase, monthId).catch(() => ({})),
         ]);
 
         if (!active) return;
+
+        setSuggestions(nextSuggestions);
 
         setRows(data.budgetRows);
         setIncomeAmount(String(data.income?.amount ?? 0));
@@ -293,6 +299,7 @@ export default function BudgetAllocationWizardPage() {
                   {currentGroup.rows.map((row) => {
                     const previous = previousReference[row.categoryId];
                     const value = drafts[row.budgetId] ?? String(row.allocated);
+                    const suggestion = suggestions[row.categoryId];
 
                     return (
                       <div
@@ -310,6 +317,11 @@ export default function BudgetAllocationWizardPage() {
                                 ? `・結轉 $${row.carryover.toLocaleString("en-US")}`
                                 : ""}
                             </p>
+                            {suggestion ? (
+                              <p className="text-label-sm text-on-surface-variant">
+                                {describeBudgetSuggestion(suggestion)}
+                              </p>
+                            ) : null}
                           </div>
                           <input
                             inputMode="numeric"
@@ -319,7 +331,21 @@ export default function BudgetAllocationWizardPage() {
                             className="h-10 w-[86px] shrink-0 rounded-xs border border-outline-variant bg-surface px-2 text-center font-mono text-body-md tabular-nums text-on-surface outline-none focus:border-primary focus:border-2"
                           />
                         </div>
-                        <div className="mt-2 flex gap-1.5">
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {suggestion ? (
+                            <button
+                              type="button"
+                              onClick={() => setDraft(row.budgetId, String(suggestion.suggested))}
+                              className={cn(
+                                "rounded-full border px-3 py-1 text-label-md transition-colors duration-m3-short",
+                                Number(value || 0) === suggestion.suggested
+                                  ? "border-primary bg-primary-container text-primary-on-container"
+                                  : "border-primary/60 text-primary hover:bg-primary/5 active:bg-primary/10",
+                              )}
+                            >
+                              建議 ${suggestion.suggested.toLocaleString("en-US")}
+                            </button>
+                          ) : null}
                           {previous && previous.allocated > 0 ? (
                             <button
                               type="button"

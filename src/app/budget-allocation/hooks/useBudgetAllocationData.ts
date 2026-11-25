@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { useRouter } from "next/navigation";
 
+import { fetchBudgetSuggestions, type BudgetSuggestion } from "@/lib/budgetSuggestion";
 import { fetchBudgetAllocationData, fetchBudgetReferenceData } from "@/lib/data";
 import type { BudgetRow, PaymentMethodOption } from "@/lib/types";
 import { getTodayInTaipei, shiftMonth, toMonthId } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function useBudgetAllocationData({ supabase, router, setToast }: UseBudge
   const [rows, setRows] = useState<BudgetRow[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [previousReferenceMap, setPreviousReferenceMap] = useState<Record<string, PreviousReference>>({});
+  const [suggestionMap, setSuggestionMap] = useState<Record<string, BudgetSuggestion>>({});
 
   useEffect(() => {
     const {
@@ -48,9 +50,11 @@ export function useBudgetAllocationData({ supabase, router, setToast }: UseBudge
 
       try {
         const previousMonthId = shiftMonth(monthId, -1);
-        const [currentData, previousReferences] = await Promise.all([
+        const [currentData, previousReferences, suggestions] = await Promise.all([
           fetchBudgetAllocationData(supabase, monthId),
           fetchBudgetReferenceData(supabase, previousMonthId),
+          // 建議只是輔助，讀不到就當作沒有建議，不擋整頁載入。
+          fetchBudgetSuggestions(supabase, monthId).catch(() => ({})),
         ]);
 
         if (!active) {
@@ -72,6 +76,7 @@ export function useBudgetAllocationData({ supabase, router, setToast }: UseBudge
         setRows(currentData.budgetRows);
         setPaymentMethods(currentData.paymentMethods);
         setPreviousReferenceMap(nextReferenceMap);
+        setSuggestionMap(suggestions);
       } catch (error) {
         if (!active) {
           return;
@@ -142,6 +147,7 @@ export function useBudgetAllocationData({ supabase, router, setToast }: UseBudge
     paymentMethods,
     setPaymentMethods,
     previousReferenceMap,
+    suggestionMap,
     groupedRows,
     allocatedTotal,
     unallocated,
