@@ -22,6 +22,7 @@ import {
 } from "@/lib/categoryStyle";
 import { CATEGORY_TILE_CLASS } from "@/components/categoryTileClass";
 import { getShortCategoryName } from "@/lib/categoryDisplay";
+import type { DailyAllowance } from "@/lib/dailyAllowance";
 import type { QuickBudgetStatus } from "@/lib/data";
 import type { CategoryOption } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -46,20 +47,34 @@ type QuickCategoryGridProps = {
   loadError: string | null;
   visibleQuickCategories: CategoryOption[];
   budgetStatusByCategory: Record<string, QuickBudgetStatus>;
+  dailyAllowanceByCategory: Record<string, DailyAllowance>;
   selectedCategoryId: string;
   handleQuickCategoryTap: (categoryId: string) => void;
   setIsCategoryModalOpen: (open: boolean) => void;
   onRefresh: () => void;
 };
 
-/** 格子上的預算提示：有預算顯示「剩／超」，沒預算但有花費顯示「已花」。 */
-export function getBudgetHint(status: QuickBudgetStatus | undefined): {
+/**
+ * 格子上的預算提示。
+ * - 有「今天還能花多少」時優先顯示它（今日剩／今日超），這是記帳當下最用得上的數字。
+ * - 否則有預算顯示整月的「剩／超」，沒預算但有花費顯示「已花」。
+ */
+export function getBudgetHint(
+  status: QuickBudgetStatus | undefined,
+  daily?: DailyAllowance | null,
+): {
   text: string;
   isOver: boolean;
 } | null {
   if (!status) return null;
 
   const format = (value: number) => `$${Math.abs(value).toLocaleString("en-US")}`;
+
+  if (daily) {
+    return daily.todayLeft >= 0
+      ? { text: `今日剩 ${format(daily.todayLeft)}`, isOver: false }
+      : { text: `今日超 ${format(daily.todayLeft)}`, isOver: true };
+  }
 
   if (status.available > 0) {
     const remaining = status.available - status.spent;
@@ -76,6 +91,7 @@ export function QuickCategoryGrid({
   loadError,
   visibleQuickCategories,
   budgetStatusByCategory,
+  dailyAllowanceByCategory,
   selectedCategoryId,
   handleQuickCategoryTap,
   setIsCategoryModalOpen,
@@ -110,7 +126,7 @@ export function QuickCategoryGrid({
     const Icon = ICON_COMPONENTS[getCategoryStyle(shortName).icon];
     const groupColor = getGroupBadgeColor(category.groupName);
     const isSelected = selectedCategoryId === category.id;
-    const hint = getBudgetHint(budgetStatusByCategory[category.id]);
+    const hint = getBudgetHint(budgetStatusByCategory[category.id], dailyAllowanceByCategory[category.id]);
 
     return (
       <button

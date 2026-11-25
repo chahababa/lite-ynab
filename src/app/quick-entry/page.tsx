@@ -8,6 +8,7 @@ import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 import { PaymentMethodModal } from "@/components/PaymentMethodModal";
 import { Toast } from "@/components/Toast";
 import { Button as M3Button } from "@/components/m3/Button";
+import { describeSpendingReminder } from "@/lib/dailyAllowance";
 
 import { AmountCard } from "./components/AmountCard";
 import { DateSheet } from "./components/DateSheet";
@@ -28,6 +29,7 @@ export default function QuickEntryPage() {
     selectedPaymentMethodId,
     setSelectedPaymentMethodId,
     budgetStatusByCategory,
+    dailyAllowanceByCategory,
     monthSummary,
     amount,
     date,
@@ -113,6 +115,7 @@ export default function QuickEntryPage() {
           loadError={loadError}
           visibleQuickCategories={visibleQuickCategories}
           budgetStatusByCategory={budgetStatusByCategory}
+          dailyAllowanceByCategory={dailyAllowanceByCategory}
           selectedCategoryId={selectedCategoryId}
           handleQuickCategoryTap={handleQuickCategoryTap}
           setIsCategoryModalOpen={setIsCategoryModalOpen}
@@ -122,6 +125,10 @@ export default function QuickEntryPage() {
         {lastSaved ? (
           <LastSavedNotice
             lastSaved={lastSaved}
+            reminder={describeSpendingReminder(
+              budgetStatusByCategory[lastSaved.categoryId],
+              dailyAllowanceByCategory[lastSaved.categoryId],
+            )}
             isUndoing={isUndoing}
             onUndo={() => void undoLastSaved()}
           />
