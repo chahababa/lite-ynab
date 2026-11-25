@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { CtbcCommand, CtbcInboxData } from "./ctbcInbox";
+import { pickAutoImports, type CtbcAutoImported, type CtbcAutoResult, type CtbcAutoRule } from "./ctbcAutoRules";
+import type { CtbcCandidate, CtbcCommand, CtbcInboxData } from "./ctbcInbox";
 
 export function ctbcEnabled() { return process.env.CTBC_INBOX_ENABLED === "true"; }
 export async function ctbcUserClient(request: Request) {
@@ -69,4 +71,35 @@ export async function ctbcApplyBatch(request:Request,value:unknown){
     catch{results.push({candidateId:c.candidateId,status:"conflict"});stopped=true;}
   }
   return {results};
+}
+
+/**
+ * 依使用者設定的「自動歸類規則」，把乾淨的待確認刷卡直接補記。
+ * 走的是跟手動補記完全一樣的 ctbc_act('import')：風險複查、版本檢查、防重複都照舊；
+ * 任何一筆被擋下（例如剛好變成可能重複）就留在待確認，不影響其他筆。
+ */
+export async function ctbcAutoImport(request: Request): Promise<CtbcAutoResult> {
+  const { client, owner } = await ctbcUserClient(request);
+  const rules = await client.from("ctbc_auto_rules").select("id,pattern,category_id,max_amount,enabled").eq("user_id", owner);
+  // 規則表讀不到（例如資料庫還沒建這張表）就當作沒有規則，不影響原本的待確認流程。
+  if (rules.error || !rules.data || rules.data.length === 0) return { imported: [] };
+
+  const [snapshot, categories] = await Promise.all([
+    client.rpc("ctbc_snapshot"),
+    client.from("categories").select("id,name").eq("user_id", owner),
+  ]);
+  if (snapshot.error || categories.error) throw new Error("load_failed");
+
+  const categoryName = new Map((categories.data ?? []).map((c) => [c.id as string, c.name as string]));
+  const picked = pickAutoImports((snapshot.data?.candidates ?? []) as CtbcCandidate[], rules.data as CtbcAutoRule[])
+    .filter(({ rule }) => categoryName.has(rule.category_id));
+
+  const imported: CtbcAutoImported[] = [];
+  for (const { candidate, rule } of picked) {
+    const result = await client.rpc("ctbc_act", { p_id: candidate.id, p_expected: candidate.version, p_action: "import", p_key: randomUUID(),
+      p_category: rule.category_id, p_payment: candidate.suggested_payment_id, p_link: null, p_resolve: false, p_batch: false });
+    if (result.error || result.data?.code !== "personal_imported") continue;
+    imported.push({ merchant: candidate.merchant ?? "", amount: candidate.amount ?? 0, categoryName: categoryName.get(rule.category_id) ?? "" });
+  }
+  return { imported };
 }

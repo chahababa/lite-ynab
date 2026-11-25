@@ -363,6 +363,9 @@ export function CtbcInboxClient() {
   return (
     <main aria-busy={busy} className="min-h-screen bg-background text-on-surface">
       <div className="mx-auto max-w-md space-y-4 px-4 py-4 pb-24">
+        <Link className="float-right text-body-sm text-primary hover:underline focus-visible:outline" href="/settings/auto-rules">
+          自動歸類規則 →
+        </Link>
         <Link className="text-body-sm text-primary hover:underline focus-visible:outline" href="/settings">
           返回設定
         </Link>

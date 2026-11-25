@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { ChevronRight, CreditCard } from "lucide-react";
 
-import { useCtbcPendingCount } from "@/lib/useCtbcPendingCount";
+import type { CtbcAutoImported } from "@/lib/ctbcAutoRules";
+import { useCtbcAutoImported, useCtbcPendingCount } from "@/lib/useCtbcPendingCount";
 
 /**
  * 頁面最上方的「刷卡待確認」提醒。
@@ -11,8 +12,41 @@ import { useCtbcPendingCount } from "@/lib/useCtbcPendingCount";
  */
 export function CtbcInboxShortcut({ showWhenEmpty = false }: { showWhenEmpty?: boolean }) {
   const count = useCtbcPendingCount();
+  const autoImported = useCtbcAutoImported();
   if (count === null) return null;
-  return <CtbcInboxCard count={count} showWhenEmpty={showWhenEmpty} />;
+  return (
+    <>
+      <CtbcAutoImportedNotice imported={autoImported} />
+      <CtbcInboxCard count={count} showWhenEmpty={showWhenEmpty} />
+    </>
+  );
+}
+
+/** 「已自動記帳 N 筆」的小提示：讓你知道哪些刷卡沒問你就記進去了。 */
+export function CtbcAutoImportedNotice({ imported }: { imported: CtbcAutoImported[] }) {
+  if (imported.length === 0) return null;
+  const total = imported.reduce((sum, item) => sum + item.amount, 0);
+  const shown = imported.slice(0, 3);
+
+  return (
+    <Link
+      href="/settings/email-import"
+      className="flex items-center gap-3 rounded-md border border-outline bg-surface px-4 py-2.5 transition-colors duration-m3-short hover:bg-on-surface/5 active:bg-on-surface/10"
+    >
+      <CreditCard className="h-5 w-5 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-body-md font-medium text-on-surface">
+          已自動記帳 <span className="font-mono tabular-nums">{imported.length}</span> 筆，共{" "}
+          <span className="font-mono tabular-nums">{"$"}{total.toLocaleString("en-US")}</span>
+        </span>
+        <span className="block truncate text-body-sm text-on-surface-variant">
+          {shown.map((item) => `${item.merchant} ${"$"}${item.amount.toLocaleString("en-US")}`).join("、")}
+          {imported.length > shown.length ? " …" : ""}
+        </span>
+      </span>
+      <ChevronRight className="h-5 w-5 shrink-0 text-on-surface-variant" />
+    </Link>
+  );
 }
 
 /** 只負責畫面：給定待確認筆數就畫出提醒。 */
