@@ -93,6 +93,10 @@ export type BudgetReferenceItem = {
 // 拿來累積結轉會失真，所以結轉一律從這個月開始往後算。
 export const ROLLOVER_START_MONTH = "2026-07";
 
+// 結轉開關。目前關閉：每個月只看「這個月的預算 − 這個月的花費」，上個月沒花完的不會加進來。
+// 之後想恢復結轉，把這裡改回 true 即可，計算邏輯都還在。
+export const ROLLOVER_ENABLED: boolean = false;
+
 // 逐月累積「分配 - 支出」作為結轉；超支的月份歸零重新起算，不把負數帶到下個月。
 export function computeCarryoverByCategory(
   budgets: Pick<Budget, "month_id" | "category_id" | "allocated">[],
@@ -154,7 +158,7 @@ export async function fetchCarryoverByCategory(
   supabase: SupabaseClient,
   monthId: string,
 ): Promise<Map<string, number>> {
-  if (monthId <= ROLLOVER_START_MONTH) {
+  if (!ROLLOVER_ENABLED || monthId <= ROLLOVER_START_MONTH) {
     return new Map();
   }
 
@@ -754,13 +758,16 @@ export type QuickBudgetStatus = {
   available: number;
   /** 本月已支出 */
   spent: number;
+  /** 今天已支出；只有記帳頁看當月時才會算 */
+  spentToday?: number;
 };
 
 // 記帳頁每個分類格子要顯示的「還剩多少」，以及整個月的加總。
 export function computeQuickBudgetStatus(
   budgets: Pick<Budget, "category_id" | "allocated">[],
-  monthTransactions: Pick<Transaction, "category_id" | "amount">[],
+  monthTransactions: (Pick<Transaction, "category_id" | "amount"> & { date?: string })[],
   carryoverByCategory: Map<string, number>,
+  today?: string,
 ): { byCategory: Record<string, QuickBudgetStatus>; summary: QuickBudgetStatus } {
   const byCategory: Record<string, QuickBudgetStatus> = {};
   const ensure = (categoryId: string) => (byCategory[categoryId] ??= { available: 0, spent: 0 });
@@ -772,7 +779,11 @@ export function computeQuickBudgetStatus(
     ensure(categoryId).available += carryover;
   }
   for (const transaction of monthTransactions) {
-    ensure(transaction.category_id).spent += transaction.amount;
+    const status = ensure(transaction.category_id);
+    status.spent += transaction.amount;
+    if (today && transaction.date === today) {
+      status.spentToday = (status.spentToday ?? 0) + transaction.amount;
+    }
   }
 
   const summary = Object.values(byCategory).reduce<QuickBudgetStatus>(
@@ -812,7 +823,7 @@ export async function fetchQuickEntryData(
     supabase.from("budgets").select("category_id,allocated").eq("month_id", monthId),
     supabase
       .from("transactions")
-      .select("category_id,amount")
+      .select("category_id,amount,date")
       .gte("date", monthStart)
       .lt("date", monthEnd),
     fetchCarryoverByCategory(supabase, monthId),
@@ -860,8 +871,9 @@ export async function fetchQuickEntryData(
   const paymentMethods = createPaymentMethodOptions((paymentMethodsResult.data ?? []) as PaymentMethod[]);
   const budgetStatus = computeQuickBudgetStatus(
     (budgetsResult.data ?? []) as Pick<Budget, "category_id" | "allocated">[],
-    (monthTransactionsResult.data ?? []) as Pick<Transaction, "category_id" | "amount">[],
+    (monthTransactionsResult.data ?? []) as Pick<Transaction, "category_id" | "amount" | "date">[],
     carryoverByCategory,
+    getTodayInTaipei(),
   );
 
   return {

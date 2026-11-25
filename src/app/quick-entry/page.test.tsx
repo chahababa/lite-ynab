@@ -183,7 +183,8 @@ describe("QuickEntryPage", () => {
     render(createElement(QuickEntryPage));
     await waitForTiles();
 
-    expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveTextContent("剩 $3,200");
+    // 還有預算的分類顯示「今天還能花多少」，金額隨當天日期變動，所以只比對格式。
+    expect(screen.getByRole("button", { name: "個人 飲食" })).toHaveTextContent(/今日剩 \$[\d,]+/);
     expect(screen.getByRole("button", { name: "家庭 飲食" })).toHaveTextContent("超 $420");
     expect(screen.getByRole("button", { name: "個人 咖啡" })).toHaveTextContent("已花 $250");
   });
@@ -424,6 +425,18 @@ describe("getBudgetHint", () => {
 
   it("treats spending exactly at the budget as zero remaining, not overspent", () => {
     expect(getBudgetHint({ available: 1000, spent: 1000 })).toEqual({ text: "剩 $0", isOver: false });
+  });
+
+  it("prefers today's allowance when there is one", () => {
+    const status = { available: 15000, spent: 12200, spentToday: 200 };
+    expect(getBudgetHint(status, { daysLeft: 10, perDay: 300, todayLeft: 100 })).toEqual({
+      text: "今日剩 " + "$" + "100",
+      isOver: false,
+    });
+    expect(getBudgetHint(status, { daysLeft: 10, perDay: 300, todayLeft: -250 })).toEqual({
+      text: "今日超 " + "$" + "250",
+      isOver: true,
+    });
   });
 
   it("reports the overspent amount as a positive number", () => {

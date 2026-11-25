@@ -8,10 +8,12 @@ import {
   fetchBudgetAllocationData,
   fetchBudgetReferenceData,
   fetchBudgetUsageData,
+  fetchCarryoverByCategory,
   fetchDashboardData,
   fetchSettingsData,
   getReportRangeBounds,
   pickQuickPaymentMethods,
+  ROLLOVER_ENABLED,
   sortQuickCategories,
 } from "@/lib/data";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -742,5 +744,34 @@ describe("legacy categories during public reads", () => {
     await fetch(mock.client);
 
     expect(mock.mutations).toEqual([]);
+  });
+});
+
+describe("fetchCarryoverByCategory", () => {
+  it("returns no carryover and does not query while rollover is switched off", async () => {
+    expect(ROLLOVER_ENABLED).toBe(false);
+
+    const supabase = {
+      from: () => {
+        throw new Error("should not query when rollover is off");
+      },
+    };
+
+    const result = await fetchCarryoverByCategory(supabase as never, "2026-11");
+    expect(result.size).toBe(0);
+  });
+
+  it("counts today's spending separately for the quick-entry tiles", () => {
+    const result = computeQuickBudgetStatus(
+      [{ category_id: "food", allocated: 15000 }],
+      [
+        { category_id: "food", amount: 300, date: "2026-11-20" },
+        { category_id: "food", amount: 200, date: "2026-11-21" },
+      ],
+      new Map(),
+      "2026-11-21",
+    );
+
+    expect(result.byCategory.food).toEqual({ available: 15000, spent: 500, spentToday: 200 });
   });
 });

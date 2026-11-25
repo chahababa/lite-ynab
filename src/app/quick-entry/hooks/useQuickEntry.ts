@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { computeDailyAllowance, type DailyAllowance } from "@/lib/dailyAllowance";
 import { fetchQuickEntryData, type QuickBudgetStatus } from "@/lib/data";
 import { useLastPaymentMethod } from "@/lib/hooks/useLastPaymentMethod";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -116,6 +117,17 @@ export function useQuickEntry() {
       .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
   }, [quickCategories, allCategories]);
 
+  // 每個有預算的分類「今天還能花多少」；看的不是當月、或該分類整月已超支時不會有。
+  const dailyAllowanceByCategory = useMemo(() => {
+    const today = getTodayInTaipei();
+    const result: Record<string, DailyAllowance> = {};
+    for (const [categoryId, status] of Object.entries(budgetStatusByCategory)) {
+      const daily = computeDailyAllowance(status, currentMonthId, today);
+      if (daily) result[categoryId] = daily;
+    }
+    return result;
+  }, [budgetStatusByCategory, currentMonthId]);
+
   const selectedCategory = useMemo(
     () => allCategories.find((category) => category.id === selectedCategoryId) ?? null,
     [allCategories, selectedCategoryId],
@@ -217,6 +229,7 @@ export function useQuickEntry() {
       setLastSaved({
         id: (inserted as { id: string } | null)?.id ?? null,
         amount: nextAmount,
+        categoryId,
         categoryName: category?.name ?? "未命名分類",
         paymentMethodName: selectedPaymentMethod?.name ?? "未設定",
         note: note.trim(),
@@ -265,6 +278,7 @@ export function useQuickEntry() {
     selectedPaymentMethodId,
     setSelectedPaymentMethodId,
     budgetStatusByCategory,
+    dailyAllowanceByCategory,
     monthSummary,
     amount,
     date,
