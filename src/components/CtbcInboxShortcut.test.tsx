@@ -9,7 +9,7 @@ import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 
 const testState = vi.hoisted(() => ({
   pendingCount: null as number | null,
-  autoImported: [] as { merchant: string; amount: number; categoryName: string }[],
+  autoImported: [] as { merchant: string; amount: number; categoryName: string; excluded?: boolean }[],
 }));
 
 vi.mock("@/lib/useCtbcPendingCount", () => ({
@@ -61,11 +61,12 @@ describe("CtbcInboxShortcut", () => {
       { merchant: "全家便利商店 板橋松翠店", amount: 80, categoryName: "個人-飲食" },
       { merchant: "NETFLIX.COM", amount: 560, categoryName: "Netflix_訂閱" },
       { merchant: "Spotify", amount: 298, categoryName: "Spotify 訂閱" },
+      { merchant: "５５６８８ＡＰＰ", amount: 405, categoryName: "工作支出", excluded: true },
     ];
     render(createElement(CtbcInboxShortcut));
 
     const notice = screen.getByText(/已自動記帳/).closest("a");
-    expect(notice).toHaveTextContent("已自動記帳 4 筆，共 $1,203");
+    expect(notice).toHaveTextContent("已自動記帳 4 筆，共 $1,203；1 筆算工作、沒記帳");
     expect(notice).toHaveTextContent("５５６８８ＡＰＰ $265、全家便利商店 板橋松翠店 $80、NETFLIX.COM $560 …");
   });
 });

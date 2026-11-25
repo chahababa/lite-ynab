@@ -55,8 +55,9 @@ describe("AutoRulesClient", () => {
     db.calls = [];
     db.failWrites = false;
     db.rules = [
-      { id: "r1", pattern: "全家", category_id: "cat-food", max_amount: 1000, enabled: true },
-      { id: "r2", pattern: "NETFLIX", category_id: "cat-gone", max_amount: null, enabled: false },
+      { id: "r1", pattern: "全家", action: "import", category_id: "cat-food", max_amount: 1000, enabled: true },
+      { id: "r2", pattern: "NETFLIX", action: "import", category_id: "cat-gone", max_amount: null, enabled: false },
+      { id: "r3", pattern: "55688", action: "work", category_id: null, max_amount: null, enabled: true },
     ];
   });
 
@@ -65,6 +66,7 @@ describe("AutoRulesClient", () => {
 
     expect(await screen.findByLabelText("規則 全家")).toHaveTextContent("→ 個人・飲食・$1,000 以下");
     expect(screen.getByLabelText("規則 NETFLIX")).toHaveTextContent("（分類已刪除）・不限金額・已停用");
+    expect(screen.getByLabelText("規則 55688")).toHaveTextContent("→ 算工作、不記帳・不限金額");
   });
 
   it("adds a rule with the chosen category and amount limit", async () => {
@@ -78,8 +80,25 @@ describe("AutoRulesClient", () => {
 
     expect(await screen.findByText("已新增規則「55688」。")).toBeInTheDocument();
     expect(db.calls).toEqual([
-      { table: "ctbc_auto_rules", op: "insert", payload: { pattern: "55688", category_id: "cat-food", max_amount: 800 } },
+      { table: "ctbc_auto_rules", op: "insert", payload: { pattern: "55688", action: "import", category_id: "cat-food", max_amount: 800 } },
     ]);
+  });
+
+  it("adds a work rule without a category", async () => {
+    render(createElement(AutoRulesClient));
+    await screen.findByLabelText("規則 全家");
+
+    fireEvent.change(screen.getByLabelText("商店名稱包含"), { target: { value: "優步福爾摩沙" } });
+    fireEvent.change(screen.getByLabelText("記到分類"), { target: { value: "__work__" } });
+    fireEvent.change(screen.getByLabelText("金額上限"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "新增規則" }));
+
+    expect(await screen.findByText("已新增規則「優步福爾摩沙」。")).toBeInTheDocument();
+    expect(db.calls.at(-1)).toEqual({
+      table: "ctbc_auto_rules",
+      op: "insert",
+      payload: { pattern: "優步福爾摩沙", action: "work", category_id: null, max_amount: null },
+    });
   });
 
   it("refuses an incomplete rule without writing anything", async () => {

@@ -3,12 +3,15 @@ import type { CtbcCandidate } from "./ctbcInbox";
 export type CtbcAutoRule = {
   id: string;
   pattern: string;
-  category_id: string;
+  /** import：補記到 category_id；work：標為工作支出、不記入個人帳本 */
+  action: "import" | "work";
+  category_id: string | null;
   max_amount: number | null;
   enabled: boolean;
 };
 
-export type CtbcAutoImported = { merchant: string; amount: number; categoryName: string };
+/** excluded = true 代表這筆被標為工作支出，沒有記進個人帳本。 */
+export type CtbcAutoImported = { merchant: string; amount: number; categoryName: string; excluded?: boolean };
 export type CtbcAutoResult = { imported: CtbcAutoImported[] };
 
 /** 一次最多自動補記幾筆；剩下的下次開 App 再處理。 */

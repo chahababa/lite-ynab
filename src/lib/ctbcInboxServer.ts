@@ -74,13 +74,13 @@ export async function ctbcApplyBatch(request:Request,value:unknown){
 }
 
 /**
- * 依使用者設定的「自動歸類規則」，把乾淨的待確認刷卡直接補記。
+ * 依使用者設定的「自動歸類規則」，把乾淨的待確認刷卡直接補記，或標為工作支出（不記帳）。
  * 走的是跟手動補記完全一樣的 ctbc_act('import')：風險複查、版本檢查、防重複都照舊；
  * 任何一筆被擋下（例如剛好變成可能重複）就留在待確認，不影響其他筆。
  */
 export async function ctbcAutoImport(request: Request): Promise<CtbcAutoResult> {
   const { client, owner } = await ctbcUserClient(request);
-  const rules = await client.from("ctbc_auto_rules").select("id,pattern,category_id,max_amount,enabled").eq("user_id", owner);
+  const rules = await client.from("ctbc_auto_rules").select("id,pattern,action,category_id,max_amount,enabled").eq("user_id", owner);
   // 規則表讀不到（例如資料庫還沒建這張表）就當作沒有規則，不影響原本的待確認流程。
   if (rules.error || !rules.data || rules.data.length === 0) return { imported: [] };
 
@@ -92,14 +92,18 @@ export async function ctbcAutoImport(request: Request): Promise<CtbcAutoResult> 
 
   const categoryName = new Map((categories.data ?? []).map((c) => [c.id as string, c.name as string]));
   const picked = pickAutoImports((snapshot.data?.candidates ?? []) as CtbcCandidate[], rules.data as CtbcAutoRule[])
-    .filter(({ rule }) => categoryName.has(rule.category_id));
+    // 補記規則指向的分類如果已經不存在，就不處理，留給使用者確認。
+    .filter(({ rule }) => rule.action === "work" || (rule.category_id !== null && categoryName.has(rule.category_id)));
 
   const imported: CtbcAutoImported[] = [];
   for (const { candidate, rule } of picked) {
-    const result = await client.rpc("ctbc_act", { p_id: candidate.id, p_expected: candidate.version, p_action: "import", p_key: randomUUID(),
-      p_category: rule.category_id, p_payment: candidate.suggested_payment_id, p_link: null, p_resolve: false, p_batch: false });
-    if (result.error || result.data?.code !== "personal_imported") continue;
-    imported.push({ merchant: candidate.merchant ?? "", amount: candidate.amount ?? 0, categoryName: categoryName.get(rule.category_id) ?? "" });
+    const work = rule.action === "work";
+    const result = await client.rpc("ctbc_act", { p_id: candidate.id, p_expected: candidate.version, p_action: work ? "work" : "import", p_key: randomUUID(),
+      p_category: work ? null : rule.category_id, p_payment: work ? null : candidate.suggested_payment_id, p_link: null, p_resolve: false, p_batch: false });
+    if (result.error || result.data?.code !== (work ? "work_expense_excluded" : "personal_imported")) continue;
+    imported.push(work
+      ? { merchant: candidate.merchant ?? "", amount: candidate.amount ?? 0, categoryName: "工作支出", excluded: true }
+      : { merchant: candidate.merchant ?? "", amount: candidate.amount ?? 0, categoryName: categoryName.get(rule.category_id ?? "") ?? "" });
   }
   return { imported };
 }

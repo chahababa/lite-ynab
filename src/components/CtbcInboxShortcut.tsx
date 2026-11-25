@@ -25,7 +25,9 @@ export function CtbcInboxShortcut({ showWhenEmpty = false }: { showWhenEmpty?: b
 /** 「已自動記帳 N 筆」的小提示：讓你知道哪些刷卡沒問你就記進去了。 */
 export function CtbcAutoImportedNotice({ imported }: { imported: CtbcAutoImported[] }) {
   if (imported.length === 0) return null;
-  const total = imported.reduce((sum, item) => sum + item.amount, 0);
+  const recorded = imported.filter((item) => !item.excluded);
+  const excluded = imported.length - recorded.length;
+  const total = recorded.reduce((sum, item) => sum + item.amount, 0);
   const shown = imported.slice(0, 3);
 
   return (
@@ -36,8 +38,18 @@ export function CtbcAutoImportedNotice({ imported }: { imported: CtbcAutoImporte
       <CreditCard className="h-5 w-5 shrink-0 text-primary" />
       <span className="min-w-0 flex-1">
         <span className="block text-body-md font-medium text-on-surface">
-          已自動記帳 <span className="font-mono tabular-nums">{imported.length}</span> 筆，共{" "}
-          <span className="font-mono tabular-nums">{"$"}{total.toLocaleString("en-US")}</span>
+          {recorded.length > 0 ? (
+            <>
+              已自動記帳 <span className="font-mono tabular-nums">{recorded.length}</span> 筆，共{" "}
+              <span className="font-mono tabular-nums">{"$"}{total.toLocaleString("en-US")}</span>
+            </>
+          ) : null}
+          {recorded.length > 0 && excluded > 0 ? "；" : null}
+          {excluded > 0 ? (
+            <>
+              <span className="font-mono tabular-nums">{excluded}</span> 筆算工作、沒記帳
+            </>
+          ) : null}
         </span>
         <span className="block truncate text-body-sm text-on-surface-variant">
           {shown.map((item) => `${item.merchant} ${"$"}${item.amount.toLocaleString("en-US")}`).join("、")}

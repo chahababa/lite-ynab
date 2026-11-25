@@ -10,6 +10,9 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 type CategoryChoice = { id: string; name: string; groupName: string };
 
+/** 下拉選單裡「算工作、不記帳」那個選項的值。 */
+const WORK_CHOICE = "__work__";
+
 const inputClass =
   "h-10 w-full rounded-xs border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none focus:border-2 focus:border-primary";
 
@@ -30,7 +33,7 @@ export function AutoRulesClient() {
 
   const load = useCallback(async () => {
     const [rulesResult, groupsResult, categoriesResult] = await Promise.all([
-      supabase.from("ctbc_auto_rules").select("id,pattern,category_id,max_amount,enabled").order("created_at", { ascending: true }),
+      supabase.from("ctbc_auto_rules").select("id,pattern,action,category_id,max_amount,enabled").order("created_at", { ascending: true }),
       supabase.from("category_groups").select("id,name,sort_order").order("sort_order", { ascending: true }),
       supabase.from("categories").select("id,name,sort_order,category_group_id").order("sort_order", { ascending: true }),
     ]);
@@ -58,7 +61,7 @@ export function AutoRulesClient() {
   }, [load]);
 
   const categoryLabel = useCallback(
-    (id: string) => {
+    (id: string | null) => {
       const category = categories.find((item) => item.id === id);
       return category ? `${category.groupName}・${getShortCategoryName(category.name, category.groupName)}` : "（分類已刪除）";
     },
@@ -88,7 +91,7 @@ export function AutoRulesClient() {
       return;
     }
     if (!categoryId) {
-      setError("請選擇要記到哪個分類。");
+      setError("請選擇要記到哪個分類，或選「算工作」。");
       return;
     }
     const limit = maxAmount.trim() === "" ? null : Number(maxAmount);
@@ -96,8 +99,12 @@ export function AutoRulesClient() {
       setError("金額上限請填正整數，或留空代表不限金額。");
       return;
     }
+    const work = categoryId === WORK_CHOICE;
     await run(
-      async () => supabase.from("ctbc_auto_rules").insert({ pattern: text, category_id: categoryId, max_amount: limit }),
+      async () =>
+        supabase
+          .from("ctbc_auto_rules")
+          .insert({ pattern: text, action: work ? "work" : "import", category_id: work ? null : categoryId, max_amount: limit }),
       `已新增規則「${text}」。`,
     );
     setPattern("");
@@ -112,7 +119,7 @@ export function AutoRulesClient() {
         <div>
           <h1 className="text-headline-sm">刷卡自動歸類</h1>
           <p className="mt-1 text-body-sm text-on-surface-variant">
-            刷卡通知的商店名稱包含下面的文字、金額又在上限以內時，會直接記到指定分類，不再問你。
+            刷卡通知的商店名稱包含下面的文字、金額又在上限以內時，會直接記到指定分類（或標為工作、不記帳），不再問你。
             不符合的、或可能重複的，照舊留在「刷卡待確認」。
           </p>
         </div>
@@ -141,7 +148,7 @@ export function AutoRulesClient() {
                   <div className={rule.enabled ? "min-w-0 flex-1" : "min-w-0 flex-1 opacity-50"}>
                     <p className="break-words text-body-md font-medium text-on-surface">{rule.pattern}</p>
                     <p className="text-body-sm text-on-surface-variant">
-                      → {categoryLabel(rule.category_id)}・{limitLabel(rule.max_amount)}
+                      → {rule.action === "work" ? "算工作、不記帳" : categoryLabel(rule.category_id)}・{limitLabel(rule.max_amount)}
                       {rule.enabled ? "" : "・已停用"}
                     </p>
                   </div>
@@ -192,7 +199,7 @@ export function AutoRulesClient() {
             />
           </label>
           <label className="block space-y-1">
-            <span className="text-label-md text-on-surface-variant">記到分類</span>
+            <span className="text-label-md text-on-surface-variant">怎麼處理</span>
             <select
               aria-label="記到分類"
               value={categoryId}
@@ -200,6 +207,7 @@ export function AutoRulesClient() {
               className={inputClass}
             >
               <option value="">請選擇</option>
+              <option value={WORK_CHOICE}>算工作、不記入個人帳本</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.groupName}・{getShortCategoryName(category.name, category.groupName)}

@@ -6,6 +6,7 @@ import type { CtbcCandidate } from "./ctbcInbox";
 const rule = (id: string, pattern: string, max_amount: number | null = 1000, enabled = true): CtbcAutoRule => ({
   id,
   pattern,
+  action: "import",
   category_id: `cat-${id}`,
   max_amount,
   enabled,

@@ -35,9 +35,9 @@ beforeEach(() => {
   provider.tables = {
     ctbc_auto_rules: {
       data: [
-        { id: "r-taxi", pattern: "55688", category_id: "cat-transit", max_amount: 1000, enabled: true },
-        { id: "r-nf", pattern: "NETFLIX", category_id: "cat-netflix", max_amount: null, enabled: true },
-        { id: "r-gone", pattern: "Spotify", category_id: "cat-deleted", max_amount: null, enabled: true },
+        { id: "r-taxi", pattern: "55688", action: "import", category_id: "cat-transit", max_amount: 1000, enabled: true },
+        { id: "r-nf", pattern: "NETFLIX", action: "import", category_id: "cat-netflix", max_amount: null, enabled: true },
+        { id: "r-gone", pattern: "Spotify", action: "import", category_id: "cat-deleted", max_amount: null, enabled: true },
       ],
       error: null,
     },
@@ -77,6 +77,20 @@ describe("ctbcAutoImport (synthetic provider only)", () => {
     expect(acts[0]).toMatchObject({ p_id: "c-taxi", p_expected: 3, p_action: "import", p_category: "cat-transit", p_payment: "pay-1", p_link: null, p_resolve: false, p_batch: false });
     expect(acts[0].p_key).toMatch(/^[0-9a-f-]{36}$/);
     expect(acts[1]).toMatchObject({ p_id: "c-nf", p_category: "cat-netflix" });
+  });
+
+  it("marks matching charges as work without recording a transaction when the rule says so", async () => {
+    provider.tables.ctbc_auto_rules = { data: [{ id: "r-taxi", pattern: "55688", action: "work", category_id: null, max_amount: null, enabled: true }], error: null };
+    provider.rpc.mockImplementation(async (name: string) =>
+      name === "ctbc_snapshot"
+        ? { data: { candidates: [candidate("c-taxi", "５５６８８ＡＰＰ", 405)] }, error: null }
+        : { data: { code: "work_expense_excluded" }, error: null });
+
+    expect(await ctbcAutoImport(request())).toEqual({
+      imported: [{ merchant: "５５６８８ＡＰＰ", amount: 405, categoryName: "工作支出", excluded: true }],
+    });
+    const act = provider.rpc.mock.calls.find(([name]) => name === "ctbc_act")?.[1];
+    expect(act).toMatchObject({ p_id: "c-taxi", p_action: "work", p_category: null, p_payment: null });
   });
 
   it("leaves a candidate pending when the database refuses or asks for a risk recheck", async () => {
