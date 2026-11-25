@@ -7,10 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CtbcInboxShortcut } from "@/components/CtbcInboxShortcut";
 
-const testState = vi.hoisted(() => ({ pendingCount: null as number | null }));
+const testState = vi.hoisted(() => ({
+  pendingCount: null as number | null,
+  autoImported: [] as { merchant: string; amount: number; categoryName: string; excluded?: boolean }[],
+}));
 
 vi.mock("@/lib/useCtbcPendingCount", () => ({
   useCtbcPendingCount: () => testState.pendingCount,
+  useCtbcAutoImported: () => testState.autoImported,
 }));
 
 vi.mock("next/link", () => ({
@@ -19,7 +23,10 @@ vi.mock("next/link", () => ({
 }));
 
 describe("CtbcInboxShortcut", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    testState.autoImported = [];
+  });
 
   it("shows nothing when the inbox is off", () => {
     testState.pendingCount = null;
@@ -45,5 +52,21 @@ describe("CtbcInboxShortcut", () => {
 
     render(createElement(CtbcInboxShortcut, { showWhenEmpty: true }));
     expect(screen.getByText("目前沒有待確認的刷卡")).toBeInTheDocument();
+  });
+
+  it("tells you which charges were recorded automatically", () => {
+    testState.pendingCount = 0;
+    testState.autoImported = [
+      { merchant: "５５６８８ＡＰＰ", amount: 265, categoryName: "個人-交通" },
+      { merchant: "全家便利商店 板橋松翠店", amount: 80, categoryName: "個人-飲食" },
+      { merchant: "NETFLIX.COM", amount: 560, categoryName: "Netflix_訂閱" },
+      { merchant: "Spotify", amount: 298, categoryName: "Spotify 訂閱" },
+      { merchant: "５５６８８ＡＰＰ", amount: 405, categoryName: "工作支出", excluded: true },
+    ];
+    render(createElement(CtbcInboxShortcut));
+
+    const notice = screen.getByText(/已自動記帳/).closest("a");
+    expect(notice).toHaveTextContent("已自動記帳 4 筆，共 $1,203；1 筆算工作、沒記帳");
+    expect(notice).toHaveTextContent("５５６８８ＡＰＰ $265、全家便利商店 板橋松翠店 $80、NETFLIX.COM $560 …");
   });
 });
