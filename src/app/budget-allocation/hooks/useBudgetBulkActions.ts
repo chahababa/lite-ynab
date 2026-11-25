@@ -183,7 +183,7 @@ export function useBudgetBulkActions({
           createElement(
             "p",
             null,
-            `依近 ${SUGGESTION_MONTHS} 個月的實際花費調整 ${changes.length} 個小項，合計 $${before.toLocaleString("en-US")} → $${after.toLocaleString("en-US")}。其他小項不會變動。`,
+            `依近 ${SUGGESTION_MONTHS} 個月通常的花費調整 ${changes.length} 個小項，合計 $${before.toLocaleString("en-US")} → $${after.toLocaleString("en-US")}。其他小項不會變動。`,
           ),
           createElement(
             "ul",
