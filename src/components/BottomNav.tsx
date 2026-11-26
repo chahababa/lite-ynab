@@ -33,8 +33,8 @@ export function BottomNavView({
   pendingCount: number | null;
 }) {
 
-  // 只有登入頁不顯示導覽；快速記帳現在是首頁，必須有導覽列
-  if (pathname === "/login") {
+  // 登入頁與公開的隱私權政策頁不顯示導覽；快速記帳現在是首頁，必須有導覽列
+  if (pathname === "/login" || pathname === "/privacy") {
     return null;
   }
 
